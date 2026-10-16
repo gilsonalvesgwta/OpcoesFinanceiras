@@ -17,6 +17,7 @@ import { gerarHashDeSenha, novoToken } from './seguranca.ts';
 const URL_APP = process.env.DATABASE_URL;
 const URL_DONO = process.env.DATABASE_URL_DONO;
 const pular = !URL_APP || !URL_DONO;
+if (pular && process.env.EXIGIR_BANCO === '1') throw new Error('EXIGIR_BANCO=1, mas DATABASE_URL ou DATABASE_URL_DONO não foram definidas');
 
 const sufixo = randomUUID().slice(0, 8);
 const email = (nome: string) => `${nome}.${sufixo}@exemplo.test`;
