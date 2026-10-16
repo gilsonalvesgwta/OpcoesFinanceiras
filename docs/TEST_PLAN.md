@@ -1,0 +1,43 @@
+# Plano de testes
+
+## Camadas
+
+| Camada | Ferramenta | Onde roda |
+| --- | --- | --- |
+| Domínio (cálculo puro) | `node --test` | Local e CI |
+| Banco (migrações, RLS, restrições) | `psql` + scripts SQL em PostgreSQL descartável | Local e CI |
+| API (rotas, autorização, isolamento) | `node --test` + Fastify `inject` + PostgreSQL real | CI |
+| Worker (alertas, outbox, provedor) | `node --test` + PostgreSQL real + provedor simulado + Telegram falso | CI |
+| Ponta a ponta | Playwright contra a stack em Docker | CI |
+| Infraestrutura | Stack em Docker Swarm no CI: reinício, banco fora, Redis fora, cópia e restauração | CI |
+
+O ambiente de desenvolvimento das sessões não baixa pacotes do npm; instalação, compilação e testes com dependências rodam no GitHub Actions. O domínio não tem dependências e roda em qualquer lugar.
+
+## Situação
+
+| Grupo | Situação |
+| --- | --- |
+| Domínio | **59 testes passando** (16/10/2026) |
+| Demais | A construir nas fases seguintes |
+
+## O que é obrigatório testar
+
+**Acesso:** login certo e errado; espera depois de 8 erros; recuperação sem revelar se a conta existe; sessão expirada; revogação na suspensão; cada rota com a política certa; usuário B sem acesso a nada do usuário A em todas as rotas (teste gerado a partir da lista de rotas); `admin` sem ver dados financeiros; `admin` sem virar `superadmin`.
+
+**Dados de mercado:** cotação válida, atrasada, ausente, com preço inválido, book cruzado; provedor desconectado e voltando; dados fora de ordem; HTTP 429 com `Retry-After`; cota esgotada; troca de provedor sem mexer no motor.
+
+**Alertas:** cruzamento para cima e para baixo; primeira observação acima do nível não dispara; condição composta; deduplicação; rearme com histerese, por intervalo e uma vez; reinício do worker sem disparo repetido; dado atrasado não dispara e quebra o cruzamento; janela de horário; limite diário; falha do Telegram e recuperação da fila.
+
+**Posições:** compradas e vendidas; várias pernas; custos; realizado; não realizado `null` sem preço; payoff, equilíbrio, lucro e perda máximos; risco ilimitado; multiplicador; vencimentos misturados recusados no payoff.
+
+**Rolagens:** com crédito e com débito; mudança de vencimento, strike e quantidade; encerramento parcial; histórico preservado; avisos; comparador; preço ausente; preço estimado.
+
+**Infraestrutura:** reinício de cada serviço com dados preservados; banco fora (api responde 503, worker espera e volta); Redis fora (painel cai para consulta periódica, alertas continuam); provedor fora (qualidade "desconectado", alertas suspensos); Telegram fora (fila acumula e esvazia depois); cópia e restauração.
+
+## Casos de referência financeiros
+
+Calculados à mão e conferidos linha a linha nos testes do domínio (ver tabela em `OPTIONS_ENGINE.md`). Os valores de Black-Scholes conferem com os exemplos de Hull.
+
+## Modo sombra (Fase 9)
+
+Antes de ligar as notificações de verdade, o worker roda uma semana em modo sombra: avalia as regras e grava os disparos sem enviar, e o resultado é comparado com o que o usuário esperava.
