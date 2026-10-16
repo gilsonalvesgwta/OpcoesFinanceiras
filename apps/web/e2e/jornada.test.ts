@@ -29,6 +29,12 @@ async function entrar(page: Page, email: string, senha: string) {
   await page.getByRole('button', { name: 'Entrar' }).click();
 }
 
+// Entra e espera o painel abrir (a sessão já está gravada quando ele aparece).
+async function entrarNoPainel(page: Page, email: string, senha: string) {
+  await entrar(page, email, senha);
+  await expect(page.getByRole('heading', { name: 'Painel', level: 1 })).toBeVisible();
+}
+
 test.describe.serial('jornada', () => {
   let linkDoConvite = '';
 
@@ -63,7 +69,7 @@ test.describe.serial('jornada', () => {
   });
 
   test('ativos: adicionar, recusar código inválido e ver no painel', async ({ page }) => {
-    await entrar(page, EMAIL, SENHA);
+    await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Ativos' }).first().click();
     await expect(page.getByRole('heading', { name: 'Ativos', level: 1 })).toBeVisible();
     for (const codigo of ['petr4', 'VALE3', 'BOVA11']) {
@@ -87,7 +93,7 @@ test.describe.serial('jornada', () => {
   });
 
   test('superadmin convida uma pessoa e recebe o link', async ({ page }) => {
-    await entrar(page, EMAIL, SENHA);
+    await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Usuários' }).click();
     await page.getByLabel('E-mail').fill('ana@exemplo.test');
     await page.getByRole('button', { name: 'Criar convite' }).click();
@@ -123,7 +129,7 @@ test.describe.serial('jornada', () => {
   });
 
   test('tema claro fica salvo para a conta', async ({ page }) => {
-    await entrar(page, EMAIL, SENHA);
+    await entrarNoPainel(page, EMAIL, SENHA);
     await page.goto('/preferencias');
     await page.getByLabel(/Claro/).check();
     await expect(page.getByRole('status').filter({ hasText: 'Tema salvo.' })).toBeVisible();
@@ -137,7 +143,7 @@ test.describe.serial('jornada', () => {
   });
 
   test('superadmin suspende a pessoa; ela não entra mais', async ({ page, browser }) => {
-    await entrar(page, EMAIL, SENHA);
+    await entrarNoPainel(page, EMAIL, SENHA);
     await page.goto('/usuarios');
     await page.getByRole('row', { name: /Ana Teste/ }).getByRole('button', { name: 'Suspender' }).click();
     await expect(page.getByRole('row', { name: /Ana Teste.*Suspenso/ })).toBeVisible();
@@ -149,7 +155,7 @@ test.describe.serial('jornada', () => {
   });
 
   test('telas das próximas fases explicam o que vem, e sair encerra a sessão', async ({ page }) => {
-    await entrar(page, EMAIL, SENHA);
+    await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Cadeia de opções' }).click();
     await expect(page.getByText('Chega na Fase 5')).toBeVisible();
     await foto(page, 'em-breve');
