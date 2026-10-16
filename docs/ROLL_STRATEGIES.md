@@ -61,4 +61,4 @@ Critérios configuráveis pelo usuário: dias até o vencimento, strike pretendi
 
 Para cada candidato, a sugestão lista os critérios **atendidos**, **não atendidos** e **sem dado** (ex.: delta ausente porque o plano não traz gregas). Nenhuma sugestão vira ordem, e nenhuma é enviada pelo Telegram sem o consentimento explícito do usuário.
 
-Com a brapi, os candidatos usam preços do fechamento anterior, e a sugestão diz isso.
+Com as fontes gratuitas, os candidatos usam preços do fechamento do último pregão (arquivo oficial da B3), e a sugestão diz isso.

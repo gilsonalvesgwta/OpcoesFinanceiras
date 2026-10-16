@@ -7,11 +7,11 @@ Plataforma de análise, monitoramento e gestão de operações com opções da B
 | Parte | Situação |
 | --- | --- |
 | Documentação da Fase 1 (`docs/`) | Feita |
-| Motor de cálculo (`packages/domain`) | Feito, 59 testes de referência passando |
+| Motor de cálculo (`packages/domain`) | Feito, 65 testes de referência passando |
 | Banco, acesso e API | Próxima etapa |
 | Interface, dados de mercado, alertas, Telegram, posições, rolagens, produção | Nas fases seguintes (ver `docs/IMPLEMENTATION_PLAN.md`) |
 
-**Limitação de dados:** com a brapi, ações têm atraso de 5 a 30 minutos conforme o plano e opções só trazem o fechamento do pregão anterior. Detalhes e alternativas em `docs/DATA_SOURCES.md`.
+**Dados só de fontes gratuitas:** ações com cerca de 30 minutos de atraso (brapi gratuita) e opções com o fechamento do último pregão (arquivo oficial COTAHIST da B3). Detalhes em `docs/DATA_SOURCES.md`.
 
 ## Rodar os testes do motor
 
