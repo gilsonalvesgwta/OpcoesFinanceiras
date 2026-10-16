@@ -49,6 +49,21 @@ export async function rotasPessoais(app: FastifyInstance, dep: Dependencias): Pr
     });
   });
 
+  // O próprio nome (o banco só deixa a pessoa mudar o próprio nome, não papel nem situação).
+  app.patch('/api/eu', {
+    config: { politica: 'autenticado' },
+    schema: { body: { type: 'object', additionalProperties: false, required: ['nome'], properties: { nome: { type: 'string', minLength: 1, maxLength: 120 } } } },
+  }, async (req) => {
+    const s = req.sessao as Sessao;
+    const nome = (req.body as { nome: string }).nome.trim();
+    if (!nome) throw new ErroHttp(400, 'nome_obrigatorio');
+    return emTransacao(pool, s.usuarioId, async (c) => {
+      await c.query('update users set nome = $1 where id = $2', [nome, s.usuarioId]);
+      await auditar(c, s, 'usuario.nome_alterado', { tipo: 'usuario', id: s.usuarioId, depois: { nome } }, ipDe(req));
+      return { nome };
+    });
+  });
+
   app.get('/api/preferencias', { config: { politica: 'autenticado' } }, async (req) => {
     const s = req.sessao as Sessao;
     return emTransacao(pool, s.usuarioId, async (c) => {

@@ -155,6 +155,10 @@ describe('api de acesso', { skip: pular ? 'sem DATABASE_URL e DATABASE_URL_DONO'
     assert.deepEqual((await chefe.pedir('GET', '/api/favoritos')).corpo.favoritos, [], 'nem o superadmin');
     assert.equal((await a1.pedir('GET', '/api/favoritos')).corpo.favoritos.length, 2, 'os de A1 continuam lá');
     await a1.pedir('PUT', '/api/preferencias', { tema: 'claro' });
+    assert.equal((await a1.pedir('PATCH', '/api/eu', { nome: '  A Um  ' })).corpo.nome, 'A Um');
+    assert.equal((await a1.pedir('GET', '/api/auth/sessao')).corpo.usuario.nome, 'A Um');
+    assert.equal((await a1.pedir('PATCH', '/api/eu', { nome: '   ' })).corpo.erro, 'nome_obrigatorio');
+    assert.equal((await a1.pedir('PATCH', '/api/eu', { nome: 'X', papel: 'admin' })).corpo.erro, 'entrada_invalida', 'não dá para mudar o papel por aqui');
     assert.equal((await a2.pedir('GET', '/api/preferencias')).corpo.tema, 'escuro');
     assert.equal((await a1.pedir('GET', '/api/usuarios')).status, 403);
     assert.equal((await a1.pedir('GET', '/api/auditoria')).status, 403);

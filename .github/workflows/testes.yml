@@ -91,3 +91,74 @@ jobs:
           echo "::notice title=API::$(grep -E '^# (tests|pass|fail|skipped)' api.txt | tr '\n' ' ')"
           grep -qE '^# skipped 0$' api.txt
           grep -qE '^# fail 0$' api.txt
+
+  interface:
+    name: Interface (Next.js + navegador)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write # só para publicar as fotos das telas no ramo ci-fotos
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: dono-de-teste
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: dono-de-teste
+      SUPERADMIN_EMAIL: chefe@exemplo.test
+      SUPERADMIN_SENHA_INICIAL: senha inicial do teste
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Banco
+        run: |
+          psql -d postgres -c "create database wtaopt_web"
+          PGDATABASE=wtaopt_web SENHA_APP=app-de-teste db/aplicar.sh
+      - name: Instalar
+        run: npm install --no-audit --no-fund
+      - name: Testes dos utilitários da interface
+        run: (cd apps/web && node --test --test-reporter=tap "src/lib/*.test.ts") | tee web.txt && grep -qE '^# fail 0$' web.txt
+      - name: Compilar a interface
+        env:
+          API_INTERNA: http://127.0.0.1:3001
+        run: npm run build --workspace @wta/web
+      - name: Subir api e interface
+        env:
+          DATABASE_URL: postgres://wtaopt_app:app-de-teste@localhost:5432/wtaopt_web
+          URL_PUBLICA: http://127.0.0.1:3000
+          PORTA: '3001'
+        run: |
+          (cd apps/api && nohup node src/servidor.ts > ../../api.log 2>&1 &)
+          (cd apps/web && nohup npx next start -p 3000 -H 127.0.0.1 > ../../web.log 2>&1 &)
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:3000/api/saude >/dev/null 2>&1 && break; sleep 2; done
+          curl -fsS http://127.0.0.1:3000/api/saude
+      - name: Navegador
+        run: cd apps/web && npx playwright install --with-deps chromium
+      - name: Jornada no navegador
+        run: |
+          (cd apps/web && npx playwright test) | tee e2e.txt
+          echo "::notice title=Interface::$(grep -E '^\s+[0-9]+ (passed|failed|skipped|flaky)' e2e.txt | tr '\n' ' ')"
+      - name: Registros em caso de falha
+        if: failure()
+        run: |
+          echo "::notice title=api.log::$(tail -c 1500 api.log | tr '\n' ' ')"
+          echo "::notice title=web.log::$(tail -c 1500 web.log | tr '\n' ' ')"
+          echo "::notice title=e2e::$(grep -E 'Error|expect|✘|›' e2e.txt | head -40 | tr '\n' ' ' | cut -c1-3500)"
+      - name: Publicar as fotos das telas (ramo ci-fotos)
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          [ -d fotos ] || exit 0
+          cd fotos
+          git init -q -b ci-fotos
+          git config user.name "CI" && git config user.email "ci@users.noreply.github.com"
+          echo "Execução ${{ github.run_id }} do commit ${{ github.event.pull_request.head.sha }}" > LEIA.txt
+          git add -A && git commit -qm "Fotos da execução ${{ github.run_id }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci-fotos

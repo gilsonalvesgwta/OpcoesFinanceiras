@@ -9,7 +9,8 @@ Plataforma de análise, monitoramento e gestão de operações com opções da B
 | Documentação da Fase 1 (`docs/`) | Feita |
 | Motor de cálculo (`packages/domain`) | Feito, 65 testes de referência passando |
 | Banco, acesso e API (Fase 1b) | Feito: 72 verificações do banco e 15 testes da API contra PostgreSQL real |
-| Interface, dados de mercado, alertas, Telegram, posições, rolagens, produção | Nas fases seguintes (ver `docs/IMPLEMENTATION_PLAN.md`) |
+| Interface (Fase 2) | Feita: entrar, convite, senha, painel com a régua do pregão, ativos, preferências, usuários; 9 testes no navegador com checagem de acessibilidade |
+| Dados de mercado, alertas, Telegram, posições, rolagens, produção | Nas fases seguintes (ver `docs/IMPLEMENTATION_PLAN.md`) |
 
 **Dados só de fontes gratuitas:** ações com cerca de 30 minutos de atraso (brapi gratuita) e opções com o fechamento do último pregão (arquivo oficial COTAHIST da B3). Detalhes em `docs/DATA_SOURCES.md`.
 
