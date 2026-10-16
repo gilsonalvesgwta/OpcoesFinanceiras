@@ -102,13 +102,19 @@ export async function rotasDeAdministracao(app: FastifyInstance, dep: Dependenci
       }
     });
     const link = `${config.urlPublica}/convite#${token}`;
-    await correio.enviar({
-      para: email,
-      assunto: 'Convite — WTA Options Intelligence',
-      texto: `Você foi convidado para o WTA Options Intelligence.\n\nPara criar seu acesso, abra o link abaixo (vale por 7 dias):\n\n${link}`,
-    });
-    // O link volta para quem convidou, que pode enviá-lo por outro meio se o e-mail não estiver configurado.
-    return reply.status(201).send({ id: convite.id, expiraEm: convite.expiraEm, link, emailEnviado: correio.configurado });
+    let emailEnviado = false;
+    try {
+      await correio.enviar({
+        para: email,
+        assunto: 'Convite — WTA Options Intelligence',
+        texto: `Você foi convidado para o WTA Options Intelligence.\n\nPara criar seu acesso, abra o link abaixo (vale por 7 dias):\n\n${link}`,
+      });
+      emailEnviado = correio.configurado;
+    } catch (e) {
+      req.log.error({ err: e }, 'falha ao enviar e-mail de convite');
+    }
+    // O link volta para quem convidou, que pode enviá-lo por outro meio se o e-mail não sair.
+    return reply.status(201).send({ id: convite.id, expiraEm: convite.expiraEm, link, emailEnviado });
   });
 
   app.delete('/api/convites/:id', {

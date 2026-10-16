@@ -139,11 +139,12 @@ export async function rotasDeAcesso(app: FastifyInstance, dep: Dependencias): Pr
         c.query('select app.criar_recuperacao($1, $2, $3::interval) as id', [email, hashDoToken(token), config.recuperacao.validade]),
       )).rows[0]?.id;
       if (usuario) {
+        // Falha no envio não pode mudar a resposta (revelaria que a conta existe).
         await correio.enviar({
           para: email,
           assunto: 'Redefinir sua senha — WTA Options Intelligence',
           texto: `Para criar uma senha nova, abra o link abaixo (vale por 30 minutos e uma única vez):\n\n${config.urlPublica}/redefinir-senha#${token}\n\nSe não foi você, ignore este e-mail.`,
-        });
+        }).catch((e: unknown) => req.log.error({ err: e }, 'falha ao enviar e-mail de recuperação'));
       }
     }
     return reply.status(202).send({ ok: true });
