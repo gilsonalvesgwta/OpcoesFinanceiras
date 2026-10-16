@@ -42,7 +42,7 @@ test.describe.serial('jornada', () => {
 
   test('senha errada mostra a mensagem certa', async ({ page }) => {
     await entrar(page, EMAIL, 'senha errada qualquer');
-    await expect(page.getByRole('alert')).toContainText('E-mail ou senha incorretos');
+    await expect(page.locator('.alerta')).toContainText('E-mail ou senha incorretos');
   });
 
   test('primeiro acesso: senha inicial obriga a troca e leva ao painel', async ({ page }) => {
@@ -53,7 +53,7 @@ test.describe.serial('jornada', () => {
     await page.getByLabel('Senha nova').fill('curta');
     await page.getByLabel('Repita a senha').fill('curta');
     await page.getByRole('button', { name: 'Salvar e continuar' }).click();
-    await expect(page.getByRole('alert')).toContainText('pelo menos 12 caracteres');
+    await expect(page.locator('.alerta')).toContainText('pelo menos 12 caracteres');
     await page.getByLabel('Senha nova').fill(SENHA);
     await page.getByLabel('Repita a senha').fill(SENHA);
     await page.getByRole('button', { name: 'Salvar e continuar' }).click();
@@ -73,7 +73,7 @@ test.describe.serial('jornada', () => {
     }
     await page.getByLabel('Código de negociação').fill('PE;R4');
     await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
-    await expect(page.getByRole('alert')).toContainText('código de negociação');
+    await expect(page.locator('.alerta')).toContainText('código de negociação');
     await page.getByRole('button', { name: 'Remover VALE3' }).click();
     await page.getByRole('button', { name: 'Confirmar remoção' }).click();
     await expect(page.getByRole('row', { name: /VALE3/ })).toHaveCount(0);
@@ -144,7 +144,7 @@ test.describe.serial('jornada', () => {
     const ctx = await browser.newContext();
     const outra = await ctx.newPage();
     await entrar(outra, 'ana@exemplo.test', 'senha da ana teste 1');
-    await expect(outra.getByRole('alert')).toContainText('E-mail ou senha incorretos');
+    await expect(outra.locator('.alerta')).toContainText('E-mail ou senha incorretos');
     await ctx.close();
   });
 
