@@ -1,0 +1,21 @@
+{
+  "name": "wta-options-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Análise, monitoramento e gestão de operações com opções da B3.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "typescript": "^6.0.0"
+  }
+}
