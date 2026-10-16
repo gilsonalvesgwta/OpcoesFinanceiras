@@ -18,6 +18,8 @@ O ambiente de desenvolvimento das sessões não baixa pacotes do npm; instalaç�
 | Grupo | Situação |
 | --- | --- |
 | Domínio | **65 testes passando** (16/10/2026) |
+| Banco (RLS e funções de acesso) | **72 verificações** |
+| API de acesso | **15 testes** contra PostgreSQL 17, com varredura de todas as rotas |
 | Demais | A construir nas fases seguintes |
 
 ## O que é obrigatório testar
