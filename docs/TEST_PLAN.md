@@ -20,6 +20,7 @@ O ambiente de desenvolvimento das sessões não baixa pacotes do npm; instalaç�
 | Domínio | **65 testes passando** (16/10/2026) |
 | Banco (RLS e funções de acesso) | **72 verificações** |
 | API de acesso | **15 testes** contra PostgreSQL 17, com varredura de todas as rotas |
+| Interface | **4 testes** dos utilitários e **9 testes no navegador** (Playwright) contra api + PostgreSQL, com axe (WCAG 2.1 AA) em cada tela; fotos das telas no ramo `ci-fotos` |
 | Demais | A construir nas fases seguintes |
 
 ## O que é obrigatório testar

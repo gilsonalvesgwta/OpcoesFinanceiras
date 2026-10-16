@@ -24,7 +24,7 @@ Serviços com prefixo `wtaopt_`:
 | Serviço | Imagem | Rede | Observação |
 | --- | --- | --- | --- |
 | `web` | `ghcr.io/gilsonalvesgwta/<repo>-web` | Traefik + interna | Rótulos do Traefik em `deploy.labels` |
-| `api` | `ghcr.io/gilsonalvesgwta/<repo>-api` | Traefik + interna | Rota `/api` |
+| `api` | `ghcr.io/gilsonalvesgwta/<repo>-api` | interna | A `web` repassa `/api` para ela (`API_INTERNA=http://api:3001`) |
 | `worker` | `ghcr.io/gilsonalvesgwta/<repo>-api` (comando `worker`) | interna | Sem porta |
 | `db` | `postgres:17` | interna | Volume persistente, sem porta publicada |
 | `redis` | `redis:7` | interna | `maxmemory` e sem persistência obrigatória |

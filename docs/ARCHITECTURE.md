@@ -23,8 +23,8 @@ WTA Options Intelligence: plataforma de análise, monitoramento e gestão de ope
 
 | Serviço | Papel | Exposto à internet |
 | --- | --- | --- |
-| `web` | Interface (Next.js + React + TypeScript + Tailwind). Fala só com a `api`. | Sim, pelo Traefik |
-| `api` | REST documentado (OpenAPI), autenticação, autorização, regras de negócio, SSE para o painel. | Sim, pelo Traefik, em `/api` |
+| `web` | Interface (Next.js 16 + React 19 + TypeScript, CSS próprio com as cores da prévia). Repassa `/api/*` ao serviço da `api` pela rede interna. | Sim, pelo Traefik (único serviço exposto) |
+| `api` | REST, autenticação, autorização, regras de negócio, SSE para o painel. | Não: só pela `web` |
 | `worker` | Processo contínuo: coleta de cotações, avaliação das regras de alerta, sugestões, despacho do outbox (Telegram), leitura dos comandos do bot, limpeza e retenção. | Não |
 | `db` | PostgreSQL. Tudo que importa mora aqui. | Não |
 | `redis` | Cache de cotações, pub/sub para o painel ao vivo, contadores de limite de requisição. Se cair, o sistema continua (sem painel ao vivo e com cache frio). | Não |
