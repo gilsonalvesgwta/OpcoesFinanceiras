@@ -35,14 +35,14 @@ Todos com `healthcheck`, `restart_policy`, limites de CPU e memória e logs rota
 
 ## Variáveis
 
-Ver `.env.example`. Obrigatórias: `DOMINIO`, `REDE_TRAEFIK`, `SENHA_DO_BANCO`, `SEGREDO_DA_SESSAO`, `SUPERADMIN_EMAIL`, `SUPERADMIN_SENHA_INICIAL`. Opcionais: `BRAPI_API_KEY`, `BRAPI_PLANO` (`gratuito`, `startup`, `pro`), `TELEGRAM_BOT_TOKEN`, `SMTP_*`, `HORA_DA_COPIA`, `MANTER_DIAS`.
+Ver `.env.example`. Obrigatórias: `DOMINIO` (`opcoes.wtatech.com.br`), `URL_PUBLICA`, `REDE_TRAEFIK`, `SENHA_DO_BANCO`, `SEGREDO_DA_SESSAO`, `SUPERADMIN_EMAIL`, `SUPERADMIN_SENHA_INICIAL`. Opcionais: `BRAPI_API_KEY`, `BRAPI_PLANO` (`gratuito`, `startup`, `pro`), `TELEGRAM_BOT_TOKEN`, `SMTP_*`, `HORA_DA_COPIA`, `MANTER_DIAS`.
 
 ## Passo a passo
 
-1. DNS: apontar o domínio escolhido para o IP da VPS.
+1. DNS: apontar `opcoes.wtatech.com.br` (domínio escolhido em 16/10/2026) para o IP da VPS.
 2. Portainer → Stacks → Add stack → nome `wtaopt` → colar `infra/portainer-stack.yml` → preencher as variáveis → Deploy.
 3. Conferir: `migracoes` em 0/1 (terminou), demais em 1/1.
-4. Abrir `https://<domínio>`, entrar com `SUPERADMIN_EMAIL` e a senha inicial, trocar a senha.
+4. Abrir `https://opcoes.wtatech.com.br`, entrar com `SUPERADMIN_EMAIL` e a senha inicial, trocar a senha.
 5. Página de diagnóstico: provedor, banco, Redis, fila do outbox.
 
 Atualizar: colar a stack nova e "Update the stack" com "Re-pull image".

@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# "shell: bash" explícito liga o pipefail: um teste que falha não some atrás do tee.
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: testes-${{ github.ref }}
   cancel-in-progress: true
@@ -28,13 +33,61 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Instalar
         run: npm install --no-audit --no-fund
-      - name: Checar tipos
+      - name: Checar tipos (todos os pacotes)
         run: npm run typecheck
-      - name: Testar
-        run: npm test
+      - name: Testar o domínio
+        run: |
+          (cd packages/domain && node --test --test-reporter=tap "src/**/*.test.ts") | tee dominio.txt
+          echo "::notice title=Domínio::$(grep -E '^# (tests|pass|fail)' dominio.txt | tr '\n' ' ')"
+          grep -qE '^# fail 0$' dominio.txt
       - name: Guardar o package-lock.json gerado
         if: matrix.node == '22'
         uses: actions/upload-artifact@v4
         with:
           name: package-lock
           path: package-lock.json
+
+  banco-e-api:
+    name: Banco e API (PostgreSQL 17)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: dono-de-teste
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: dono-de-teste
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Testes do banco (regras por linha)
+        run: |
+          db/tests/rodar.sh | tee banco.txt
+          echo "::notice title=Banco::$(grep -h 'verificações' banco.txt | tr '\n' ' ')"
+          grep -q 'ACESSO: todos os testes passaram' banco.txt
+      - name: Preparar o banco da API
+        run: |
+          psql -d postgres -c "drop database if exists wtaopt_api" -c "create database wtaopt_api"
+          PGDATABASE=wtaopt_api SENHA_APP=app-de-teste db/aplicar.sh
+          PGDATABASE=wtaopt_api db/aplicar.sh   # segunda vez: não reaplica nada
+      - name: Instalar
+        run: npm install --no-audit --no-fund
+      - name: Testes da API
+        env:
+          DATABASE_URL: postgres://wtaopt_app:app-de-teste@localhost:5432/wtaopt_api
+          DATABASE_URL_DONO: postgres://postgres:dono-de-teste@localhost:5432/wtaopt_api
+          EXIGIR_BANCO: '1'
+        run: |
+          (cd apps/api && node --test --test-concurrency=1 --test-reporter=tap "src/**/*.test.ts") | tee api.txt
+          echo "::notice title=API::$(grep -E '^# (tests|pass|fail|skipped)' api.txt | tr '\n' ' ')"
+          grep -qE '^# skipped 0$' api.txt
+          grep -qE '^# fail 0$' api.txt
