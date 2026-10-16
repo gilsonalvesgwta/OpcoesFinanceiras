@@ -131,6 +131,12 @@ test.describe.serial('jornada', () => {
   test('tema claro fica salvo para a conta', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
     await page.goto('/preferencias');
+    await page.getByLabel('Seu nome').fill('Gilson Alves');
+    await page.getByRole('button', { name: 'Salvar nome' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Nome salvo.' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Navegação principal' })).toContainText('Gilson Alves');
+    await semViolacoes(page, 'preferências');
+    await foto(page, 'preferencias');
     await page.getByLabel(/Claro/).check();
     await expect(page.getByRole('status').filter({ hasText: 'Tema salvo.' })).toBeVisible();
     await page.goto('/');

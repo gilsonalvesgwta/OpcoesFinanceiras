@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Cabecalho } from '../../../componentes/Casca.tsx';
 import { MensagemDeErro } from '../../../componentes/Acesso.tsx';
 import { aplicarTema, useSessao } from '../../../componentes/Sessao.tsx';
@@ -16,7 +16,28 @@ const OPCOES: { valor: Tema; nome: string; texto: string }[] = [
 ];
 
 export default function PaginaPreferencias() {
-  const { sessao } = useSessao();
+  const { sessao, recarregar } = useSessao();
+  const [salvandoNome, setSalvandoNome] = useState(false);
+  const [avisoNome, setAvisoNome] = useState<string | null>(null);
+  const [erroNome, setErroNome] = useState<string | null>(null);
+
+  async function salvarNome(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const nome = String(new FormData(e.currentTarget).get('nome') ?? '').trim();
+    setErroNome(null);
+    setAvisoNome(null);
+    if (!nome) return setErroNome('Escreva seu nome.');
+    setSalvandoNome(true);
+    try {
+      await chamar('PATCH', '/api/eu', { nome });
+      await recarregar();
+      setAvisoNome('Nome salvo.');
+    } catch (x) {
+      setErroNome(x instanceof ErroDaApi ? x.message : 'Não foi possível salvar agora.');
+    } finally {
+      setSalvandoNome(false);
+    }
+  }
   const [tema, setTema] = useState<Tema | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -49,10 +70,18 @@ export default function PaginaPreferencias() {
       <section className="secao" aria-labelledby="conta-titulo">
         <h2 id="conta-titulo">Sua conta</h2>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontWeight: 600 }}>{sessao.usuario.nome || 'Sem nome'}</span>
-          <span style={{ color: 'var(--apoio)' }}>{sessao.usuario.email}</span>
+          <span>{sessao.usuario.email}</span>
           <span style={{ color: 'var(--apoio)', fontSize: 14 }}>{PAPEIS[sessao.usuario.papel]}</span>
         </div>
+        <form onSubmit={salvarNome} noValidate style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end' }}>
+          <div className="campo" style={{ flex: '1 1 260px', maxWidth: 420 }}>
+            <label htmlFor="nome">Seu nome</label>
+            <input id="nome" name="nome" type="text" autoComplete="name" maxLength={120} defaultValue={sessao.usuario.nome} />
+          </div>
+          <button type="submit" className="botao botao-grande" disabled={salvandoNome}>{salvandoNome ? 'Salvando…' : 'Salvar nome'}</button>
+        </form>
+        <MensagemDeErro texto={erroNome} />
+        <div role="status" aria-live="polite" className="selo selo-alta">{avisoNome}</div>
         <div><Link href="/trocar-senha" className="botao">Trocar senha</Link></div>
       </section>
 
