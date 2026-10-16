@@ -10,3 +10,4 @@ export * from './alertas.ts';
 export * from './calendario.ts';
 export * from './provedor.ts';
 export * from './provedor-simulado.ts';
+export * from './cotahist.ts';

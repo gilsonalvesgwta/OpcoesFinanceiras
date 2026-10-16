@@ -76,3 +76,4 @@ Feriados e sessões especiais vêm de configuração (tabela editável pelo supe
 | `modelo.test.ts` | Valores de Hull (preço, delta, gamma, vega, theta, rho), paridade put-call, volatilidade implícita |
 | `alertas.test.ts` | Cruzamentos, histerese, qualidade, fora de ordem, reinício, condições compostas, limites, janela |
 | `diversos.test.ts` | Qualidade, preço de encerramento, sanidade, código de opção, calendário, dinheiro |
+| `cotahist.test.ts` | Leitura do arquivo oficial da B3: ações, opções, oferta zerada, fator de cotação, ligação opção → ativo-objeto |

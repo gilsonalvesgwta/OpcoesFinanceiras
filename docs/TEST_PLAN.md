@@ -17,7 +17,7 @@ O ambiente de desenvolvimento das sessões não baixa pacotes do npm; instalaç�
 
 | Grupo | Situação |
 | --- | --- |
-| Domínio | **59 testes passando** (16/10/2026) |
+| Domínio | **65 testes passando** (16/10/2026) |
 | Demais | A construir nas fases seguintes |
 
 ## O que é obrigatório testar

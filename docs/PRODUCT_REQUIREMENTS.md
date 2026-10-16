@@ -34,7 +34,7 @@ Plataforma de inteligência operacional para quem opera opções na B3: monitora
 
 ## Limitação de dados assumida (16/10/2026)
 
-Com a brapi: ações com atraso de 5 a 30 minutos conforme o plano; opções só com o fechamento do pregão anterior. Alertas sobre opções e sugestões de rolagem trabalham com esse fechamento e dizem isso. Tempo real exige contrato com distribuidora autorizada (ver `DATA_SOURCES.md`).
+Decisão do responsável: começar só com fontes gratuitas. Ações com cerca de 30 minutos de atraso (brapi gratuita); opções, cadeia, rolagens e sugestões com o fechamento do último pregão (arquivo oficial da B3); gregas e volatilidade implícita calculadas pelo sistema, com premissas; contratos em aberto indisponíveis. Tudo isso aparece na interface. Fontes pagas podem entrar depois como adaptador novo (ver `DATA_SOURCES.md`).
 
 ## Fora do escopo desta versão
 

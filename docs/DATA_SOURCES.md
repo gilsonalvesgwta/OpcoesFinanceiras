@@ -2,18 +2,44 @@
 
 Avaliação feita em 16/10/2026 na documentação pública de cada fornecedor. Refazer a conferência antes de mudar de plano: limites e preços mudam.
 
-## Conclusão
+## Decisão (16/10/2026): começar só com fontes gratuitas
 
-**Não há, hoje, fonte gratuita ou barata com cotação de opções da B3 durante o pregão que possa ser usada num sistema multiusuário.**
+O responsável decidiu não usar serviço pago no início, aceitando o atraso. A estrutura gratuita fica assim:
 
-- **brapi** (escolhida para começar): ações com atualização a cada 5 minutos no plano Pro (15 no Startup, 30 no gratuito); **opções só de fim de dia**, com os dados do pregão entrando por volta das 21h. Uso comercial permitido.
-- **OpLab PRO**: cotações de ações e opções em tempo real, com API. A API é de **uso exclusivamente pessoal e não comercial**; como o sistema é multiusuário, fica fora. Pode valer só se o sistema tiver um único usuário, conferindo os termos.
-- **Cedro (Market Data Cloud)**: distribuidora autorizada pela B3, cotações e livro de ofertas de ações e opções em tempo real por REST, WebSocket ou socket. Preço sob proposta. É o caminho licenciado quando o tempo real for necessário.
+| Dado | Fonte gratuita | Frequência real | Qualidade mostrada |
+| --- | --- | --- | --- |
+| Cotação de **ações** durante o pregão | brapi, plano gratuito (chave gratuita, sem cartão) | Dado com cerca de **30 minutos** de atraso; o plano gratuito da brapi não tem 15 minutos (15 é o Startup, pago) | "Atualização periódica" ou "atrasado" |
+| **Cadeia de opções** (todas as séries, strike, vencimento, último, máxima, mínima, melhor oferta de compra e de venda no fechamento, negócios, volume) | Arquivo oficial **COTAHIST** diário da B3, público e gratuito | Uma vez por dia, depois do pregão | "Histórico" (fechamento) |
+| Histórico diário de ações (para médias, RSI, ATR, rompimentos) | O mesmo COTAHIST (diário e anual) | Diário | "Histórico" |
+| Juros para o modelo de preço | Selic do Banco Central (API pública SGS) | Diária | Premissa declarada do cálculo |
+| Volatilidade implícita e gregas | **Calculadas pelo sistema** (Black-Scholes) a partir do fechamento | Diária | "Calculado", com premissas |
+| Estilo de exercício | Cadastro de instrumentos da B3 (arquivo público), a confirmar na Fase 3; até lá, "não informado" | Diária | — |
+| Contratos em aberto | Não há fonte gratuita confirmada; o campo fica "indisponível" | — | "Indisponível" |
 
-Consequência no produto, dita na interface:
-- alertas de preço de **ações** funcionam com atraso de 5 a 30 minutos, marcados "atualização periódica";
-- análise de **opções**, cadeia, rolagens e sugestões usam o **fechamento do pregão anterior**, marcados "histórico";
-- nenhuma tela chama de "tempo real" o que vem da brapi.
+Consequências no produto, ditas na interface:
+- alertas de preço de **ações** funcionam com cerca de 30 minutos de atraso;
+- alertas sobre **opções**, cadeia, rolagens e sugestões usam o **fechamento do último pregão**;
+- nenhuma tela chama de "tempo real" o que vem dessas fontes.
+
+A camada de provedores é trocável: brapi Pro, OpLab ou Cedro entram depois só como adaptador novo, sem mexer no motor.
+
+### Orçamento do plano gratuito da brapi
+
+15 mil requisições por mês, 1 ativo por requisição, 1 requisição simultânea. Consultando a cada 30 minutos durante cerca de 7 horas de pregão e 21 pregões no mês: 14 × 21 = 294 requisições por ativo por mês. Cabem cerca de **45 ações acompanhadas**, com folga para buscas. O `worker` não consulta mais rápido que o atraso do plano (não traria dado novo) e mostra a cota restante no diagnóstico.
+
+### Arquivo COTAHIST
+
+- Layout oficial: "SeriesHistoricas_Layout.pdf" da B3. Leitor pronto em `packages/domain/src/cotahist.ts`, com testes.
+- Opções: tipo de mercado 070 (call) e 080 (put). Preços com duas casas implícitas (já em centavos).
+- Melhor oferta zerada significa "sem oferta" e vira `null`.
+- O arquivo não diz o ativo-objeto da opção: o sistema liga pela raiz de 4 letras e pela classe (ON, PN, UNT) entre as ações do mesmo arquivo; havendo dúvida, fica sem ativo-objeto em vez de adivinhar.
+- Endereço do arquivo diário e horário de publicação: conferidos no primeiro teste real na VPS (o ambiente de desenvolvimento não acessa o site da B3).
+
+## Fontes pagas avaliadas (para depois)
+
+- **brapi Pro**: ações a cada 5 minutos, opções de fim de dia com gregas e contratos em aberto. R$ 1.399,90 por ano.
+- **OpLab PRO**: ações e opções em tempo real, API só para uso pessoal e não comercial. Cerca de R$ 1.850 por ano.
+- **Cedro (Market Data Cloud)**: distribuidora autorizada pela B3, tempo real, preço sob proposta.
 
 ## Matriz comparativa
 
@@ -70,7 +96,10 @@ Interface `MarketDataProvider` em `packages/domain/src/provedor.ts`. Cada adapta
 | Adaptador | Situação |
 | --- | --- |
 | `ProvedorSimulado` | Pronto. Determinístico, só para testes; recusado em produção. |
-| `brapi` | Próxima etapa (Fase 3). Endpoints: `/api/v2/stocks/quote`, `/api/v2/options/expirations`, `/api/v2/options/chain`, `/api/v2/options/analytics`, `/api/v2/options/positions`. |
+| `b3-cotahist` | Leitor do arquivo pronto (`cotahist.ts`); download diário na Fase 3. Opções e histórico diário. |
+| `brapi` (gratuito) | Fase 3. Endpoint `/api/v2/stocks/quote`, 1 ativo por chamada. Ações durante o pregão. |
+| `bcb-selic` | Fase 3. Taxa Selic para o modelo de preço. |
+| `brapi` Pro, `oplab`, `cedro` | Só se o responsável decidir pagar. |
 | `cedro` | Quando houver contrato. |
 
 ## Proibido
