@@ -37,7 +37,7 @@ jobs:
         run: npm run typecheck
       - name: Testar o domínio
         run: |
-          npm test --workspace @wta/domain -- --test-reporter=tap | tee dominio.txt
+          (cd packages/domain && node --test --test-reporter=tap "src/**/*.test.ts") | tee dominio.txt
           echo "::notice title=Domínio::$(grep -E '^# (tests|pass|fail)' dominio.txt | tr '\n' ' ')"
           grep -qE '^# fail 0$' dominio.txt
       - name: Guardar o package-lock.json gerado
@@ -87,7 +87,7 @@ jobs:
           DATABASE_URL_DONO: postgres://postgres:dono-de-teste@localhost:5432/wtaopt_api
           EXIGIR_BANCO: '1'
         run: |
-          npm test --workspace @wta/api -- --test-reporter=tap | tee api.txt
+          (cd apps/api && node --test --test-concurrency=1 --test-reporter=tap "src/**/*.test.ts") | tee api.txt
           echo "::notice title=API::$(grep -E '^# (tests|pass|fail|skipped)' api.txt | tr '\n' ' ')"
           grep -qE '^# skipped 0$' api.txt
           grep -qE '^# fail 0$' api.txt
