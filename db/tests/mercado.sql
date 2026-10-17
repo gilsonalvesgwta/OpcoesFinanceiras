@@ -17,6 +17,10 @@ do $$ begin
   insert into taxas_juros (serie, dia, valor, fonte) values ('selic', '2026-10-16', 14.9, 'bcb-sgs-1178');
   insert into importacoes (fonte, referencia, situacao, registros, recusados, iniciada_em) values ('b3-cotahist', '2026-10-16', 'ok', 2, 0, now());
   insert into pulso_coleta (nome, versao) values ('coleta-1', '0.1.0');
+  insert into calculos_opcoes (dia, codigo, vencimento, ativo_objeto, spot, premio, origem_premio, dias_uteis, selic, vol_implicita, preco_teorico, delta, gamma, theta, vega, rho)
+  values ('2026-10-16', 'PETRK380', '2026-11-20', 'PETR4', 3847, 93.5, 'meio_do_livro', 24, 14.9, 0.32, 0.935, 0.55, 0.12, -0.02, 0.05, 0.01);
+  insert into calculos_opcoes (dia, codigo, vencimento, motivo) values ('2026-10-16', 'PETRX300', '2026-11-20', 'sem_premio');
+  perform teste.espera_erro($q$insert into calculos_opcoes (dia, codigo, vencimento) values ('2026-10-16', 'PETRX301', '2026-11-20')$q$, 'check', 'cálculo sem resultado precisa dizer o motivo');
   perform teste.confere((select count(*) from feriados) >= 14, 'coleta lê o calendário');
   perform teste.espera_erro($q$select * from users$q$, 'permission denied', 'coleta não lê usuários');
   perform teste.espera_erro($q$select * from favoritos$q$, 'permission denied', 'coleta não lê favoritos');
@@ -42,6 +46,8 @@ do $$ begin
   perform teste.confere((select ultimo from fechamentos where codigo = 'PETR4') = 3847, 'usuário lê fechamentos (dado público)');
   perform teste.confere((select strike from series_opcoes where codigo = 'PETRK380') = 3800, 'usuário lê séries de opções');
   perform teste.confere((select valor from taxas_juros where serie = 'selic') = 14.9, 'usuário lê a Selic');
+  perform teste.confere((select vol_implicita from calculos_opcoes where codigo = 'PETRK380') = 0.32, 'usuário lê os cálculos das opções');
+  perform teste.espera_erro($q$delete from calculos_opcoes$q$, 'permission denied', 'aplicação não apaga cálculos');
   perform teste.confere((select count(*) from feriados where dia = '2026-11-20') = 1, 'calendário de 2026 já vem com os feriados da B3');
   perform teste.confere((select abertura from sessoes_especiais where dia = '2026-02-18') = '13:00', 'quarta de Cinzas abre às 13h');
   perform teste.confere((select count(*) from importacoes) = 0, 'usuário não lê o diagnóstico');
@@ -73,7 +79,7 @@ end $$;
 -- ============ Conta suspensa ============
 select teste.entrar('a2@exemplo.test');
 do $$ begin
-  perform teste.confere((select count(*) from fechamentos) + (select count(*) from series_opcoes) = 0, 'conta suspensa não lê dados de mercado');
+  perform teste.confere((select count(*) from fechamentos) + (select count(*) from series_opcoes) + (select count(*) from calculos_opcoes) = 0, 'conta suspensa não lê dados de mercado');
 end $$;
 
 reset role;

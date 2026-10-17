@@ -13,3 +13,4 @@ export * from './provedor-simulado.ts';
 export * from './cotahist.ts';
 export * from './ponte.ts';
 export * from './coleta.ts';
+export * from './calculo-diario.ts';

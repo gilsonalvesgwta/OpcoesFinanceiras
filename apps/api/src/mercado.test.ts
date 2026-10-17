@@ -141,13 +141,15 @@ describe('coleta gratuita e rotas de mercado', { skip: pular ? 'sem as três URL
   test('ciclo: baixa o que falta, registra arquivo ausente, pula feriado e busca a Selic', async () => {
     arquivos.set(urlDo('2026-10-16'), montarZip('COTAHIST_D16102026.TXT', arquivo('2026-10-16', [
       linha({ codigo: 'PETR4', tpmerc: 10, especi: 'PN N2', ult: 3847, ofc: 3846, ofv: 3848 }),
-      linha({ codigo: 'PETRK380', tpmerc: 70, ult: 93, ofc: 92, ofv: 95, exe: 3800, venc: '20261120' }),
+      linha({ codigo: 'PETRK380', tpmerc: 70, ult: 93, ofc: 120, ofv: 126, exe: 3800, venc: '20261120' }),
+      linha({ codigo: 'PETRW360', tpmerc: 80, ult: 0, ofc: 0, ofv: 0, exe: 3600, venc: '20261120' }), // sem negócio nem oferta
     ])));
     const agora = new Date('2026-10-16T23:30:00Z'); // sexta, 20:30 em Brasília
     const r = await cicloDeColeta({ pool: coleta, buscar, agora: () => agora, nome: 'teste' });
     assert.equal(r.cotahist['2026-10-16'], 'ok');
     assert.equal(r.cotahist['2026-10-14'], 'sem_arquivo');
     assert.equal(r.selic, 'ok');
+    assert.deepEqual(r.calculos['2026-10-16'], { calculadas: 1, semCalculo: 1 }, 'gregas calculadas já com a Selic do mesmo ciclo');
     assert.ok(!pedidas.some((u) => u.includes('D12102026')), 'feriado de 12/10 não é buscado');
     assert.ok(!pedidas.some((u) => u.includes('D11102026') || u.includes('D10102026')), 'fim de semana não é buscado');
 
@@ -182,6 +184,22 @@ describe('coleta gratuita e rotas de mercado', { skip: pular ? 'sem as três URL
     assert.deepEqual(sit.corpo.selic, { dia: '2026-10-16', valor: 14.9 });
     const f = await pedir('ana', 'GET', '/api/mercado/fechamentos?codigos=petrk380,VALE3');
     assert.deepEqual(f.corpo.fechamentos.map((x: { codigo: string; ultimo: number }) => [x.codigo, x.ultimo]), [['PETRK380', 93]]);
+  });
+
+  test('cadeia: séries do vencimento com volatilidade implícita, gregas, motivo e premissas', async () => {
+    const r = await pedir('ana', 'GET', '/api/mercado/cadeia?ativo=petr4');
+    assert.equal(r.status, 200, JSON.stringify(r.corpo));
+    assert.deepEqual([r.corpo.ativo.codigo, r.corpo.ativo.ultimo, r.corpo.ativo.dia, r.corpo.vencimento], ['PETR4', 3847, '2026-10-16', '2026-11-20']);
+    const call = r.corpo.series.find((x: { codigo: string }) => x.codigo === 'PETRK380');
+    assert.equal(call.calculo.origemPremio, 'meio_do_livro');
+    assert.equal(call.calculo.premio, 123);
+    assert.ok(call.calculo.volImplicita > 0.05 && call.calculo.volImplicita < 2, `vol ${call.calculo.volImplicita}`);
+    assert.ok(call.calculo.delta > 0 && call.calculo.delta < 1);
+    assert.ok(call.calculo.theta < 0);
+    const put = r.corpo.series.find((x: { codigo: string }) => x.codigo === 'PETRW360');
+    assert.deepEqual([put.ultimo, put.bid, put.ask, put.calculo], [null, null, null, { motivo: 'sem_premio' }], 'sem preço: nada de zero');
+    assert.ok(r.corpo.premissas.some((p: string) => p.includes('Black-Scholes')));
+    assert.equal((await pedir('ana', 'GET', '/api/mercado/cadeia?ativo=XXXX3')).corpo.erro, 'sem_fechamento');
   });
 
   test('calendário: todos leem; só o superadmin altera, com auditoria', async () => {
