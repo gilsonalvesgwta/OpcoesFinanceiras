@@ -94,6 +94,11 @@ jobs:
           echo "::notice title=API::$(grep -E '^# (tests|pass|fail|skipped)' api.txt | tr '\n' ' ')"
           grep -qE '^# skipped 0$' api.txt
           grep -qE '^# fail 0$' api.txt
+      - name: Detalhe das falhas da API
+        if: failure()
+        run: |
+          # Os registros do Actions nem sempre podem ser baixados: as falhas vão como anotação.
+          grep -nE -A25 '^\s*not ok' api.txt | grep -vE '^\S*-\s*(duration_ms|type:|\.\.\.)' | head -c 3800 | tr '\n' ' ' | sed 's/^/::error title=Falhas da API::/'; echo
 
   interface:
     name: Interface (Next.js + navegador)
