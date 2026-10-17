@@ -104,6 +104,7 @@ jobs:
           depois=$(docker exec "$db" psql -U postgres -d wtaopt -At -c 'select (select count(*) from users), (select count(*) from feriados), (select count(*) from controle.migracoes)')
           echo "antes: $antes | depois: $depois"
           [[ "$antes" == "$depois" ]]
+          [[ "${antes%%|*}" -ge 1 ]]   # o superadministrador da instalação existe
           # A aplicação continua entrando no banco com as senhas dela depois da restauração.
           docker service update --force wtaopt_api > /dev/null
           for i in $(seq 1 30); do
