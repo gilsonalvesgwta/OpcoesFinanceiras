@@ -13,7 +13,7 @@ import { Icone, type NomeDoIcone } from './Icone.tsx';
 import { useSessao } from './Sessao.tsx';
 
 // As telas das próximas fases já existem no menu e explicam o que vai chegar.
-type Item = { href: string; nome: string; icone: NomeDoIcone };
+type Item = { href: string; nome: string; icone: NomeDoIcone; soSuper?: boolean };
 
 const PRINCIPAL: Item[] = [
   { href: '/', nome: 'Painel', icone: 'painel' },
@@ -27,7 +27,8 @@ const PRINCIPAL: Item[] = [
 
 const ADMINISTRACAO: Item[] = [
   { href: '/usuarios', nome: 'Usuários', icone: 'usuarios' },
-  { href: '/diagnostico', nome: 'Diagnóstico', icone: 'diagnostico' },
+  { href: '/calendario', nome: 'Calendário', icone: 'calendario', soSuper: true },
+  { href: '/diagnostico', nome: 'Diagnóstico', icone: 'diagnostico', soSuper: true },
 ];
 
 function Marca({ href = '/' }: { href?: string }) {
@@ -94,7 +95,7 @@ export function Casca({ children }: { children: ReactNode }) {
         {administra && (
           <div className="menu-grupo">
             <span className="menu-titulo" id="titulo-admin">Administração</span>
-            {ADMINISTRACAO.map((i) => <ItemDoMenu key={i.href} item={i} atual={atual(i.href)} />)}
+            {ADMINISTRACAO.filter((i) => !i.soSuper || sessao.usuario.papel === 'superadmin').map((i) => <ItemDoMenu key={i.href} item={i} atual={atual(i.href)} />)}
           </div>
         )}
         <div className="menu-pe">

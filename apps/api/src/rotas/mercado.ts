@@ -30,10 +30,14 @@ export async function rotasDeMercado(app: FastifyInstance, dep: Dependencias, ca
     return emTransacao(pool, s.usuarioId, async (c) => {
       const f = (await c.query("select to_char(max(dia), 'YYYY-MM-DD') as dia from fechamentos")).rows[0];
       const selic = (await c.query("select to_char(dia, 'YYYY-MM-DD') as dia, valor::float8 as valor from taxas_juros where serie = 'selic' order by dia desc limit 1")).rows[0];
+      // Séries vistas no último arquivo e ainda não vencidas: o tamanho da cadeia disponível.
+      const series = f?.dia
+        ? Number((await c.query('select count(*) as n from series_opcoes where visto_ultimo = $1 and vencimento >= $1', [f.dia])).rows[0]?.n ?? 0)
+        : 0;
       return {
         agora: agora.toISOString(),
         mercado: { aberto: mercado.aberto, motivo: mercado.motivo, sessao: mercado.sessao },
-        fechamento: { ultimoImportado: f?.dia ?? null, esperado: ultimoPregaoEncerrado(agora, cfg, mercado.sessao?.fechamento ?? '17:00') },
+        fechamento: { ultimoImportado: f?.dia ?? null, series, esperado: ultimoPregaoEncerrado(agora, cfg, mercado.sessao?.fechamento ?? '17:00') },
         selic: selic ? { dia: selic.dia, valor: selic.valor } : null,
       };
     });
@@ -172,6 +176,8 @@ export async function rotasDeMercado(app: FastifyInstance, dep: Dependencias, ca
         coleta: pulsos.map((p) => ({ nome: p.nome, versao: p.versao, vistoEm: iso(p.visto_em) })),
         cotahist: { ultimoImportado: ultimoOk, esperado: ultimoPregaoEncerrado(agora, cfg) },
         banco: { fechamentosUltimos30Dias: banco?.fechamentos ?? 0, seriesVigentes: banco?.series_vigentes ?? 0 },
+        // A chave da brapi fica só no servidor; aqui só se diz se ela existe.
+        brapi: { configurada: Boolean(process.env.BRAPI_API_KEY?.trim()) },
         importacoes: importacoes.map((l) => ({
           id: Number(l.id), fonte: l.fonte, referencia: l.referencia, situacao: l.situacao, registros: l.registros, recusados: l.recusados,
           detalhe: l.detalhe, iniciadaEm: iso(l.iniciada_em), terminadaEm: iso(l.terminada_em),
