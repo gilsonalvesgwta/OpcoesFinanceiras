@@ -9,8 +9,13 @@ PASTA="${PASTA_DAS_COPIAS:-/copias}"
 [[ "$HORA" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] || { echo "HORA_DA_COPIA inválida: $HORA" >&2; exit 2; }
 echo "cópias diárias às $HORA em $PASTA, mantendo ${MANTER_DIAS:-14} dias"
 mkdir -p "$PASTA"
+# Ao ligar, o banco pode ainda estar subindo: tenta a cópia inicial por até 10 minutos.
 if [[ -z "$(find "$PASTA" -maxdepth 1 -name 'wtaopt-*.dump' -mmin -1440 2>/dev/null)" ]]; then
-  "$AQUI/copiar.sh" diaria || echo "a cópia inicial falhou; nova tentativa no horário marcado"
+  for tentativa in $(seq 1 10); do
+    "$AQUI/copiar.sh" diaria && break
+    echo "a cópia inicial falhou (tentativa $tentativa de 10); nova tentativa em 1 minuto"
+    sleep 60
+  done
 fi
 while true; do
   agora=$(date +%s)

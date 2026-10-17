@@ -75,13 +75,13 @@ jobs:
           tail -5 <<<"$mig"
           grep -q 'migrações em dia' <<<"$mig"
           # O worker sobe e registra o pulso (a rede do runner pode ou não alcançar a B3; não importa aqui).
-          for i in $(seq 1 24); do
+          for i in $(seq 1 40); do
             n=$(docker exec "$(cont db)" psql -U postgres -d wtaopt -At -c 'select count(*) from pulso_coleta')
             [[ "$n" -ge 1 ]] && break; sleep 5
           done
           [[ "$n" -ge 1 ]]
           # A cópia inicial sai ao ligar o serviço de cópias.
-          for i in $(seq 1 24); do
+          for i in $(seq 1 40); do
             arq=$(docker exec "$(cont copias)" sh -c 'ls /copias/*.dump 2>/dev/null | head -1')
             [[ -n "$arq" ]] && break; sleep 5
           done

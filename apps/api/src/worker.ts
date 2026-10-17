@@ -16,17 +16,20 @@ const log = (m: string) => console.log(`${new Date().toISOString()} ${m}`);
 let parar = false;
 let espera: NodeJS.Timeout | null = null;
 
+// Ciclo que falhou (ex.: o banco ainda subindo, nome "db" ainda sem DNS) tenta de novo em 1 minuto.
 async function rodar(): Promise<void> {
   if (parar) return;
+  let proximoMin = intervaloMin;
   try {
     const r = await cicloDeColeta({ pool, buscar: fetch, log, nome: `coleta@${hostname()}` });
     const dias = Object.entries(r.cotahist).map(([d, s]) => `${d}:${s}`).join(' ');
     const calc = Object.entries(r.calculos).map(([d, x]) => `${d}:${x.calculadas}`).join(' ');
     log(`ciclo concluído${dias ? ` | COTAHIST ${dias}` : ''} | Selic ${r.selic}${calc ? ` | gregas ${calc}` : ''}`);
   } catch (e) {
-    log(`ciclo falhou: ${e instanceof Error ? e.message : String(e)}`);
+    log(`ciclo falhou: ${e instanceof Error ? e.message : String(e)}; nova tentativa em 1 minuto`);
+    proximoMin = 1;
   }
-  if (!parar) espera = setTimeout(() => void rodar(), intervaloMin * 60_000);
+  if (!parar) espera = setTimeout(() => void rodar(), proximoMin * 60_000);
 }
 
 const encerrar = async () => {
