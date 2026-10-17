@@ -136,3 +136,12 @@ jobs:
             done
           done
           echo "::notice title=Publicado::$IMAGEM_API e $IMAGEM_WEB com as etiquetas main e ${GITHUB_SHA::12}"
+
+      - name: As imagens podem ser baixadas sem login? (só no main)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          docker logout ghcr.io > /dev/null 2>&1 || true
+          for img in "$IMAGEM_API" "$IMAGEM_WEB"; do
+            if docker manifest inspect "$img:main" > /dev/null 2>&1; then r="$r ${img##*/}: pública"; else r="$r ${img##*/}: PRIVADA (tornar pública no GitHub ou dar login no Portainer)"; fi
+          done
+          echo "::notice title=Visibilidade::$r"
