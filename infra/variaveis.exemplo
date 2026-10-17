@@ -1,0 +1,24 @@
+# Variáveis da stack principal (infra/portainer-stack.yml). Preencha no Portainer, em
+# "Environment variables" (botão "Advanced mode" aceita colar tudo de uma vez).
+# Senhas: só letras e números (entram dentro de endereços de conexão). Para gerar uma:
+#   openssl rand -hex 24
+# Guarde estas senhas num lugar seguro: para restaurar uma cópia numa VPS nova você vai precisar delas.
+
+DOMINIO=opcoes.wtatech.com.br
+REDE_TRAEFIK=nome_da_rede_do_traefik
+ENTRYPOINT_TRAEFIK=websecure
+CERTRESOLVER_TRAEFIK=letsencryptresolver
+SENHA_DO_BANCO=
+SENHA_APP=
+SENHA_COLETA=
+SUPERADMIN_EMAIL=alves.gilson@yahoo.com.br
+SUPERADMIN_SENHA_INICIAL=
+HORA_DA_COPIA=03:30
+MANTER_DIAS=14
+VERSAO=main
+BRAPI_API_KEY=
+
+# Stack do MetaTrader 5 (infra/mt5-stack.yml), opcional:
+# DOMINIO_MT5=mt5.opcoes.wtatech.com.br
+# USUARIO_MT5=
+# SENHA_MT5=

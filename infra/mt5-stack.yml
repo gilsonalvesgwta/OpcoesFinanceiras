@@ -1,0 +1,39 @@
+# MetaTrader 5 da corretora, com o robô da ponte (ponte-mt5/WTA_Ponte.mq5). Stack separada:
+# instale depois da principal e só se for usar a ponte. A tela do MT5 abre no navegador
+# (KasmVNC) em https://${DOMINIO_MT5}, protegida por usuário e senha.
+# A porta 8001 (RPyC) da imagem NÃO é publicada. Uso de memória: cerca de 1 GB.
+# Nome sugerido da stack no Portainer: wtaopt-mt5 (o volume fica wtaopt-mt5_mt5).
+
+version: "3.8"
+
+services:
+  mt5:
+    image: gmag11/metatrader5_vnc:${VERSAO_MT5:-latest}
+    environment:
+      CUSTOM_USER: ${USUARIO_MT5:?preencha USUARIO_MT5}
+      PASSWORD: ${SENHA_MT5:?preencha SENHA_MT5}
+      TZ: America/Sao_Paulo
+    volumes: [mt5:/config]
+    networks: [traefik]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    deploy:
+      placement: { constraints: [node.role == manager] }
+      restart_policy: { condition: any, delay: 30s }
+      resources: { limits: { cpus: "1.5", memory: 1536M } }
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=${REDE_TRAEFIK:?preencha REDE_TRAEFIK}
+        - traefik.http.routers.wtaopt_mt5.rule=Host(`${DOMINIO_MT5:?preencha DOMINIO_MT5}`)
+        - traefik.http.routers.wtaopt_mt5.entrypoints=${ENTRYPOINT_TRAEFIK:-websecure}
+        - traefik.http.routers.wtaopt_mt5.tls.certresolver=${CERTRESOLVER_TRAEFIK:-letsencryptresolver}
+        - traefik.http.services.wtaopt_mt5.loadbalancer.server.port=3000
+
+volumes:
+  mt5:
+
+networks:
+  traefik:
+    external: true
+    name: ${REDE_TRAEFIK}
