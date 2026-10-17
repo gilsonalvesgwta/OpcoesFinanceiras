@@ -20,6 +20,6 @@ Cada etapa vai num ramo `claude/...` com pedido de mesclagem; com os testes do C
 
 1. Criar a chave gratuita da brapi (brapi.dev, sem cartão) quando chegarmos à Fase 3.
 2. Criar o bot no Telegram (@BotFather) e guardar o token para a stack.
-3. Domínio decidido: `opcoes.wtatech.com.br`. Falta dizer qual VPS recebe a stack.
+3. Domínio decidido: `opcoes.wtatech.com.br`. VPS: a mesma do CRM (17/10/2026); instalação portátil e cópias prontas (`docs/INSTALACAO.md`).
 4. MetaTrader 5: conferir se a Genial fornece senha de investidor (só leitura) e, no primeiro pregão com a ponte, comparar a hora das cotações com o Book do MT5.
 5. Fontes pagas só se o responsável decidir depois (decisão de 16/10/2026: começar só com gratuitas).
