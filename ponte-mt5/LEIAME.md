@@ -18,7 +18,7 @@ O robô `WTA_Ponte.mq5` roda dentro do MetaTrader 5 logado na sua conta da corre
 
 1. **Crie a chave**: no sistema, em *Preferências → MetaTrader 5*, clique em *Criar chave da ponte*. A chave aparece **uma vez só**; copie. (Perdeu? Revogue e crie outra. Máximo de 3 ativas.)
 2. **Entre no MT5 com a senha de investidor**, se a Genial fornecer uma (ela só permite consultar, não negociar). O robô funciona com qualquer uma das duas, mas a de investidor é mais segura numa VPS.
-3. **Copie o robô**: no MT5, *Arquivo → Abrir pasta de dados → MQL5 → Experts*, cole `WTA_Ponte.mq5`. No *Navegador*, clique com o botão direito em *Expert Advisors → Atualizar*. Na primeira vez o MT5 compila sozinho (ou abra no MetaEditor e tecle F7).
+3. **Copie o robô**: baixe `WTA_Ponte.mq5` em *Preferências → MetaTrader 5* (link *Baixar o robô*). No MT5, *Arquivo → Abrir pasta de dados → MQL5 → Experts*, cole `WTA_Ponte.mq5`. No *Navegador*, clique com o botão direito em *Expert Advisors → Atualizar*. Na primeira vez o MT5 compila sozinho (ou abra no MetaEditor e tecle F7).
 4. **Libere o endereço**: *Ferramentas → Opções → Expert Advisors* → marque *Permitir WebRequest para as URLs listadas* e adicione `https://opcoes.wtatech.com.br`.
    - Use o endereço público com https: o MT5 só faz WebRequest nas portas padrão (80/443), então não dá para chamar `http://api:3001` direto.
 5. **Ligue o robô**: arraste `WTA_Ponte` para qualquer gráfico (por exemplo PETR4, M1). Na aba *Entradas*, cole a **Chave**. Mantenha *Algo Trading* ligado (o botão precisa estar verde para o robô rodar; ele continua sem enviar ordens).

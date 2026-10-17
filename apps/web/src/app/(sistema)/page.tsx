@@ -169,8 +169,10 @@ export default function Painel() {
               <span>
                 {conectada ? (
                   <>
-                    <span className="fonte-titulo">Seus ativos: tempo real pelo MetaTrader 5</span>
-                    <span className="fonte-texto">{contaDaPonte(ponte)}. Último sinal da ponte {haQuanto(ponte.ultimoContatoEm, agora)}.</span>
+                    <span className="fonte-titulo">{aoVivo ? 'Seus ativos: tempo real pelo MetaTrader 5' : 'MetaTrader 5 conectado, pregão fechado'}</span>
+                    <span className="fonte-texto">
+                      {contaDaPonte(ponte)}. Último sinal da ponte {haQuanto(ponte.ultimoContatoEm, agora)}.{aoVivo ? '' : ' Os preços são os do último pregão.'}
+                    </span>
                   </>
                 ) : ponte.ultimoContatoEm ? (
                   <>
