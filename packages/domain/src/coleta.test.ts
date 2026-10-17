@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { diasParaColetar, lerSerieSgs, taxaContinua, ultimoPregaoEncerrado, urlDaSerieSgs, urlDoCotahistDiario } from './coleta.ts';
+import { diasParaColetar, lerSerieSgs, ultimoPregaoEncerrado, urlDaSerieSgs, urlDoCotahistDiario } from './coleta.ts';
 import type { ConfiguracaoDoCalendario } from './calendario.ts';
 
 const cfg: ConfiguracaoDoCalendario = {
@@ -22,7 +22,6 @@ test('Selic do SGS: datas brasileiras, ordenada, ponto ilegível descartado', ()
   ]);
   assert.deepEqual(p, [{ dia: '2026-10-13', valor: 14.9 }, { dia: '2026-10-15', valor: 14.9 }, { dia: '2026-10-16', valor: 14.9 }]);
   assert.throws(() => lerSerieSgs({ erro: 'x' }), /resposta_sgs_invalida/);
-  assert.ok(Math.abs(taxaContinua(14.9) - Math.log(1.149)) < 1e-12);
 });
 
 test('quais pregões buscar: pula fim de semana, feriado, já importado e o dia antes da liberação', () => {

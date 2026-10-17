@@ -105,7 +105,7 @@ export async function rotasDaPonte(app: FastifyInstance, dep: Dependencias, cale
          from cotacoes_ponte q join pontes_mt5 p on p.id = q.ponte_id
          order by q.codigo`,
       );
-      const daPonte = new Map(r.rows.map((l) => [l.codigo as string, {
+      const daPonte = new Map<string, CotacaoDeSaida>(r.rows.map((l) => [l.codigo as string, {
         codigo: l.codigo as string, provedor: 'mt5',
         ultimo: l.ultimo, bid: l.bid, ask: l.ask, fechamentoAnterior: l.fechamento_anterior,
         volume: l.volume === null ? null : Number(l.volume),
@@ -126,10 +126,10 @@ export async function rotasDaPonte(app: FastifyInstance, dep: Dependencias, cale
         if (Number(l.n) === 1) fechamentos.set(l.codigo, { atual: l, anterior: null });
         else { const x = fechamentos.get(l.codigo); if (x) x.anterior = l; }
       }
-      const cotacoes = codigos.sort().flatMap((codigo) => {
+      const cotacoes = codigos.sort().flatMap((codigo): CotacaoDeSaida[] => {
         const p = daPonte.get(codigo);
         const b3 = fechamentos.get(codigo);
-        const doFechamento = b3 && (() => {
+        const doFechamento: CotacaoDeSaida | undefined = b3 && (() => {
           const dia = b3.atual.dia as string;
           const fim = (sessaoDoDia(dia, cfg) ?? SESSAO_PADRAO).fechamento;
           return {
@@ -141,9 +141,9 @@ export async function rotasDaPonte(app: FastifyInstance, dep: Dependencias, cale
             sinalDaPonteEm: null, qualidade: 'historico',
           };
         })();
-        if (p && (p.qualidade !== 'desconectado' || !doFechamento || (p.instanteDaFonte ?? '') > doFechamento.instanteDaFonte)) {
+        if (p && (p.qualidade !== 'desconectado' || !doFechamento || (p.instanteDaFonte ?? '') > (doFechamento.instanteDaFonte ?? ''))) {
           // A ponte não manda o fechamento anterior de séries novas: completa com o da B3.
-          if (p.fechamentoAnterior === null && doFechamento && doFechamento.instanteDaFonte < (p.instanteDaFonte ?? '')) {
+          if (p.fechamentoAnterior === null && doFechamento && (doFechamento.instanteDaFonte ?? '') < (p.instanteDaFonte ?? '')) {
             return [{ ...p, fechamentoAnterior: doFechamento.ultimo }];
           }
           return [p];
@@ -218,6 +218,12 @@ export async function rotasDaPonte(app: FastifyInstance, dep: Dependencias, cale
     }
   });
 }
+
+type CotacaoDeSaida = {
+  codigo: string; provedor: string;
+  ultimo: number | null; bid: number | null; ask: number | null; fechamentoAnterior: number | null; volume: number | null;
+  instanteDaFonte: string | null; instanteDeRecebimento: string | null; sinalDaPonteEm: string | null; qualidade: string;
+};
 
 function num(v: unknown): number | null {
   return v === null || v === undefined ? null : Number(v);

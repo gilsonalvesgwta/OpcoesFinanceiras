@@ -37,10 +37,7 @@ export function lerSerieSgs(json: unknown): PontoDaSerie[] {
   return pontos.sort((x, y) => (x.dia < y.dia ? -1 : x.dia > y.dia ? 1 : 0));
 }
 
-// Selic % ao ano (base 252) -> taxa contínua para o modelo (ln(1 + i)).
-export function taxaContinua(percentualAoAno: number): number {
-  return Math.log(1 + percentualAoAno / 100);
-}
+// A Selic vem em % ao ano; o modelo usa fração: taxaContinua(valor / 100), em modelo.ts.
 
 function somarDias(dia: string, n: number): string {
   const [a, m, d] = dia.split('-').map(Number) as [number, number, number];
