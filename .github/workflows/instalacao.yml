@@ -70,8 +70,10 @@ jobs:
       - name: Conferir migrações, coleta e cópia automática
         run: |
           cont() { docker ps -q -f "name=wtaopt_$1" | head -1; }
-          docker service logs wtaopt_migracoes 2>&1 | tail -5
-          docker service logs wtaopt_migracoes 2>&1 | grep -q 'migrações em dia'
+          # (sem "| grep -q" direto: com pipefail, o grep fecha o cano cedo e derruba o passo)
+          mig=$(docker service logs wtaopt_migracoes 2>&1 || true)
+          tail -5 <<<"$mig"
+          grep -q 'migrações em dia' <<<"$mig"
           # O worker sobe e registra o pulso (a rede do runner pode ou não alcançar a B3; não importa aqui).
           for i in $(seq 1 24); do
             n=$(docker exec "$(cont db)" psql -U postgres -d wtaopt -At -c 'select count(*) from pulso_coleta')
@@ -112,6 +114,7 @@ jobs:
       - name: Registros em caso de falha
         if: failure()
         run: |
+          set +o pipefail
           for s in db migracoes api worker web copias; do
             echo "== $s"; docker service ps "wtaopt_$s" --no-trunc 2>&1 | head -5; docker service logs "wtaopt_$s" 2>&1 | tail -15
           done | tee falha.txt
