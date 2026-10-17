@@ -20,6 +20,8 @@ const MENSAGENS: Record<string, string> = {
   convite_repetido: 'Já existe um convite para este e-mail.',
   nome_obrigatorio: 'Escreva seu nome.',
   nao_altera_o_proprio_acesso: 'Você não pode mudar o próprio papel nem suspender a própria conta.',
+  limite_de_pontes: 'Você já tem 3 chaves da ponte ativas. Revogue uma que não usa mais para criar outra.',
+  chave_da_ponte_invalida: 'Chave da ponte recusada. Crie outra em Preferências.',
   ja_favorito: 'Este ativo já está na sua lista.',
   nao_encontrado: 'Não encontrado. Pode ter sido removido.',
   entrada_invalida: 'Confira os campos preenchidos.',

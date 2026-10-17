@@ -145,6 +145,7 @@ describe('ponte com o MetaTrader 5', { skip: pular ? 'sem DATABASE_URL e DATABAS
     const petr = c.corpo.cotacoes.find((x: { codigo: string }) => x.codigo === 'PETR4');
     assert.deepEqual([petr.ultimo, petr.bid, petr.ask, petr.fechamentoAnterior, petr.volume, petr.provedor], [3812, 3811, 3813, 3790, 1500, 'mt5']);
     assert.ok(['tempo_real', 'historico'].includes(petr.qualidade), petr.qualidade);
+    assert.ok(petr.sinalDaPonteEm, 'a resposta traz o último sinal da ponte');
     const vale = c.corpo.cotacoes.find((x: { codigo: string }) => x.codigo === 'VALE3');
     assert.deepEqual([vale.ultimo, vale.bid, vale.ask], [null, null, null], 'zero do MT5 vira "sem dado"');
     const p = await ana.pedir('GET', '/api/posicoes-corretora');

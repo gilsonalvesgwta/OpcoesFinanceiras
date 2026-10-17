@@ -21,7 +21,8 @@ const TEXTO_ESTADO = {
   sem_pregao: { texto: 'Sem pregão hoje', classe: 'selo-neutro' },
 } as const;
 
-export function ReguaDoPregao({ chegadas = [] }: { chegadas?: Date[] }) {
+// aoVivo: a ponte com o MetaTrader 5 está mandando sinal; o trecho passado fica na cor do tempo real.
+export function ReguaDoPregao({ chegadas = [], aoVivo = false }: { chegadas?: Date[]; aoVivo?: boolean }) {
   const [agora, setAgora] = useState<Date | null>(null);
   useEffect(() => {
     setAgora(new Date());
@@ -35,7 +36,7 @@ export function ReguaDoPregao({ chegadas = [] }: { chegadas?: Date[] }) {
   const hora = emBrasilia(agora).hora;
   const rotulo = TEXTO_ESTADO[estado];
   const descricao = `Linha do pregão das ${SESSAO.abertura} às ${SESSAO.fechamento}. Agora são ${hora}. ${
-    chegadas.length === 0 ? 'Nenhuma cotação recebida hoje.' : `${chegadas.length} consultas de cotação hoje.`
+    aoVivo ? 'A ponte com o MetaTrader 5 está mandando cotações em tempo real.' : chegadas.length === 0 ? 'Nenhuma cotação recebida hoje.' : `${chegadas.length} consultas de cotação hoje.`
   }`;
 
   return (
@@ -52,7 +53,7 @@ export function ReguaDoPregao({ chegadas = [] }: { chegadas?: Date[] }) {
         {marcasDeHora(SESSAO).slice(1, -1).map((m) => (
           <div key={m.rotulo} className="regua-hora" style={{ left: `${m.pos}%` }} />
         ))}
-        {estado !== 'sem_pregao' && <div className="regua-passado" style={{ width: `${pos}%` }} />}
+        {estado !== 'sem_pregao' && <div className={`regua-passado${aoVivo ? ' ao-vivo' : ''}`} style={{ width: `${pos}%` }} />}
         {chegadas.map((c) => (
           <div key={c.toISOString()} className="regua-chegada" style={{ left: `${posicaoNaSessao(c, SESSAO)}%` }} />
         ))}

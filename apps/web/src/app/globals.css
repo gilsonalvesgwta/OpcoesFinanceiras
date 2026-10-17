@@ -21,6 +21,7 @@
   --fundo-atencao: #2a1f14;
   --texto-atencao: #f3c58e;
   --trilho: #26323d;
+  --vivo: #5ccfc4; /* tempo real: não confundir com o verde de alta */
   color-scheme: dark;
 }
 
@@ -43,6 +44,7 @@
   --fundo-atencao: #fbefe1;
   --texto-atencao: #6e3f08;
   --trilho: #dce2e8;
+  --vivo: #0e6b66;
   color-scheme: light;
 }
 
@@ -51,7 +53,7 @@
     --bg: #eef1f4; --painel: #ffffff; --painel2: #f4f6f8; --linha: #d5dce2; --borda-campo: #a9b5bf;
     --texto: #16202a; --apoio: #4f5d69; --latao: #86621a; --sobre-latao: #ffffff; --foco: #86621a;
     --alta: #11744a; --baixa: #b3382b; --periodica: #1f5f9e; --historico: #5b4aa0; --atencao: #9a5b12;
-    --fundo-atencao: #fbefe1; --texto-atencao: #6e3f08; --trilho: #dce2e8;
+    --fundo-atencao: #fbefe1; --texto-atencao: #6e3f08; --trilho: #dce2e8; --vivo: #0e6b66;
     color-scheme: light;
   }
 }
@@ -246,12 +248,14 @@ p { margin: 0; }
 .selo-alta { color: var(--alta); }
 .selo-baixa { color: var(--baixa); }
 .selo-neutro { color: var(--apoio); font-weight: 500; }
+.selo-vivo { color: var(--vivo); }
 
 /* ---------- Régua do pregão ---------- */
 
 .regua { position: relative; height: 56px; margin-top: 8px; }
 .regua-trilho { position: absolute; left: 0; right: 0; top: 22px; height: 8px; border-radius: 4px; background: var(--trilho); }
 .regua-passado { position: absolute; left: 0; top: 22px; height: 8px; border-radius: 4px; background: var(--periodica); opacity: 0.35; }
+.regua-passado.ao-vivo { background: var(--vivo); opacity: 1; }
 .regua-hora { position: absolute; top: 18px; width: 1px; height: 16px; background: var(--linha); }
 .regua-chegada { position: absolute; top: 16px; width: 2px; height: 20px; margin-left: -1px; background: var(--periodica); }
 .regua-agora { position: absolute; top: 6px; width: 2px; height: 40px; margin-left: -1px; background: var(--latao); }
@@ -288,3 +292,27 @@ p { margin: 0; }
 }
 
 .carregando { min-height: 60vh; display: flex; align-items: center; justify-content: center; color: var(--apoio); }
+
+/* Ponte com o MetaTrader 5 */
+.atalhos { display: flex; gap: 8px; flex-wrap: wrap; }
+.atalhos a { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 8px; border: 1px solid var(--linha); color: var(--apoio); text-decoration: none; }
+.atalhos a:hover { color: var(--texto); border-color: var(--latao); }
+.pontes { display: flex; flex-direction: column; border: 1px solid var(--linha); border-radius: 10px; }
+.ponte { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding: 16px 18px; }
+.ponte + .ponte { border-top: 1px solid var(--linha); }
+.ponte-texto { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ponte-nome { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ponte-nome strong { font-size: 16px; }
+.ponte-apoio { color: var(--apoio); font-size: 14px; overflow-wrap: anywhere; }
+.ponte-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.botao-perigo { color: var(--baixa); }
+.chave-nova { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 10px; background: var(--fundo-atencao); color: var(--texto-atencao); }
+.chave-nova-linha { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.chave-nova input { flex: 1 1 380px; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--atencao); background: var(--painel); color: var(--texto); font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 14px; }
+.passos { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; }
+.passos li { padding-left: 4px; }
+.passos .titulo { font-weight: 600; display: block; }
+.passos .texto { display: block; color: var(--apoio); font-size: 14px; overflow-wrap: anywhere; }
+.sinal-ponte { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.resultado-alta { color: var(--alta); font-weight: 600; }
+.resultado-baixa { color: var(--baixa); font-weight: 600; }

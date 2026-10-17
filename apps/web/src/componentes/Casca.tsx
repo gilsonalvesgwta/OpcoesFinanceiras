@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { PAPEIS } from '../lib/formatos.ts';
+import { estadoDaPonte, type Ponte } from '../lib/ponte.ts';
+import { useConsultaPeriodica } from './Consulta.tsx';
 import { Icone, type NomeDoIcone } from './Icone.tsx';
 import { useSessao } from './Sessao.tsx';
 
@@ -46,6 +48,22 @@ function ItemDoMenu({ item, atual }: { item: Item; atual: boolean }) {
   );
 }
 
+// Situação da ponte com o MetaTrader 5 no rodapé do menu (só aparece se houver chave ativa).
+function SinalDaPonte() {
+  const { dados } = useConsultaPeriodica<{ pontes: Ponte[] }>('/api/ponte', 30_000);
+  const ativas = dados?.pontes.filter((p) => !p.revogadaEm) ?? [];
+  if (ativas.length === 0) return null;
+  const melhor = ativas.find((p) => p.estado === 'tempo_real' || p.estado === 'historico') ?? ativas[0] as Ponte;
+  const e = estadoDaPonte(melhor);
+  const texto = e.classe === 'selo-vivo' ? 'MetaTrader 5 conectado' : e.classe === 'selo-neutro' ? 'MetaTrader 5 aguardando sinal' : 'MetaTrader 5 sem sinal';
+  return (
+    <Link href="/preferencias#metatrader" className={`sinal-ponte ${e.classe}`}>
+      <Icone nome="ponto" tamanho={14} preenchido={e.classe === 'selo-vivo'} />
+      <span>{texto}</span>
+    </Link>
+  );
+}
+
 export function Casca({ children }: { children: ReactNode }) {
   const { sessao, sair } = useSessao();
   const caminho = usePathname() ?? '/';
@@ -80,6 +98,7 @@ export function Casca({ children }: { children: ReactNode }) {
           </div>
         )}
         <div className="menu-pe">
+          <SinalDaPonte />
           <div>
             <span className="menu-pe-nome" style={{ display: 'block' }}>{sessao.usuario.nome || sessao.usuario.email}</span>
             <span className="menu-pe-papel">{PAPEIS[sessao.usuario.papel]}</span>
