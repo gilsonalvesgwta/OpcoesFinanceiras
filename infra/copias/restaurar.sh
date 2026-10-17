@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Restaura uma cópia feita por copiar.sh. APAGA o conteúdo atual do banco de destino.
-# Antes: pare a api, o worker e a interface (no Portainer, escala 0) para ninguém gravar durante a restauração.
+# Recomendado: parar a api, o worker e a interface (no Portainer, escala 0). Mesmo que fiquem
+# ligados, o script bloqueia o login da aplicação e derruba as conexões dela durante a
+# restauração, e religa no fim (com SENHA_APP e SENHA_COLETA, obrigatórias para restaurar).
 # Uso: restaurar.sh <arquivo.dump> [--sim]
 #   --sim  confirma que pode apagar o banco atual (sem isso, só confere o arquivo e para).
 # Depois de restaurar, aplica as migrações mais novas (se a cópia for de uma versão anterior)
@@ -20,6 +22,7 @@ if [[ "${2:-}" != "--sim" ]]; then
   echo "arquivo conferido. Para APAGAR o banco \"$BANCO\" e restaurar esta cópia, rode de novo com --sim"
   exit 0
 fi
+[[ -n "${SENHA_APP:-}" && -n "${SENHA_COLETA:-}" ]] || { echo "defina SENHA_APP e SENHA_COLETA (as mesmas da stack) para restaurar" >&2; exit 2; }
 echo "restaurando $ARQ em \"$BANCO\"..."
 # Os papéis da aplicação não vão dentro da cópia do banco: numa VPS nova, cria antes (sem login;
 # o aplicar.sh liga o login com as senhas da stack no fim).
@@ -28,6 +31,20 @@ do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'wtaopt_app') then create role wtaopt_app nologin nobypassrls; end if;
   if not exists (select 1 from pg_roles where rolname = 'wtaopt_coleta') then create role wtaopt_coleta nologin nobypassrls; end if;
 end $$;
+SQL
+# Ninguém da aplicação grava durante a restauração (evita travas cruzadas e dados misturados).
+religar() {
+  psql -X -q -v ON_ERROR_STOP=1 -d "$BANCO" -v app="$SENHA_APP" -v coleta="$SENHA_COLETA" <<'SQL'
+alter role wtaopt_app login password :'app';
+alter role wtaopt_coleta login password :'coleta';
+SQL
+}
+trap religar EXIT
+psql -X -q -v ON_ERROR_STOP=1 -d "$BANCO" <<'SQL'
+alter role wtaopt_app nologin;
+alter role wtaopt_coleta nologin;
+select count(pg_terminate_backend(pid)) as conexoes_encerradas from pg_stat_activity
+ where usename in ('wtaopt_app', 'wtaopt_coleta') and pid <> pg_backend_pid();
 SQL
 pg_restore --clean --if-exists --no-owner --single-transaction --exit-on-error -d "$BANCO" "$ARQ"
 # Migrações mais novas que a cópia e senhas de login dos papéis (os papéis não vão na cópia do banco).
