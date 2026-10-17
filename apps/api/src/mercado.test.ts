@@ -180,7 +180,7 @@ describe('coleta gratuita e rotas de mercado', { skip: pular ? 'sem as três URL
     assert.equal(petr.instanteDaFonte, '2026-10-16T20:00:00.000Z', 'fim do pregão: 17h em Brasília');
     const sit = await pedir('ana', 'GET', '/api/mercado/situacao');
     assert.equal(sit.corpo.fechamento.ultimoImportado, '2026-10-16');
-    assert.equal(sit.corpo.fechamento.series, 1, 'PETRK380 vista no arquivo de 16/10 e ainda não vencida');
+    assert.equal(sit.corpo.fechamento.series, 2, 'PETRK380 e PETRW360 vistas no arquivo de 16/10 e ainda não vencidas');
     assert.deepEqual(sit.corpo.selic, { dia: '2026-10-16', valor: 14.9 });
     const f = await pedir('ana', 'GET', '/api/mercado/fechamentos?codigos=petrk380,VALE3');
     assert.deepEqual(f.corpo.fechamentos.map((x: { codigo: string; ultimo: number }) => [x.codigo, x.ultimo]), [['PETRK380', 93]]);
