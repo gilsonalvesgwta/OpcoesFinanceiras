@@ -25,7 +25,7 @@ Serviços com prefixo `wtaopt_`:
 | --- | --- | --- | --- |
 | `web` | `ghcr.io/gilsonalvesgwta/<repo>-web` | Traefik + interna | Rótulos do Traefik em `deploy.labels` |
 | `api` | `ghcr.io/gilsonalvesgwta/<repo>-api` | interna | A `web` repassa `/api` para ela (`API_INTERNA=http://api:3001`) |
-| `worker` | `ghcr.io/gilsonalvesgwta/<repo>-api` (comando `worker`) | interna | Sem porta |
+| `worker` | `ghcr.io/gilsonalvesgwta/<repo>-api` (comando `node src/worker.ts`) | interna + saída para a internet | Sem porta. Coleta do COTAHIST (B3) e da Selic (Banco Central) a cada 10 min (`COLETA_INTERVALO_MIN`), com o papel `wtaopt_coleta` (`DATABASE_URL_COLETA`) |
 | `db` | `postgres:17` | interna | Volume persistente, sem porta publicada |
 | `redis` | `redis:7` | interna | `maxmemory` e sem persistência obrigatória |
 | `migracoes` | imagem da `api` | interna | Aplica migrações e termina |
@@ -38,7 +38,7 @@ Todos com `healthcheck`, `restart_policy`, limites de CPU e memória e logs rota
 
 ## Variáveis
 
-Ver `.env.example`. Obrigatórias: `DOMINIO` (`opcoes.wtatech.com.br`), `URL_PUBLICA`, `REDE_TRAEFIK`, `SENHA_DO_BANCO`, `SEGREDO_DA_SESSAO`, `SUPERADMIN_EMAIL`, `SUPERADMIN_SENHA_INICIAL`. Opcionais: `MT5_SENHA_VNC` (tela do MetaTrader), `BRAPI_API_KEY`, `BRAPI_PLANO` (`gratuito`, `startup`, `pro`), `TELEGRAM_BOT_TOKEN`, `SMTP_*`, `HORA_DA_COPIA`, `MANTER_DIAS`.
+Ver `.env.example`. Obrigatórias: `SENHA_DA_COLETA` (papel `wtaopt_coleta`, passada às migrações como `SENHA_COLETA`), `DOMINIO` (`opcoes.wtatech.com.br`), `URL_PUBLICA`, `REDE_TRAEFIK`, `SENHA_DO_BANCO`, `SEGREDO_DA_SESSAO`, `SUPERADMIN_EMAIL`, `SUPERADMIN_SENHA_INICIAL`. Opcionais: `MT5_SENHA_VNC` (tela do MetaTrader), `BRAPI_API_KEY`, `BRAPI_PLANO` (`gratuito`, `startup`, `pro`), `TELEGRAM_BOT_TOKEN`, `SMTP_*`, `HORA_DA_COPIA`, `MANTER_DIAS`.
 
 ## Passo a passo
 

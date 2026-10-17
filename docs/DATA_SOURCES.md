@@ -39,6 +39,8 @@ O responsável tem conta na Genial com acesso ao MetaTrader 5. Um robô só leit
 
 ### Arquivo COTAHIST
 
+Coleta (worker, a cada 10 minutos): depois das 20h de cada pregão baixa `COTAHIST_DddmmAAAA.ZIP`; confere até 10 dias para trás e recupera o que faltou (até 3 arquivos por ciclo), sem buscar fim de semana nem feriado cadastrado e esperando 1 hora antes de tentar de novo um arquivo que ainda não saiu. Guarda ações à vista (mercado 010) e opções (070 e 080); fracionário fica de fora. Toda tentativa fica em `importacoes` (diagnóstico). A Selic (SGS 1178) é buscada uma vez por dia, depois das 9h.
+
 - Layout oficial: "SeriesHistoricas_Layout.pdf" da B3. Leitor pronto em `packages/domain/src/cotahist.ts`, com testes.
 - Opções: tipo de mercado 070 (call) e 080 (put). Preços com duas casas implícitas (já em centavos).
 - Melhor oferta zerada significa "sem oferta" e vira `null`.
