@@ -51,6 +51,100 @@ export default function Painel() {
   const dia = hoje ? emBrasilia(hoje).dia : null;
   const vencimentos = dia ? proximosVencimentos(dia) : [];
 
+  // Com a ponte ligada, a tabela de ativos ganha colunas (compra, venda) e vai para a largura toda, como na prévia.
+  const secaoAtivos = (
+    <section className="secao secao-tabela" aria-labelledby="ativos-titulo">
+      <div className="secao-topo">
+        <h2 id="ativos-titulo">Ativos acompanhados</h2>
+        <Link href="/ativos" style={{ fontSize: 14, padding: '10px 0' }}>Gerenciar</Link>
+      </div>
+      {erro && <p className="secao-vazia" style={{ padding: '0 24px' }} role="alert">{erro}</p>}
+      {favoritos === null && !erro && <p className="secao-vazia" style={{ padding: '0 24px 12px' }} role="status">Carregando…</p>}
+      {favoritos?.length === 0 && (
+        <div style={{ padding: '0 24px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <p className="secao-vazia">Você ainda não acompanha nenhum ativo. Adicione os códigos que você opera, como PETR4 ou BOVA11.</p>
+          <div><Link href="/ativos" className="botao botao-contorno">Adicionar ativo</Link></div>
+        </div>
+      )}
+      {codigos.length > 0 && (
+        <div className="tabela-caixa" tabIndex={0} role="region" aria-label="Tabela de ativos acompanhados">
+          <table className="tabela">
+            <thead>
+              <tr>
+                <th scope="col">Ativo</th>
+                <th scope="col" className="numero">Último</th>
+                <th scope="col" className="numero">Compra</th>
+                <th scope="col" className="numero">Venda</th>
+                <th scope="col" className="numero">Dia</th>
+                <th scope="col">Dado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {codigos.map((codigo) => {
+                const c = porCodigo.get(codigo);
+                const selo = SELO_DA_QUALIDADE[c?.qualidade ?? 'indisponivel'];
+                const variacao = c ? variacaoDoDia(c) : null;
+                return (
+                  <tr key={codigo}>
+                    <th scope="row">
+                      {codigo}
+                      {soEmPosicao.has(codigo) && <span className="sub">em posição na corretora</span>}
+                    </th>
+                    <td className="numero" style={{ fontWeight: 600 }}>{formatarReais(c?.ultimo ?? null)}</td>
+                    <td className="numero" style={{ color: 'var(--apoio)' }}>{formatarPreco(c?.bid ?? null)}</td>
+                    <td className="numero" style={{ color: 'var(--apoio)' }}>{formatarPreco(c?.ask ?? null)}</td>
+                    <td className="numero">
+                      {variacao === null ? <span aria-label="sem variação">—</span> : (
+                        <span className={variacao >= 0 ? 'selo selo-alta' : 'selo selo-baixa'}>
+                          <Seta sobe={variacao >= 0} />{formatarVariacao(variacao)}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span className={`selo ${selo.classe}`}><Icone nome={selo.icone} tamanho={selo.preenchido ? 14 : 16} preenchido={selo.preenchido ?? false} />{selo.texto}</span>
+                      {c && <span className="sub">{detalheDaCotacao(c, agora)}</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+  const lateral = (
+    <>
+      <section className="secao" aria-labelledby="venc-titulo">
+        <h2 id="venc-titulo">Próximos vencimentos de opções</h2>
+        {dia && vencimentos.map((v) => (
+          <div key={v} className="linha-lista">
+            <span>
+              <span className="linha-lista-grande">{formatarData(v)}</span>
+              <span className="linha-lista-apoio">Vencimento mensal previsto</span>
+            </span>
+            <span className="linha-lista-apoio">{quando(diasAte(dia, v))}</span>
+          </div>
+        ))}
+        <span className="linha-lista-apoio" style={{ fontSize: 13 }}>
+          Previsão pela terceira sexta-feira do mês, ainda sem descontar feriados. A data oficial de cada série vem da B3.
+        </span>
+      </section>
+
+      <section className="secao" aria-labelledby="alertas-titulo">
+        <h2 id="alertas-titulo">Alertas</h2>
+        <p className="secao-vazia">Você ainda não tem regras de alerta. Crie uma para ser avisado no Telegram quando um preço cruzar o nível que você escolher.</p>
+        <div><Link href="/alertas" className="botao botao-contorno">Criar regra de alerta</Link></div>
+      </section>
+
+      <section className="secao" aria-labelledby="pos-titulo">
+        <h2 id="pos-titulo">Posições abertas</h2>
+        <p className="secao-vazia">Nenhuma posição registrada. Registre uma operação que você fez na corretora para acompanhar resultado, risco e rolagens.</p>
+        <div><Link href="/posicoes" className="botao">Registrar operação</Link></div>
+      </section>
+    </>
+  );
+
   return (
     <>
       <Cabecalho
@@ -114,156 +208,74 @@ export default function Painel() {
         </div>
       </section>
 
-      <div className="grade-2">
-        <section className="secao secao-tabela" aria-labelledby="ativos-titulo">
-          <div className="secao-topo">
-            <h2 id="ativos-titulo">Ativos acompanhados</h2>
-            <Link href="/ativos" style={{ fontSize: 14, padding: '10px 0' }}>Gerenciar</Link>
-          </div>
-          {erro && <p className="secao-vazia" style={{ padding: '0 24px' }} role="alert">{erro}</p>}
-          {favoritos === null && !erro && <p className="secao-vazia" style={{ padding: '0 24px 12px' }} role="status">Carregando…</p>}
-          {favoritos?.length === 0 && (
-            <div style={{ padding: '0 24px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <p className="secao-vazia">Você ainda não acompanha nenhum ativo. Adicione os códigos que você opera, como PETR4 ou BOVA11.</p>
-              <div><Link href="/ativos" className="botao botao-contorno">Adicionar ativo</Link></div>
-            </div>
-          )}
-          {codigos.length > 0 && (
-            <div className="tabela-caixa">
-              <table className="tabela">
-                <thead>
-                  <tr>
-                    <th scope="col">Ativo</th>
-                    <th scope="col" className="numero">Último</th>
-                    <th scope="col" className="numero">Compra</th>
-                    <th scope="col" className="numero">Venda</th>
-                    <th scope="col" className="numero">Dia</th>
-                    <th scope="col">Dado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {codigos.map((codigo) => {
-                    const c = porCodigo.get(codigo);
-                    const selo = SELO_DA_QUALIDADE[c?.qualidade ?? 'indisponivel'];
-                    const variacao = c ? variacaoDoDia(c) : null;
-                    return (
-                      <tr key={codigo}>
-                        <th scope="row">
-                          {codigo}
-                          {soEmPosicao.has(codigo) && <span className="sub">em posição na corretora</span>}
-                        </th>
-                        <td className="numero" style={{ fontWeight: 600 }}>{formatarReais(c?.ultimo ?? null)}</td>
-                        <td className="numero" style={{ color: 'var(--apoio)' }}>{formatarPreco(c?.bid ?? null)}</td>
-                        <td className="numero" style={{ color: 'var(--apoio)' }}>{formatarPreco(c?.ask ?? null)}</td>
-                        <td className="numero">
-                          {variacao === null ? <span aria-label="sem variação">—</span> : (
-                            <span className={variacao >= 0 ? 'selo selo-alta' : 'selo selo-baixa'}>
-                              <Seta sobe={variacao >= 0} />{formatarVariacao(variacao)}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ whiteSpace: 'nowrap' }}>
-                          <span className={`selo ${selo.classe}`}><Icone nome={selo.icone} tamanho={selo.preenchido ? 14 : 16} preenchido={selo.preenchido ?? false} />{selo.texto}</span>
-                          {c && <span className="sub">{detalheDaCotacao(c, agora)}</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        <div className="coluna">
-          <section className="secao" aria-labelledby="venc-titulo">
-            <h2 id="venc-titulo">Próximos vencimentos de opções</h2>
-            {dia && vencimentos.map((v) => (
-              <div key={v} className="linha-lista">
-                <span>
-                  <span className="linha-lista-grande">{formatarData(v)}</span>
-                  <span className="linha-lista-apoio">Vencimento mensal previsto</span>
+      {ponte ? (
+        <>
+          {secaoAtivos}
+          <section className="secao secao-tabela" aria-labelledby="corretora-titulo">
+            <div className="secao-topo">
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <h2 id="corretora-titulo">Posições na corretora</h2>
+                <span style={{ color: 'var(--apoio)', fontSize: 14 }}>
+                  {contaDaPonte(ponte)}.{lidasEm ? ` Lidas do MetaTrader 5 às ${horaExata(lidasEm)}, só leitura.` : ' Só leitura.'}
+                  {!conectada && ponte.ultimoContatoEm && ' A ponte está sem sinal: estas posições podem estar desatualizadas.'}
                 </span>
-                <span className="linha-lista-apoio">{quando(diasAte(dia, v))}</span>
-              </div>
-            ))}
-            <span className="linha-lista-apoio" style={{ fontSize: 13 }}>
-              Previsão pela terceira sexta-feira do mês, ainda sem descontar feriados. A data oficial de cada série vem da B3.
-            </span>
-          </section>
-
-          <section className="secao" aria-labelledby="alertas-titulo">
-            <h2 id="alertas-titulo">Alertas</h2>
-            <p className="secao-vazia">Você ainda não tem regras de alerta. Crie uma para ser avisado no Telegram quando um preço cruzar o nível que você escolher.</p>
-            <div><Link href="/alertas" className="botao botao-contorno">Criar regra de alerta</Link></div>
-          </section>
-
-          <section className="secao" aria-labelledby="pos-titulo">
-            <h2 id="pos-titulo">Posições abertas</h2>
-            <p className="secao-vazia">Nenhuma posição registrada. Registre uma operação que você fez na corretora para acompanhar resultado, risco e rolagens.</p>
-            <div><Link href="/posicoes" className="botao">Registrar operação</Link></div>
-          </section>
-        </div>
-      </div>
-      {ponte && (
-        <section className="secao secao-tabela" aria-labelledby="corretora-titulo">
-          <div className="secao-topo">
-            <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <h2 id="corretora-titulo">Posições na corretora</h2>
-              <span style={{ color: 'var(--apoio)', fontSize: 14 }}>
-                {contaDaPonte(ponte)}.{lidasEm ? ` Lidas do MetaTrader 5 às ${horaExata(lidasEm)}, só leitura.` : ' Só leitura.'}
-                {!conectada && ponte.ultimoContatoEm && ' A ponte está sem sinal: estas posições podem estar desatualizadas.'}
               </span>
-            </span>
-            <span style={{ color: 'var(--apoio)', fontSize: 14 }}>Só você vê estes dados.</span>
-          </div>
-          {posicoes && posicoes.length === 0 && (
-            <p className="secao-vazia" style={{ padding: '0 24px 12px' }}>
-              {ponte.ultimoContatoEm ? 'Nenhuma posição aberta na conta.' : 'As posições aparecem aqui quando o robô mandar o primeiro sinal.'}
-            </p>
-          )}
-          {posicoes && posicoes.length > 0 && (
-            <>
-              <div className="tabela-caixa">
-                <table className="tabela">
-                  <thead>
-                    <tr>
-                      <th scope="col">Ativo</th>
-                      <th scope="col">Lado</th>
-                      <th scope="col" className="numero">Quantidade</th>
-                      <th scope="col" className="numero">Preço médio</th>
-                      <th scope="col" className="numero">Para encerrar agora</th>
-                      <th scope="col" className="numero">Resultado estimado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {posicoes.map((p) => {
-                      const e = encerrarAgora(p, porCodigo.get(p.codigo));
-                      return (
-                        <tr key={p.codigo}>
-                          <th scope="row">{p.codigo}</th>
-                          <td>{p.lado === 'compra' ? 'Comprado' : 'Vendido'}</td>
-                          <td className="numero">{p.quantidade.toLocaleString('pt-BR')}</td>
-                          <td className="numero">{formatarPrecoMedio(p.precoMedio)}</td>
-                          <td className="numero">
-                            {e.ok ? formatarReais(e.preco) : '—'}
-                            <span className="sub">{e.ok ? e.origem : e.motivo}</span>
-                          </td>
-                          <td className="numero">
-                            {e.ok ? <span className={e.resultado >= 0 ? 'resultado-alta' : 'resultado-baixa'}>{formatarResultado(e.resultado)}</span> : <span aria-label="sem estimativa">—</span>}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <p className="secao-vazia" style={{ padding: '8px 24px 12px', fontSize: 14 }}>
-                Resultado estimado = quanto daria encerrar agora: comprado vende pela melhor oferta de compra, vendido recompra pela melhor oferta de venda. Sem custos e impostos. Para acompanhar risco, vencimento e rolagens, estas posições poderão ser importadas em Posições (Fase 6).
+              <span style={{ color: 'var(--apoio)', fontSize: 14 }}>Só você vê estes dados.</span>
+            </div>
+            {posicoes && posicoes.length === 0 && (
+              <p className="secao-vazia" style={{ padding: '0 24px 12px' }}>
+                {ponte.ultimoContatoEm ? 'Nenhuma posição aberta na conta.' : 'As posições aparecem aqui quando o robô mandar o primeiro sinal.'}
               </p>
-            </>
-          )}
-        </section>
+            )}
+            {posicoes && posicoes.length > 0 && (
+              <>
+                <div className="tabela-caixa" tabIndex={0} role="region" aria-label="Tabela de posições na corretora">
+                  <table className="tabela">
+                    <thead>
+                      <tr>
+                        <th scope="col">Ativo</th>
+                        <th scope="col">Lado</th>
+                        <th scope="col" className="numero">Quantidade</th>
+                        <th scope="col" className="numero">Preço médio</th>
+                        <th scope="col" className="numero">Para encerrar agora</th>
+                        <th scope="col" className="numero">Resultado estimado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {posicoes.map((p) => {
+                        const e = encerrarAgora(p, porCodigo.get(p.codigo));
+                        return (
+                          <tr key={p.codigo}>
+                            <th scope="row">{p.codigo}</th>
+                            <td>{p.lado === 'compra' ? 'Comprado' : 'Vendido'}</td>
+                            <td className="numero">{p.quantidade.toLocaleString('pt-BR')}</td>
+                            <td className="numero">{formatarPrecoMedio(p.precoMedio)}</td>
+                            <td className="numero">
+                              {e.ok ? formatarReais(e.preco) : '—'}
+                              <span className="sub">{e.ok ? e.origem : e.motivo}</span>
+                            </td>
+                            <td className="numero">
+                              {e.ok ? <span className={e.resultado >= 0 ? 'resultado-alta' : 'resultado-baixa'}>{formatarResultado(e.resultado)}</span> : <span aria-label="sem estimativa">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="secao-vazia" style={{ padding: '8px 24px 12px', fontSize: 14 }}>
+                  Resultado estimado = quanto daria encerrar agora: comprado vende pela melhor oferta de compra, vendido recompra pela melhor oferta de venda. Sem custos e impostos. Para acompanhar risco, vencimento e rolagens, estas posições poderão ser importadas em Posições (Fase 6).
+                </p>
+              </>
+            )}
+          </section>
+          <div className="grade-3">{lateral}</div>
+        </>
+      ) : (
+        <div className="grade-2">
+          {secaoAtivos}
+          <div className="coluna">{lateral}</div>
+        </div>
       )}
     </>
   );

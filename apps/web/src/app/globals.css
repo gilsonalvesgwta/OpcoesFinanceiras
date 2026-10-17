@@ -207,6 +207,7 @@ p { margin: 0; }
 }
 
 .grade-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 24px; align-items: start; }
+.grade-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 24px; align-items: start; }
 .coluna { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
 
 .aviso-tracejado { padding: 10px 14px; border: 1px dashed var(--linha); border-radius: 8px; color: var(--apoio); font-size: 14px; }
