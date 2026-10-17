@@ -53,7 +53,7 @@ test('zip: lê o que montou, recusa o que não é zip e o corrompido', () => {
   assert.ok(r.conteudo.equals(conteudo));
   assert.throws(() => extrairPrimeiroArquivo(Buffer.from('<html>não encontrado</html>')), ErroDeZip);
   const ruim = Buffer.from(z);
-  ruim[40] = (ruim[40] as number) ^ 0xff;
+  ruim[70] = (ruim[70] as number) ^ 0xff; // dentro dos dados comprimidos
   assert.throws(() => extrairPrimeiroArquivo(ruim));
   assert.throws(() => extrairPrimeiroArquivo(z, 10), /arquivo_grande_demais/);
 });
