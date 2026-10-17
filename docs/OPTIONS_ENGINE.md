@@ -77,3 +77,13 @@ Feriados e sessões especiais vêm de configuração (tabela editável pelo supe
 | `alertas.test.ts` | Cruzamentos, histerese, qualidade, fora de ordem, reinício, condições compostas, limites, janela |
 | `diversos.test.ts` | Qualidade, preço de encerramento, sanidade, código de opção, calendário, dinheiro |
 | `cotahist.test.ts` | Leitura do arquivo oficial da B3: ações, opções, oferta zerada, fator de cotação, ligação opção → ativo-objeto |
+
+## Gregas do fechamento (Fase 3b)
+
+Calculadas pelo worker depois de cada arquivo da B3 (`calcularDoFechamento` em `packages/domain/src/calculo-diario.ts`) e guardadas em `calculos_opcoes`:
+
+- prêmio: meio da melhor oferta de compra e de venda no fechamento, se as duas existem e o spread não passa de 50% do meio; senão o último negócio do dia; senão não calcula (`sem_premio`);
+- ativo-objeto: último preço do mesmo pregão; juros: Selic do dia ou a mais recente antes dele (taxa contínua);
+- tempo: dias de pregão do fechamento até o vencimento (calendário do banco) sobre 252; no dia do vencimento não calcula;
+- dividendos: q = 0. Sem resultado, a linha guarda o motivo e os números ficam vazios (nunca zero).
+- A api devolve a cadeia em `/api/mercado/cadeia?ativo=PETR4&vencimento=AAAA-MM-DD` com as premissas.

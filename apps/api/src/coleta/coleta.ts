@@ -14,6 +14,7 @@ import {
 import { emTransacao, type Cliente, type Pool } from '../banco.ts';
 import { lerCalendario } from '../calendario.ts';
 import { ehZip, extrairPrimeiroArquivo } from './zip.ts';
+import { calcularDia, diasParaRecalcular } from './calculos.ts';
 
 export const VERSAO_DA_COLETA = '0.1.0';
 const LOTE = 2000;
@@ -173,7 +174,11 @@ export async function coletarSelic(dep: DependenciasDaColeta): Promise<'ok' | 'e
 
 // ---------- Ciclo ----------
 
-export type ResumoDoCiclo = { cotahist: Record<string, 'ok' | 'sem_arquivo' | 'erro'>; selic: 'ok' | 'erro' | 'em_dia' };
+export type ResumoDoCiclo = {
+  cotahist: Record<string, 'ok' | 'sem_arquivo' | 'erro'>;
+  selic: 'ok' | 'erro' | 'em_dia';
+  calculos: Record<string, { calculadas: number; semCalculo: number }>;
+};
 
 export async function cicloDeColeta(dep: DependenciasDaColeta): Promise<ResumoDoCiclo> {
   const agora = relogio(dep)();
@@ -207,11 +212,23 @@ export async function cicloDeColeta(dep: DependenciasDaColeta): Promise<ResumoDo
     };
   });
 
-  const resumo: ResumoDoCiclo = { cotahist: {}, selic: 'em_dia' };
+  const resumo: ResumoDoCiclo = { cotahist: {}, selic: 'em_dia', calculos: {} };
+  // Selic primeiro: o cálculo das gregas do arquivo novo já sai com ela.
+  // A do dia sai de manhã; antes das 9h buscar não traz nada novo.
+  if (!estado.selicEmDia && partesEmBrasilia(agora).hora >= '09:00') resumo.selic = await coletarSelic(dep);
   for (const dia of diasParaColetar(agora, estado.cfg, estado.importados, estado.ultima).slice(-MAXIMO_POR_CICLO)) {
     resumo.cotahist[dia] = await coletarCotahist(dep, dia);
   }
-  // A Selic do dia sai de manhã; antes das 9h buscar não traz nada novo.
-  if (!estado.selicEmDia && partesEmBrasilia(agora).hora >= '09:00') resumo.selic = await coletarSelic(dep);
+  // Volatilidade implícita e gregas dos pregões que ainda não têm (ou ficaram sem Selic).
+  const pendentes = await emTransacao(dep.pool, null, (c) => diasParaRecalcular(c, agora));
+  for (const dia of pendentes) {
+    try {
+      const r = await emTransacao(dep.pool, null, (c) => calcularDia(c, dia, estado.cfg));
+      resumo.calculos[dia] = r;
+      dep.log?.(`Gregas ${dia}: ${r.calculadas} opções calculadas, ${r.semCalculo} sem cálculo`);
+    } catch (e) {
+      dep.log?.(`Gregas ${dia}: erro ${mensagem(e)}`);
+    }
+  }
   return resumo;
 }

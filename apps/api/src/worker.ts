@@ -21,7 +21,8 @@ async function rodar(): Promise<void> {
   try {
     const r = await cicloDeColeta({ pool, buscar: fetch, log, nome: `coleta@${hostname()}` });
     const dias = Object.entries(r.cotahist).map(([d, s]) => `${d}:${s}`).join(' ');
-    log(`ciclo concluído${dias ? ` | COTAHIST ${dias}` : ''} | Selic ${r.selic}`);
+    const calc = Object.entries(r.calculos).map(([d, x]) => `${d}:${x.calculadas}`).join(' ');
+    log(`ciclo concluído${dias ? ` | COTAHIST ${dias}` : ''} | Selic ${r.selic}${calc ? ` | gregas ${calc}` : ''}`);
   } catch (e) {
     log(`ciclo falhou: ${e instanceof Error ? e.message : String(e)}`);
   }

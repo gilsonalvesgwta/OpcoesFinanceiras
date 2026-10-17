@@ -1,7 +1,7 @@
 // Dados de mercado gratuitos (fechamento da B3, Selic), calendário e diagnóstico.
 
 import type { FastifyInstance } from 'fastify';
-import { situacaoDoMercado, ultimoPregaoEncerrado } from '@wta/domain';
+import { PREMISSAS_DO_MODELO, SPREAD_MAXIMO_PARA_MEIO, situacaoDoMercado, ultimoPregaoEncerrado } from '@wta/domain';
 import { ErroHttp, ipDe, type Dependencias, type Sessao } from '../app.ts';
 import { emTransacao, violacaoDeUnicidade } from '../banco.ts';
 import { auditar } from '../auditoria.ts';
@@ -62,6 +62,64 @@ export async function rotasDeMercado(app: FastifyInstance, dep: Dependencias, ca
         melhorCompra: num(l.melhor_compra), melhorVenda: num(l.melhor_venda),
         negocios: l.negocios, quantidade: num(l.quantidade), volume: num(l.volume),
       })) };
+    });
+  });
+
+  // Cadeia de opções de um ativo no último fechamento, com volatilidade implícita e
+  // gregas calculadas pelo sistema (e o motivo quando não deu para calcular).
+  app.get('/api/mercado/cadeia', {
+    config: { politica: 'autenticado' },
+    schema: {
+      querystring: {
+        type: 'object', additionalProperties: false, required: ['ativo'],
+        properties: { ativo: { type: 'string', pattern: '^[A-Za-z0-9]{4,12}$' }, vencimento: DIA },
+      },
+    },
+  }, async (req) => {
+    const s = req.sessao as Sessao;
+    const q = req.query as { ativo: string; vencimento?: string };
+    const ativo = q.ativo.toUpperCase();
+    return emTransacao(pool, s.usuarioId, async (c) => {
+      const base = (await c.query(
+        "select to_char(dia, 'YYYY-MM-DD') as dia, ultimo from fechamentos where codigo = $1 and tipo_mercado = 10 order by dia desc limit 1", [ativo],
+      )).rows[0];
+      if (!base) throw new ErroHttp(404, 'sem_fechamento');
+      const dia = base.dia as string;
+      const vencimentos = (await c.query(
+        `select distinct to_char(vencimento, 'YYYY-MM-DD') as v from series_opcoes
+         where ativo_objeto = $1 and visto_primeiro <= $2 and visto_ultimo >= $2 and vencimento >= $2 order by v`, [ativo, dia],
+      )).rows.map((l) => l.v as string);
+      const vencimento = q.vencimento ?? vencimentos[0] ?? null;
+      const series = vencimento ? (await c.query(
+        `select s.codigo, s.tipo, s.strike, f.ultimo, f.melhor_compra, f.melhor_venda, f.negocios, f.quantidade,
+                k.vol_implicita, k.preco_teorico, k.delta, k.gamma, k.theta, k.vega, k.rho, k.premio, k.origem_premio, k.dias_uteis, k.selic, k.motivo
+         from series_opcoes s
+         join fechamentos f on f.codigo = s.codigo and f.dia = $2
+         left join calculos_opcoes k on k.codigo = s.codigo and k.dia = $2
+         where s.ativo_objeto = $1 and s.vencimento = $3 and s.visto_primeiro <= $2 and s.visto_ultimo >= $2
+         order by s.strike, s.tipo`, [ativo, dia, vencimento],
+      )).rows : [];
+      return {
+        ativo: { codigo: ativo, ultimo: num(base.ultimo), dia },
+        vencimentos, vencimento,
+        series: series.map((l) => ({
+          codigo: l.codigo, tipo: l.tipo, strike: num(l.strike),
+          ultimo: num(l.ultimo), bid: num(l.melhor_compra), ask: num(l.melhor_venda), negocios: l.negocios, quantidade: num(l.quantidade),
+          calculo: l.motivo === null && l.vol_implicita !== null
+            ? {
+                volImplicita: l.vol_implicita, precoTeorico: l.preco_teorico, delta: l.delta, gamma: l.gamma, theta: l.theta, vega: l.vega, rho: l.rho,
+                premio: Number(l.premio), origemPremio: l.origem_premio, diasUteis: l.dias_uteis, selic: Number(l.selic),
+              }
+            : { motivo: l.motivo ?? 'ainda_nao_calculado' },
+        })),
+        fonte: 'b3-cotahist',
+        qualidade: 'historico',
+        premissas: [
+          ...PREMISSAS_DO_MODELO,
+          `Prêmio: meio da melhor oferta de compra e de venda no fechamento (spread de até ${Math.round(SPREAD_MAXIMO_PARA_MEIO * 100)}% do meio); sem isso, o último negócio do dia.`,
+          'Juros: Selic do Banco Central do dia (ou a mais recente antes dele).',
+        ],
+      };
     });
   });
 
