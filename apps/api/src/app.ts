@@ -11,6 +11,8 @@ import { rotasDeAcesso } from './rotas/acesso.ts';
 import { rotasDeAdministracao } from './rotas/administracao.ts';
 import { rotasPessoais } from './rotas/pessoais.ts';
 import { rotasDaPonte } from './rotas/ponte.ts';
+import { rotasDeMercado } from './rotas/mercado.ts';
+import { CacheDoCalendario } from './calendario.ts';
 
 export type Politica = 'publica' | 'autenticado' | 'admin' | 'superadmin';
 export type Papel = 'superadmin' | 'admin' | 'usuario';
@@ -156,6 +158,8 @@ export async function construirApp(dep: Dependencias): Promise<FastifyInstance> 
   await rotasDeAcesso(app, dep);
   await rotasDeAdministracao(app, dep);
   await rotasPessoais(app, dep);
-  await rotasDaPonte(app, dep);
+  const calendario = new CacheDoCalendario(dep.pool);
+  await rotasDaPonte(app, dep, calendario);
+  await rotasDeMercado(app, dep, calendario);
   return app;
 }

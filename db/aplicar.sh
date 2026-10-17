@@ -2,6 +2,7 @@
 # Aplica as migrações pendentes, em ordem, uma transação por arquivo.
 # Uso: PGHOST=... PGUSER=<dono> PGPASSWORD=... PGDATABASE=... SENHA_APP=... db/aplicar.sh
 # SENHA_APP (opcional) liga o login do papel wtaopt_app com essa senha.
+# SENHA_COLETA (opcional) liga o login do papel wtaopt_coleta (worker de coleta).
 set -euo pipefail
 
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,6 +24,11 @@ done
 if [[ -n "${SENHA_APP:-}" ]]; then
   "${P[@]}" -v senha="$SENHA_APP" <<'SQL'
 alter role wtaopt_app login password :'senha';
+SQL
+fi
+if [[ -n "${SENHA_COLETA:-}" ]]; then
+  "${P[@]}" -v senha="$SENHA_COLETA" <<'SQL'
+alter role wtaopt_coleta login password :'senha';
 SQL
 fi
 echo "migrações em dia"
