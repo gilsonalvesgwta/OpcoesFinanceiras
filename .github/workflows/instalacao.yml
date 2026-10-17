@@ -100,6 +100,7 @@ jobs:
           arq=$(docker exec "$c" sh -c 'ls -t /copias/*antes-do-teste.dump | head -1')
           docker exec "$db" psql -U postgres -d wtaopt -c "delete from feriados where dia = '2026-12-25'"
           docker exec "$c" /app/infra/copias/restaurar.sh "$arq"          # só confere
+          # Com a api e o worker LIGADOS: a restauração bloqueia o login deles e religa no fim.
           docker exec "$c" /app/infra/copias/restaurar.sh "$arq" --sim
           depois=$(docker exec "$db" psql -U postgres -d wtaopt -At -c 'select (select count(*) from users), (select count(*) from feriados), (select count(*) from controle.migracoes)')
           echo "antes: $antes | depois: $depois"
