@@ -1,0 +1,149 @@
+# WTA Options Intelligence — stack para Docker Swarm (Portainer), atrás de um Traefik já existente.
+# Funciona em qualquer VPS: tudo o que muda de uma instalação para outra vem das variáveis
+# preenchidas no Portainer (ver infra/variaveis.exemplo e docs/INSTALACAO.md).
+# Não publica nenhuma porta: só a interface ("web") fica acessível, pelo Traefik, em https://${DOMINIO}.
+# Nome sugerido da stack no Portainer: wtaopt (os volumes ficam wtaopt_dados e wtaopt_copias).
+
+version: "3.8"
+
+x-imagem-api: &imagem-api ghcr.io/gilsonalvesgwta/opcoesfinanceiras-api:${VERSAO:-main}
+
+x-logs: &logs
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+x-banco-dono: &banco-dono
+  PGHOST: db
+  PGPORT: "5432"
+  PGUSER: postgres
+  PGPASSWORD: ${SENHA_DO_BANCO:?preencha SENHA_DO_BANCO}
+  PGDATABASE: wtaopt
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${SENHA_DO_BANCO:?preencha SENHA_DO_BANCO}
+      POSTGRES_DB: wtaopt
+      TZ: America/Sao_Paulo
+    volumes: [dados:/var/lib/postgresql/data]
+    networks: [interna]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d wtaopt"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    logging: *logs
+    deploy:
+      placement: { constraints: [node.role == manager] }
+      restart_policy: { condition: any, delay: 5s }
+      resources: { limits: { cpus: "1.0", memory: 512M } }
+
+  # Aplica as migrações e liga o login dos papéis da aplicação; termina quando acaba.
+  migracoes:
+    image: *imagem-api
+    command: ["/app/db/aplicar.sh"]
+    environment:
+      <<: *banco-dono
+      SENHA_APP: ${SENHA_APP:?preencha SENHA_APP}
+      SENHA_COLETA: ${SENHA_COLETA:?preencha SENHA_COLETA}
+    networks: [interna]
+    logging: *logs
+    deploy:
+      placement: { constraints: [node.role == manager] }
+      restart_policy: { condition: on-failure, delay: 10s, max_attempts: 30 }
+      resources: { limits: { cpus: "0.5", memory: 128M } }
+
+  api:
+    image: *imagem-api
+    environment:
+      NODE_ENV: production
+      PORTA: "3001"
+      URL_PUBLICA: https://${DOMINIO:?preencha DOMINIO}
+      DATABASE_URL: postgres://wtaopt_app:${SENHA_APP}@db:5432/wtaopt
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:?preencha SUPERADMIN_EMAIL}
+      SUPERADMIN_SENHA_INICIAL: ${SUPERADMIN_SENHA_INICIAL:?preencha SUPERADMIN_SENHA_INICIAL}
+      BRAPI_API_KEY: ${BRAPI_API_KEY:-}
+    networks: [interna]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/saude').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging: *logs
+    deploy:
+      placement: { constraints: [node.role == manager] }
+      restart_policy: { condition: any, delay: 5s }
+      update_config: { order: start-first, failure_action: rollback }
+      resources: { limits: { cpus: "1.0", memory: 256M } }
+
+  # Coleta gratuita: arquivo diário da B3, Selic e cálculo das gregas. Precisa de saída para a internet.
+  worker:
+    image: *imagem-api
+    command: ["node", "src/worker.ts"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL_COLETA: postgres://wtaopt_coleta:${SENHA_COLETA}@db:5432/wtaopt
+      COLETA_INTERVALO_MIN: "10"
+    networks: [interna]
+    logging: *logs
+    deploy:
+      placement: { constraints: [node.role == manager] }
+      restart_policy: { condition: any, delay: 30s }
+      resources: { limits: { cpus: "1.0", memory: 768M } }
+
+  web:
+    image: ghcr.io/gilsonalvesgwta/opcoesfinanceiras-web:${VERSAO:-main}
+    networks: [interna, traefik]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/entrar').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging: *logs
+    deploy:
+      placement: { constraints: [node.role == manager] }
+      restart_policy: { condition: any, delay: 5s }
+      update_config: { order: start-first, failure_action: rollback }
+      resources: { limits: { cpus: "1.0", memory: 256M } }
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=${REDE_TRAEFIK:?preencha REDE_TRAEFIK}
+        - traefik.http.routers.wtaopt_web.rule=Host(`${DOMINIO}`)
+        - traefik.http.routers.wtaopt_web.entrypoints=${ENTRYPOINT_TRAEFIK:-websecure}
+        - traefik.http.routers.wtaopt_web.tls.certresolver=${CERTRESOLVER_TRAEFIK:-letsencryptresolver}
+        - traefik.http.services.wtaopt_web.loadbalancer.server.port=3000
+        - traefik.http.services.wtaopt_web.loadbalancer.passHostHeader=true
+
+  # Cópia diária do banco no volume wtaopt_copias (ver docs/INSTALACAO.md: restaurar e mudar de VPS).
+  copias:
+    image: *imagem-api
+    command: ["/app/infra/copias/agendar.sh"]
+    environment:
+      <<: *banco-dono
+      PASTA_DAS_COPIAS: /copias
+      HORA_DA_COPIA: ${HORA_DA_COPIA:-03:30}
+      MANTER_DIAS: ${MANTER_DIAS:-14}
+      SENHA_APP: ${SENHA_APP}
+      SENHA_COLETA: ${SENHA_COLETA}
+    volumes: [copias:/copias]
+    networks: [interna]
+    logging: *logs
+    deploy:
+      placement: { constraints: [node.role == manager] }
+      restart_policy: { condition: any, delay: 30s }
+      resources: { limits: { cpus: "0.5", memory: 256M } }
+
+volumes:
+  dados:
+  copias:
+
+networks:
+  interna:
+    driver: overlay
+  traefik:
+    external: true
+    name: ${REDE_TRAEFIK}

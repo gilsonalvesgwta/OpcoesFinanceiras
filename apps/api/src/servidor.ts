@@ -10,6 +10,21 @@ const config = lerConfig();
 const pool = criarPool(config.bancoUrl);
 const app = await construirApp({ config, pool, correio: new CorreioDesligado((m) => console.warn(m)) });
 
+// Ao subir junto com a stack, o banco pode ainda não estar pronto (ou as migrações ainda
+// rodando): espera até 2 minutos pelo banco com as funções de acesso criadas.
+for (let tentativa = 1; ; tentativa += 1) {
+  let motivo = 'migrações ainda não aplicadas';
+  try {
+    const r = await pool.query("select to_regproc('app.garantir_superadmin') is not null as pronto");
+    if (r.rows[0]?.pronto) break;
+  } catch (e) {
+    motivo = e instanceof Error ? e.message : String(e);
+  }
+  if (tentativa >= 24) throw new Error(`banco indisponível: ${motivo}`);
+  app.log.warn(`banco ainda indisponível (${motivo}); nova tentativa em 5 s`);
+  await new Promise((ok) => setTimeout(ok, 5000));
+}
+
 // Primeira conta: só é criada se ainda não existir nenhum superadministrador.
 if (config.superadmin) {
   const hash = await gerarHashDeSenha(config.superadmin.senhaInicial);

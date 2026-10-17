@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { resolve } from 'node:path';
 
 // A interface fala com a api pelo mesmo endereço: /api/* é repassado ao serviço
 // da api na rede interna da stack (API_INTERNA), então só a interface fica exposta.
@@ -6,6 +7,8 @@ const API_INTERNA = process.env.API_INTERNA ?? 'http://api:3001';
 
 const config: NextConfig = {
   output: 'standalone',
+  // Monorepo: o pacote do domínio fica fora de apps/web; o build roda dentro de apps/web.
+  outputFileTracingRoot: resolve(process.cwd(), '../..'),
   poweredByHeader: false,
   reactStrictMode: true,
   transpilePackages: ['@wta/domain'],

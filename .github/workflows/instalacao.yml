@@ -1,0 +1,137 @@
+name: Instalação
+
+# Monta as imagens e instala a stack inteira num Docker Swarm de verdade (o mesmo
+# arquivo que vai para o Portainer), confere que a interface responde passando pela
+# api até o banco, faz uma cópia e restaura. No main, publica as imagens no GHCR.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: instalacao-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGEM_API: ghcr.io/gilsonalvesgwta/opcoesfinanceiras-api
+  IMAGEM_WEB: ghcr.io/gilsonalvesgwta/opcoesfinanceiras-web
+
+jobs:
+  stack:
+    name: Stack no Swarm, cópia e restauração
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Montar as imagens
+        run: |
+          docker build -f apps/api/Dockerfile -t "$IMAGEM_API:teste" .
+          docker build -f apps/web/Dockerfile -t "$IMAGEM_WEB:teste" .
+          echo "::notice title=Imagens::api $(docker image inspect "$IMAGEM_API:teste" --format '{{.Size}}' | numfmt --to=iec) | web $(docker image inspect "$IMAGEM_WEB:teste" --format '{{.Size}}' | numfmt --to=iec)"
+
+      - name: Instalar a stack (como no Portainer)
+        env:
+          DOMINIO: opcoes.exemplo.test
+          REDE_TRAEFIK: rede_traefik_teste
+          SENHA_DO_BANCO: dono0teste0${{ github.run_id }}
+          SENHA_APP: app0teste0${{ github.run_id }}
+          SENHA_COLETA: coleta0teste0${{ github.run_id }}
+          SUPERADMIN_EMAIL: chefe@exemplo.test
+          SUPERADMIN_SENHA_INICIAL: senha inicial do teste
+          VERSAO: teste
+        run: |
+          docker swarm init > /dev/null
+          docker network create -d overlay --attachable rede_traefik_teste > /dev/null
+          if docker stack config --help > /dev/null 2>&1; then docker stack config -c infra/portainer-stack.yml > /dev/null; fi
+          docker stack deploy -c infra/portainer-stack.yml wtaopt
+          cont() { docker ps -q -f "name=wtaopt_$1" | head -1; }
+          for i in $(seq 1 60); do
+            w=$(cont web)
+            if [[ -n "$w" ]] && docker exec "$w" node -e "fetch('http://127.0.0.1:3000/api/saude').then(async r=>{const j=await r.json();process.exit(r.ok&&j.banco==='ok'?0:1)}).catch(()=>process.exit(1))"; then
+              echo "interface → api → banco: ok (tentativa $i)"; break
+            fi
+            sleep 5
+          done
+          docker exec "$(cont web)" node -e "fetch('http://127.0.0.1:3000/api/saude').then(r=>r.text()).then(console.log)"
+          docker service ls
+          echo "::notice title=Stack::$(docker service ls --format '{{.Name}} {{.Replicas}}' | tr '\n' ' ')"
+
+      - name: Conferir migrações, coleta e cópia automática
+        run: |
+          cont() { docker ps -q -f "name=wtaopt_$1" | head -1; }
+          # (sem "| grep -q" direto: com pipefail, o grep fecha o cano cedo e derruba o passo)
+          mig=$(docker service logs wtaopt_migracoes 2>&1 || true)
+          tail -5 <<<"$mig"
+          grep -q 'migrações em dia' <<<"$mig"
+          # O worker sobe e registra o pulso (a rede do runner pode ou não alcançar a B3; não importa aqui).
+          for i in $(seq 1 40); do
+            n=$(docker exec "$(cont db)" psql -U postgres -d wtaopt -At -c 'select count(*) from pulso_coleta')
+            [[ "$n" -ge 1 ]] && break; sleep 5
+          done
+          [[ "$n" -ge 1 ]]
+          # A cópia inicial sai ao ligar o serviço de cópias.
+          for i in $(seq 1 40); do
+            arq=$(docker exec "$(cont copias)" sh -c 'ls /copias/*.dump 2>/dev/null | head -1')
+            [[ -n "$arq" ]] && break; sleep 5
+          done
+          [[ -n "$arq" ]]
+          docker exec "$(cont copias)" sh -c 'ls -la /copias'
+
+      - name: Restaurar a cópia por cima e conferir
+        run: |
+          exec > >(tee -a passos.txt) 2>&1
+          set -x
+          cont() { docker ps -q -f "name=wtaopt_$1" | head -1; }
+          c=$(cont copias)
+          db=$(cont db)
+          antes=$(docker exec "$db" psql -U postgres -d wtaopt -At -c 'select (select count(*) from users), (select count(*) from feriados), (select count(*) from controle.migracoes)')
+          docker exec "$c" /app/infra/copias/copiar.sh antes-do-teste
+          arq=$(docker exec "$c" sh -c 'ls -t /copias/*antes-do-teste.dump | head -1')
+          docker exec "$db" psql -U postgres -d wtaopt -c "delete from feriados where dia = '2026-12-25'"
+          docker exec "$c" /app/infra/copias/restaurar.sh "$arq"          # só confere
+          docker exec "$c" /app/infra/copias/restaurar.sh "$arq" --sim
+          depois=$(docker exec "$db" psql -U postgres -d wtaopt -At -c 'select (select count(*) from users), (select count(*) from feriados), (select count(*) from controle.migracoes)')
+          echo "antes: $antes | depois: $depois"
+          [[ "$antes" == "$depois" ]]
+          [[ "${antes%%|*}" -ge 1 ]]   # o superadministrador da instalação existe
+          # A aplicação continua entrando no banco com as senhas dela depois da restauração.
+          docker service update --force wtaopt_api > /dev/null
+          for i in $(seq 1 30); do
+            docker exec "$(cont web)" node -e "fetch('http://127.0.0.1:3000/api/saude').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" && ok=1 && break
+            sleep 5
+          done
+          [[ "${ok:-}" == 1 ]]
+          echo "::notice title=Cópia e restauração::conferido (usuários, feriados, migrações: $depois)"
+
+      - name: Registros em caso de falha
+        if: failure()
+        run: |
+          set +o pipefail
+          if [[ -f passos.txt ]]; then tail -c 2500 passos.txt | tr '\n' ' ' | sed 's/^/::error title=Passo::/'; echo; fi
+          for s in db migracoes api worker web copias; do
+            echo "== $s"; docker service ps "wtaopt_$s" --no-trunc 2>&1 | head -5; docker service logs "wtaopt_$s" 2>&1 | tail -15
+          done | tee falha.txt
+          tail -c 3800 falha.txt | tr '\n' ' ' | sed 's/^/::error title=Stack::/'; echo
+
+      - name: Publicar as imagens (só no main)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for img in "$IMAGEM_API" "$IMAGEM_WEB"; do
+            for tag in main "${GITHUB_SHA::12}"; do
+              docker tag "$img:teste" "$img:$tag"
+              docker push -q "$img:$tag"
+            done
+          done
+          echo "::notice title=Publicado::$IMAGEM_API e $IMAGEM_WEB com as etiquetas main e ${GITHUB_SHA::12}"

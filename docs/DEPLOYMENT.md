@@ -2,6 +2,10 @@
 
 Padrão decidido em 16/10/2026: **Docker Swarm pelo Portainer, atrás do Traefik já existente** (instalação SetupOrion), igual às outras stacks do usuário. Não usa EasyPanel.
 
+Decisão de 17/10/2026: instalar na mesma VPS do CRM, mas sem nada preso a ela; qualquer VPS com Swarm + Portainer + Traefik serve, e as cópias permitem restaurar ou mudar de VPS. **Passo a passo para o usuário: `docs/INSTALACAO.md`.**
+
+Arquivos: `infra/portainer-stack.yml` (stack principal), `infra/mt5-stack.yml` (MetaTrader 5, opcional), `infra/variaveis.exemplo`, `infra/copias/` (copiar, agendar, restaurar), `apps/api/Dockerfile` e `apps/web/Dockerfile`. Imagens publicadas pelo workflow "Instalação" em `ghcr.io/gilsonalvesgwta/opcoesfinanceiras-api` e `-web` (etiquetas `main` e o commit), depois de instalar a stack num Swarm no CI e testar cópia e restauração.
+
 ## Antes de instalar (sem mexer em nada)
 
 Conferir na VPS, só lendo:
@@ -17,7 +21,7 @@ docker service ls
 - Anotar o nome da rede do Traefik (ex.: `WtatechNet`), o entrypoint (`websecure`) e o resolvedor de certificado (`letsencryptresolver`).
 - Não reiniciar nem alterar serviços existentes; não mexer no firewall.
 
-## Stack (`infra/portainer-stack.yml`, Fase 9)
+## Stack (`infra/portainer-stack.yml`)
 
 Serviços com prefixo `wtaopt_`:
 
