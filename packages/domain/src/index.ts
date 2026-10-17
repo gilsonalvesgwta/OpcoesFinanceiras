@@ -12,3 +12,4 @@ export * from './provedor.ts';
 export * from './provedor-simulado.ts';
 export * from './cotahist.ts';
 export * from './ponte.ts';
+export * from './coleta.ts';

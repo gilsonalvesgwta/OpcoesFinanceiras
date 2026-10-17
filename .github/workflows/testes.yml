@@ -74,10 +74,12 @@ jobs:
           db/tests/rodar.sh | tee banco.txt
           echo "::notice title=Banco::$(grep -h 'verificações' banco.txt | tr '\n' ' ')"
           grep -q 'ACESSO: todos os testes passaram' banco.txt
+          grep -q 'MERCADO: todos os testes passaram' banco.txt
+          grep -q 'PONTE: todos os testes passaram' banco.txt
       - name: Preparar o banco da API
         run: |
           psql -d postgres -c "drop database if exists wtaopt_api" -c "create database wtaopt_api"
-          PGDATABASE=wtaopt_api SENHA_APP=app-de-teste db/aplicar.sh
+          PGDATABASE=wtaopt_api SENHA_APP=app-de-teste SENHA_COLETA=coleta-de-teste db/aplicar.sh
           PGDATABASE=wtaopt_api db/aplicar.sh   # segunda vez: não reaplica nada
       - name: Instalar
         run: npm install --no-audit --no-fund
@@ -85,12 +87,18 @@ jobs:
         env:
           DATABASE_URL: postgres://wtaopt_app:app-de-teste@localhost:5432/wtaopt_api
           DATABASE_URL_DONO: postgres://postgres:dono-de-teste@localhost:5432/wtaopt_api
+          DATABASE_URL_COLETA: postgres://wtaopt_coleta:coleta-de-teste@localhost:5432/wtaopt_api
           EXIGIR_BANCO: '1'
         run: |
           (cd apps/api && node --test --test-concurrency=1 --test-reporter=tap "src/**/*.test.ts") | tee api.txt
           echo "::notice title=API::$(grep -E '^# (tests|pass|fail|skipped)' api.txt | tr '\n' ' ')"
           grep -qE '^# skipped 0$' api.txt
           grep -qE '^# fail 0$' api.txt
+      - name: Detalhe das falhas da API
+        if: failure()
+        run: |
+          # Os registros do Actions nem sempre podem ser baixados: as falhas vão como anotação.
+          grep -nE -A25 '^\s*not ok' api.txt | grep -vE '^\S*-\s*(duration_ms|type:|\.\.\.)' | head -c 3800 | tr '\n' ' ' | sed 's/^/::error title=Falhas da API::/'; echo
 
   interface:
     name: Interface (Next.js + navegador)

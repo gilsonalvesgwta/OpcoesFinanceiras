@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/servidor.ts",
+    "worker": "node src/worker.ts",
     "test": "node --test --test-concurrency=1 \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

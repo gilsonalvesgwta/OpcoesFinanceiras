@@ -49,6 +49,12 @@
 - Logs estruturados com lista de campos mascarados (senha, token, cookie, chave, `Authorization`).
 - Rotação: trocar a variável na stack e atualizar; sessões continuam válidas porque não dependem dessas chaves.
 
+## Coleta de dados de mercado
+
+- O worker usa o papel `wtaopt_coleta`: lê o calendário e escreve só fechamentos, séries de opções, Selic, registro de importações e o próprio pulso. Não lê usuários, favoritos nem dados da ponte MT5 (testado em `db/tests/mercado.sql`).
+- Dados de mercado gratuitos são públicos: qualquer conta ativa lê; a aplicação não escreve neles. Calendário: só o superadministrador altera, com auditoria. Diagnóstico: só o superadministrador lê.
+- Arquivo da B3: tamanho limitado (150 MB baixado, 400 MB descompactado), conferência de CRC, linha com preço que não fecha em centavo é recusada e contada.
+
 ## Ponte com o MetaTrader 5
 
 - O robô se identifica com uma **chave da ponte** (32 bytes aleatórios), criada pelo próprio usuário e mostrada uma única vez; o banco guarda só o hash SHA-256. Até 3 ativas por usuário; revogar derruba na hora.
