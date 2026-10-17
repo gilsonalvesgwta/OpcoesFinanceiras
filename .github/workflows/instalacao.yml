@@ -90,6 +90,8 @@ jobs:
 
       - name: Restaurar a cópia por cima e conferir
         run: |
+          exec > >(tee -a passos.txt) 2>&1
+          set -x
           cont() { docker ps -q -f "name=wtaopt_$1" | head -1; }
           c=$(cont copias)
           db=$(cont db)
@@ -115,6 +117,7 @@ jobs:
         if: failure()
         run: |
           set +o pipefail
+          if [[ -f passos.txt ]]; then tail -c 2500 passos.txt | tr '\n' ' ' | sed 's/^/::error title=Passo::/'; echo; fi
           for s in db migracoes api worker web copias; do
             echo "== $s"; docker service ps "wtaopt_$s" --no-trunc 2>&1 | head -5; docker service logs "wtaopt_$s" 2>&1 | tail -15
           done | tee falha.txt
