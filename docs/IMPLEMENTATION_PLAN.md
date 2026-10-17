@@ -7,6 +7,7 @@ Cada etapa vai num ramo `claude/...` com pedido de mesclagem; com os testes do C
 | 1a | Documentação e motor de opções (`packages/domain`) | 9 documentos; payoff, posições, rolagens, modelo, qualidade, núcleo de alertas, calendário e contrato de provedores com testes de referência | **Feita** |
 | 1b | Banco e acesso | Migrações (usuários, organizações, sessões, auditoria), RLS, `api` com login, sessão, convite, papéis, recuperação de senha, limites; testes de isolamento | **Feita** |
 | 2 | Interface | Layout escuro/claro, navegação lateral, painel, gestão de usuários, ativos favoritos, preferências | **Feita** (prévia aprovada em 16/10/2026) |
+| 2b | Ponte com o MetaTrader 5 (Genial) | Chave própria da ponte (criada e revogada pelo usuário), robô MQL5 só leitura, cotações e posições da conta gravadas só para o dono, qualidade pelo pulso da ponte, testes de banco, domínio e api | Servidor e robô feitos; telas aguardando prévia |
 | 3 | Dados de mercado (gratuitos) | Download diário do COTAHIST da B3 (leitor já pronto), brapi gratuita para ações durante o pregão, Selic do Banco Central, gregas calculadas, qualidade e idade no painel, diagnóstico do provedor, calendário configurável | Leitor do COTAHIST feito |
 | 4 | Alertas | Editor visual, persistência de estado, outbox, Telegram (vínculo, comandos, silêncio), indicadores (médias, RSI, VWAP, ATR, volume, rompimentos) | |
 | 5 | Opções | Cadeia com filtros, vencimentos, strikes, gregas do provedor e calculadas com premissas, liquidez, gráficos | |
@@ -20,4 +21,5 @@ Cada etapa vai num ramo `claude/...` com pedido de mesclagem; com os testes do C
 1. Criar a chave gratuita da brapi (brapi.dev, sem cartão) quando chegarmos à Fase 3.
 2. Criar o bot no Telegram (@BotFather) e guardar o token para a stack.
 3. Domínio decidido: `opcoes.wtatech.com.br`. Falta dizer qual VPS recebe a stack.
-4. Fontes pagas só se o responsável decidir depois (decisão de 16/10/2026: começar só com gratuitas).
+4. MetaTrader 5: conferir se a Genial fornece senha de investidor (só leitura) e, no primeiro pregão com a ponte, comparar a hora das cotações com o Book do MT5.
+5. Fontes pagas só se o responsável decidir depois (decisão de 16/10/2026: começar só com gratuitas).

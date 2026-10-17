@@ -44,3 +44,10 @@ Calculados à mão e conferidos linha a linha nos testes do domínio (ver tabela
 ## Modo sombra (Fase 9)
 
 Antes de ligar as notificações de verdade, o worker roda uma semana em modo sombra: avalia as regras e grava os disparos sem enviar, e o resultado é comparado com o que o usuário esperava.
+
+## Ponte com o MetaTrader 5
+
+- Banco (`db/tests/ponte.sql`): só o dono vê pontes, cotações e posições; hash da chave ilegível; cotação só entra pela função da ponte; chave revogada ou dono suspenso é recusado; cotação fora de ordem não volta o preço; lista vazia de posições zera a conta, lote sem posições não mexe nelas.
+- Domínio (`ponte.test.ts`): reais para centavos exatos (com os erros de ponto flutuante), zero do MT5 vira "sem dado", item ruim descartado sem derrubar o lote, horário fora do intervalo, livro cruzado, posições somadas ou recusadas (conta hedging), qualidade pelo pulso.
+- Api (`ponte.test.ts`): políticas das rotas, chave mostrada uma vez, robô sem chave ou com chave errada, envio e leitura em centavos, isolamento entre usuários, limite de 3 pontes, revogação imediata, auditoria, bloqueio por IP.
+- O robô MQL5 não roda no CI (precisa do terminal da corretora): o primeiro teste dele é no MT5 da VPS, conferindo a aba *Experts* e a hora das cotações contra o Book.

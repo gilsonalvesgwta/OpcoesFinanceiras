@@ -23,6 +23,16 @@ Consequências no produto, ditas na interface:
 
 A camada de provedores é trocável: brapi Pro, OpLab ou Cedro entram depois só como adaptador novo, sem mexer no motor.
 
+### MetaTrader 5 da conta do responsável (decisão de 16/10/2026)
+
+O responsável tem conta na Genial com acesso ao MetaTrader 5. Um robô só leitura (`ponte-mt5/WTA_Ponte.mq5`), rodando num MT5 na VPS 24 h, envia as cotações dos favoritos e das posições, um pulso a cada 5 s e as posições abertas da conta.
+
+- Sem custo além da conta que ele já tem; é a única fonte com chance de **tempo real** no início. A Genial não informa publicamente se o MT5 do cliente recebe o pregão sem atraso: conferir no primeiro pregão.
+- Qualidade pelo **pulso** da ponte, não pela hora do último negócio: até 15 s sem pulso é "tempo real" com o pregão aberto; de 15 a 60 s, "atrasado"; mais de 60 s ou chave revogada, "desconectado"; pregão fechado, "histórico".
+- Zero vindo do MT5 (livro vazio, sem negócio) vira "sem dado", nunca preço zero.
+- Uso **pessoal**: o dado vem da conta dele na corretora. Tudo é gravado no nome do dono da chave e só ele lê (RLS); não alimenta telas de outros usuários. Para atender outros usuários com dado em tempo real, só fonte licenciada (ver fontes pagas).
+- As posições da corretora ficam separadas das posições cadastradas no sistema (Fase 6), que poderão importá-las com confirmação.
+
 ### Orçamento do plano gratuito da brapi
 
 15 mil requisições por mês, 1 ativo por requisição, 1 requisição simultânea. Consultando a cada 30 minutos durante cerca de 7 horas de pregão e 21 pregões no mês: 14 × 21 = 294 requisições por ativo por mês. Cabem cerca de **45 ações acompanhadas**, com folga para buscas. O `worker` não consulta mais rápido que o atraso do plano (não traria dado novo) e mostra a cota restante no diagnóstico.

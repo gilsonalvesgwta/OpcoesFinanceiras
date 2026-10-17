@@ -49,6 +49,16 @@
 - Logs estruturados com lista de campos mascarados (senha, token, cookie, chave, `Authorization`).
 - Rotação: trocar a variável na stack e atualizar; sessões continuam válidas porque não dependem dessas chaves.
 
+## Ponte com o MetaTrader 5
+
+- O robô se identifica com uma **chave da ponte** (32 bytes aleatórios), criada pelo próprio usuário e mostrada uma única vez; o banco guarda só o hash SHA-256. Até 3 ativas por usuário; revogar derruba na hora.
+- Rotas do robô (`/api/ponte/simbolos`, `/api/ponte/dados`) não usam cookie: só `Authorization: Bearer`. Chave errada conta falha por IP (30 em 15 minutos bloqueiam o IP).
+- O robô só alcança funções `security definer` que conferem a chave e gravam **no nome do dono**; a aplicação não grava cotação nem posição da ponte direto nas tabelas.
+- Dado da ponte é só do dono (RLS), nem administrador lê. Dono suspenso: a chave para de funcionar.
+- Lote validado antes do banco: tamanho máximo, códigos, preços em centavos exatos, horário entre 7 dias atrás e 60 s à frente.
+- Só leitura: o robô não usa função de negociação e não existe rota de ordem. Recomendado entrar no MT5 com a senha de investidor.
+- A tela do MT5 (KasmVNC) fica atrás do Traefik com HTTPS e senha; a porta RPyC do contêiner não é publicada.
+
 ## Telegram
 
 - Vínculo por código temporário: o usuário gera no painel um código de uso único (10 minutos, só o hash fica no banco) e abre `t.me/<bot>?start=<código>`. O chat fica ligado à conta que gerou o código.
