@@ -113,6 +113,7 @@ export async function rotasDaPonte(app: FastifyInstance, dep: Dependencias): Pro
           ultimo: l.ultimo, bid: l.bid, ask: l.ask, fechamentoAnterior: l.fechamento_anterior,
           volume: l.volume === null ? null : Number(l.volume),
           instanteDaFonte: iso(l.instante_fonte), instanteDeRecebimento: iso(l.recebido_em),
+          sinalDaPonteEm: iso(l.ultimo_contato_em),
           qualidade: l.revogada_em ? 'desconectado' : qualidadeDaPonte(iso(l.ultimo_contato_em), agora, mercado.aberto),
         })),
       };

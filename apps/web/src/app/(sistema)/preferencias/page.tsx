@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Cabecalho } from '../../../componentes/Casca.tsx';
 import { MensagemDeErro } from '../../../componentes/Acesso.tsx';
+import { PonteMt5 } from '../../../componentes/PonteMt5.tsx';
 import { aplicarTema, useSessao } from '../../../componentes/Sessao.tsx';
 import { chamar, ErroDaApi } from '../../../lib/api.ts';
 import { PAPEIS } from '../../../lib/formatos.ts';
@@ -65,9 +66,15 @@ export default function PaginaPreferencias() {
 
   return (
     <>
-      <Cabecalho titulo="Preferências" />
+      <Cabecalho titulo="Preferências" apoio="Nome, tema, senha e a ligação com o MetaTrader 5 da corretora." />
 
-      <section className="secao" aria-labelledby="conta-titulo">
+      <nav className="atalhos" aria-label="Seções das preferências">
+        <a href="#conta">Sua conta</a>
+        <a href="#aparencia">Aparência</a>
+        <a href="#metatrader">MetaTrader 5</a>
+      </nav>
+
+      <section className="secao" id="conta" aria-labelledby="conta-titulo">
         <h2 id="conta-titulo">Sua conta</h2>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span>{sessao.usuario.email}</span>
@@ -85,7 +92,7 @@ export default function PaginaPreferencias() {
         <div><Link href="/trocar-senha" className="botao">Trocar senha</Link></div>
       </section>
 
-      <section className="secao" aria-labelledby="tema-titulo">
+      <section className="secao" id="aparencia" aria-labelledby="tema-titulo">
         <fieldset style={{ border: 0, margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <legend style={{ padding: 0, marginBottom: 8 }}><h2 id="tema-titulo">Aparência</h2></legend>
           {OPCOES.map((o) => (
@@ -107,6 +114,8 @@ export default function PaginaPreferencias() {
         <MensagemDeErro texto={erro} />
         <div role="status" aria-live="polite" className="selo selo-alta">{aviso}</div>
       </section>
+
+      <PonteMt5 />
     </>
   );
 }

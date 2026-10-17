@@ -160,6 +160,63 @@ test.describe.serial('jornada', () => {
     await ctx.close();
   });
 
+  test('ponte MT5: cria a chave, o robô envia e o painel mostra tempo real e posições', async ({ page, request }) => {
+    await entrarNoPainel(page, EMAIL, SENHA);
+    await page.goto('/preferencias#metatrader');
+    await expect(page.getByRole('heading', { name: 'MetaTrader 5 da corretora' })).toBeVisible();
+    await page.getByLabel('Nome para reconhecer esta ponte').fill('Genial na VPS');
+    await page.getByRole('button', { name: 'Criar chave da ponte' }).click();
+    const campo = page.getByLabel('Chave da ponte');
+    await expect(campo).toBeVisible();
+    const chave = await campo.inputValue();
+    expect(chave).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    await expect(page.getByText('Aguardando o primeiro sinal')).toBeVisible();
+    await expect(page.getByText('1 de 3 chaves em uso')).toBeVisible();
+    await semViolacoes(page, 'preferências com chave nova');
+    await foto(page, 'preferencias-mt5');
+
+    // O robô: só a chave, sem cookie.
+    const instante = Date.now() - 1000;
+    const r = await request.post('/api/ponte/dados', {
+      headers: { authorization: `Bearer ${chave}` },
+      data: {
+        versao: '1.0.0',
+        conta: { login: 123456, servidor: 'GenialInvestimentos-PRD', corretora: 'Genial Investimentos' },
+        cotacoes: [
+          { codigo: 'PETR4', ultimo: 38.47, bid: 38.46, ask: 38.48, fechamento_anterior: 38.0, volume: 1000, instante },
+          { codigo: 'PETRK380', ultimo: 0.93, bid: 0.92, ask: 0.95, fechamento_anterior: 0.72, volume: 300, instante },
+        ],
+        posicoes: [
+          { codigo: 'PETR4', lado: 'compra', quantidade: 300, preco_medio: 36.555 },
+          { codigo: 'PETRK380', lado: 'venda', quantidade: 300, preco_medio: 0.72 },
+        ],
+      },
+    });
+    expect(r.status(), await r.text()).toBe(200);
+    await expect(page.getByText(/^Conectada/).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Conta 123456 · GenialInvestimentos-PRD · Genial Investimentos')).toBeVisible();
+
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Painel', level: 1 })).toBeVisible();
+    const petr = page.getByRole('row', { name: /PETR4/ }).first();
+    await expect(petr).toContainText('R$ 38,47');
+    await expect(petr).toContainText('38,46');
+    await expect(petr).toContainText('+1,24%');
+    await expect(petr.getByText(/^(Tempo real|Histórico)$/)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Posições na corretora' })).toBeVisible();
+    const vendida = page.getByRole('row', { name: /PETRK380/ }).last();
+    await expect(vendida).toContainText('Vendido');
+    await expect(vendida).toContainText('−R$ 69,00');
+    await expect(page.getByRole('row', { name: /PETR4/ }).last()).toContainText('+R$ 571,50');
+    await expect(page.getByRole('link', { name: 'MetaTrader 5 conectado' })).toBeVisible();
+    await semViolacoes(page, 'painel com a ponte');
+    await foto(page, 'painel-mt5');
+
+    const robo = await request.get('/ponte/WTA_Ponte.mq5');
+    expect(robo.ok()).toBe(true);
+    expect(await robo.text()).toContain('Só leitura');
+  });
+
   test('telas das próximas fases explicam o que vem, e sair encerra a sessão', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Cadeia de opções' }).click();
