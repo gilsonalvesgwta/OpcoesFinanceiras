@@ -7,6 +7,7 @@ import { Icone, Seta } from '../../componentes/Icone.tsx';
 import { ReguaDoPregao } from '../../componentes/Regua.tsx';
 import { useConsultaPeriodica } from '../../componentes/Consulta.tsx';
 import { chamar, type Favorito } from '../../lib/api.ts';
+import { cartaoDaCadeia, diaMes, type SituacaoDoMercado } from '../../lib/mercado.ts';
 import { diasAte, formatarData, formatarDataLonga, formatarReais, formatarVariacao } from '../../lib/formatos.ts';
 import {
   contaDaPonte, detalheDaCotacao, encerrarAgora, formatarPreco, formatarPrecoMedio, formatarResultado, haQuanto, horaExata,
@@ -35,6 +36,9 @@ export default function Painel() {
 
   const cotacoes = useConsultaPeriodica<{ cotacoes: CotacaoDaApi[] }>('/api/cotacoes', 3_000).dados?.cotacoes ?? [];
   const pontes = useConsultaPeriodica<{ pontes: Ponte[] }>('/api/ponte', 10_000).dados?.pontes;
+  const situacao = useConsultaPeriodica<SituacaoDoMercado>('/api/mercado/situacao', 60_000).dados;
+  const cadeia = cartaoDaCadeia(situacao);
+  const ultimoFechamento = situacao?.fechamento.ultimoImportado ?? null;
   const posicoes = useConsultaPeriodica<{ posicoes: PosicaoDaCorretora[] }>('/api/posicoes-corretora', 10_000).dados?.posicoes;
   const agora = new Date();
 
@@ -159,7 +163,7 @@ export default function Painel() {
       />
 
       <section className="secao" aria-labelledby="regua-titulo" style={{ gap: 16 }}>
-        <ReguaDoPregao aoVivo={aoVivo} />
+        <ReguaDoPregao aoVivo={aoVivo} {...(situacao ? { sessaoDeHoje: situacao.mercado.motivo === 'sem_pregao' ? null : situacao.mercado.sessao } : {})} />
         <div className="fontes">
           {ponte ? (
             <div className="fonte">
@@ -187,24 +191,32 @@ export default function Painel() {
                 )}
               </span>
             </div>
+          ) : ultimoFechamento ? (
+            <div className="fonte">
+              <span className="selo-historico" style={{ display: 'inline-flex', paddingTop: 2 }}><Icone nome="calendario" /></span>
+              <span>
+                <span className="fonte-titulo">Ações e opções: fechamento de {diaMes(ultimoFechamento)}</span>
+                <span className="fonte-texto">
+                  Arquivo oficial da B3. Para preço do momento, ligue o MetaTrader 5 em <Link href="/preferencias#metatrader">Preferências</Link>.
+                </span>
+              </span>
+            </div>
           ) : (
             <div className="fonte">
               <span style={{ color: 'var(--apoio)', display: 'inline-flex', paddingTop: 2 }}><Icone nome="relogio" /></span>
               <span>
                 <span className="fonte-titulo">Ações: sem cotações ainda</span>
                 <span className="fonte-texto">
-                  Para tempo real, ligue o MetaTrader 5 da sua corretora em <Link href="/preferencias#metatrader">Preferências</Link>. A coleta gratuita pela brapi (a cada 30 minutos) começa na próxima etapa.
+                  O primeiro fechamento da B3 chega depois das 20h de um dia de pregão. Para preço do momento, ligue o MetaTrader 5 em <Link href="/preferencias#metatrader">Preferências</Link>.
                 </span>
               </span>
             </div>
           )}
           <div className="fonte">
-            <span style={{ color: 'var(--apoio)', display: 'inline-flex', paddingTop: 2 }}><Icone nome="calendario" /></span>
+            <span className={cadeia.classe} style={{ display: 'inline-flex', paddingTop: 2 }}><Icone nome={cadeia.icone} /></span>
             <span>
-              <span className="fonte-titulo">Cadeia completa de opções: sem arquivo da B3 ainda</span>
-              <span className="fonte-texto">
-                O fechamento diário de todas as séries entra na próxima etapa.{ponte ? ' As opções que você acompanha ou tem em posição vêm do MetaTrader 5.' : ' Feriados também.'}
-              </span>
+              <span className="fonte-titulo">{cadeia.titulo}</span>
+              <span className="fonte-texto">{cadeia.texto}</span>
             </span>
           </div>
         </div>

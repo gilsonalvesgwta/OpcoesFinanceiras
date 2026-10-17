@@ -129,7 +129,7 @@ export async function coletarCotahist(dep: DependenciasDaColeta, dia: string): P
       const res = await importarCotahist(c, dia, texto);
       await c.query(
         'insert into importacoes (fonte, referencia, situacao, registros, recusados, detalhe, iniciada_em, terminada_em) values ($1, $2, $3, $4, $5, $6, $7, $8)',
-        ['b3-cotahist', dia, 'ok', res.registros, res.recusados, `${res.series} séries de opções`, inicio, relogio(dep)()],
+        ['b3-cotahist', dia, 'ok', res.registros, res.recusados, `${res.series.toLocaleString('pt-BR')} séries de opções`, inicio, relogio(dep)()],
       );
       return res;
     });

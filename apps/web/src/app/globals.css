@@ -317,3 +317,10 @@ p { margin: 0; }
 .sinal-ponte { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .resultado-alta { color: var(--alta); font-weight: 600; }
 .resultado-baixa { color: var(--baixa); font-weight: 600; }
+
+/* Fase 3: diagnóstico e calendário */
+.grade-cartoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.form-em-linha { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.rotulo-em-linha { display: inline-flex; align-items: center; gap: 8px; color: var(--apoio); font-size: 14px; }
+.rotulo-em-linha select { min-height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--borda-campo); background: var(--bg); color: var(--texto); font: inherit; }
+.botao-texto.botao-perigo { color: var(--baixa); font-weight: 600; min-height: 44px; }

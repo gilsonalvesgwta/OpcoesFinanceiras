@@ -217,6 +217,33 @@ test.describe.serial('jornada', () => {
     expect(await robo.text()).toContain('Só leitura');
   });
 
+  test('calendário e diagnóstico: superadmin cadastra e remove um dia sem pregão e vê a situação das fontes', async ({ page }) => {
+    await entrarNoPainel(page, EMAIL, SENHA);
+    await page.getByRole('link', { name: 'Calendário' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Calendário da B3', level: 1 })).toBeVisible();
+    await expect(page.getByText('Dia Nacional de Zumbi e da Consciência Negra')).toBeVisible();
+    await page.getByLabel('Ano').selectOption('2027');
+    await page.locator('#feriado-dia').fill('2027-01-01');
+    await page.locator('#feriado-motivo').fill('Confraternização Universal');
+    await page.getByRole('button', { name: 'Adicionar' }).first().click();
+    await expect(page.getByText('01/01/2027 agora é dia sem pregão.')).toBeVisible();
+    await expect(page.getByText('sex, 01/01/2027')).toBeVisible();
+    await semViolacoes(page, 'calendário');
+    await foto(page, 'calendario');
+    await page.getByRole('button', { name: 'Remover 01/01/2027' }).click();
+    await page.getByRole('button', { name: 'Confirmar' }).click();
+    await expect(page.getByText('01/01/2027 voltou a ser dia de pregão.')).toBeVisible();
+
+    await page.getByRole('link', { name: 'Diagnóstico' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Diagnóstico', level: 1 })).toBeVisible();
+    // No teste não há worker rodando: a tela diz isso, sem inventar números.
+    await expect(page.getByText('Ainda não ligada')).toBeVisible();
+    await expect(page.getByText('Nenhum arquivo ainda')).toBeVisible();
+    await expect(page.getByText('Desligada')).toBeVisible();
+    await semViolacoes(page, 'diagnóstico');
+    await foto(page, 'diagnostico');
+  });
+
   test('telas das próximas fases explicam o que vem, e sair encerra a sessão', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Cadeia de opções' }).click();
