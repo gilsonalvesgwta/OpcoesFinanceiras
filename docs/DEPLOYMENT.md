@@ -13,7 +13,7 @@ docker network ls --filter driver=overlay
 docker service ls
 ```
 
-- Memória mínima recomendada livre para esta stack: 1,5 GB (estimativa: web 150 MB, api 120 MB, worker 120 MB, PostgreSQL 300 MB, Redis 50 MB, folga). Medir de verdade na Fase 9.
+- Memória mínima recomendada livre para esta stack: 2,5 GB (estimativa: web 150 MB, api 120 MB, worker 120 MB, PostgreSQL 300 MB, Redis 50 MB, MetaTrader 5 com Wine cerca de 1 GB, folga). Medir de verdade na Fase 9.
 - Anotar o nome da rede do Traefik (ex.: `WtatechNet`), o entrypoint (`websecure`) e o resolvedor de certificado (`letsencryptresolver`).
 - Não reiniciar nem alterar serviços existentes; não mexer no firewall.
 
@@ -30,12 +30,15 @@ Serviços com prefixo `wtaopt_`:
 | `redis` | `redis:7` | interna | `maxmemory` e sem persistência obrigatória |
 | `migracoes` | imagem da `api` | interna | Aplica migrações e termina |
 | `copias` | imagem da `api` | interna | Cópia diária com retenção |
+| `mt5` | `gmag11/metatrader5_vnc` (versão fixada na Fase 9) | Traefik + interna | MetaTrader 5 da corretora com o robô `ponte-mt5/WTA_Ponte.mq5`. Tela por KasmVNC (porta 3000) atrás do Traefik com HTTPS e senha (`MT5_SENHA_VNC`); RPyC (8001) **não** exposto. Volume `wtaopt_mt5` em `/config` (instalação e login persistem). Cerca de 1 GB de memória |
+
+O robô dentro do `mt5` envia para o endereço público (`https://opcoes.wtatech.com.br/api/ponte/...`), porque o MT5 só faz pedidos web nas portas 80 e 443. Instalação do robô: `ponte-mt5/LEIAME.md`.
 
 Todos com `healthcheck`, `restart_policy`, limites de CPU e memória e logs rotacionados (`max-size`, `max-file`). `node.role == manager`.
 
 ## Variáveis
 
-Ver `.env.example`. Obrigatórias: `DOMINIO` (`opcoes.wtatech.com.br`), `URL_PUBLICA`, `REDE_TRAEFIK`, `SENHA_DO_BANCO`, `SEGREDO_DA_SESSAO`, `SUPERADMIN_EMAIL`, `SUPERADMIN_SENHA_INICIAL`. Opcionais: `BRAPI_API_KEY`, `BRAPI_PLANO` (`gratuito`, `startup`, `pro`), `TELEGRAM_BOT_TOKEN`, `SMTP_*`, `HORA_DA_COPIA`, `MANTER_DIAS`.
+Ver `.env.example`. Obrigatórias: `DOMINIO` (`opcoes.wtatech.com.br`), `URL_PUBLICA`, `REDE_TRAEFIK`, `SENHA_DO_BANCO`, `SEGREDO_DA_SESSAO`, `SUPERADMIN_EMAIL`, `SUPERADMIN_SENHA_INICIAL`. Opcionais: `MT5_SENHA_VNC` (tela do MetaTrader), `BRAPI_API_KEY`, `BRAPI_PLANO` (`gratuito`, `startup`, `pro`), `TELEGRAM_BOT_TOKEN`, `SMTP_*`, `HORA_DA_COPIA`, `MANTER_DIAS`.
 
 ## Passo a passo
 
