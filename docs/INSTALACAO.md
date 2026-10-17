@@ -10,14 +10,9 @@ Este roteiro inteiro roda automaticamente no CI a cada mudança (workflow "Insta
 - O subdomínio `opcoes.wtatech.com.br` apontando para o IP da VPS (registro A no DNS).
 - Memória livre: cerca de **1,5 GB** para o sistema; mais **1 GB** se for ligar o MetaTrader 5 na mesma VPS.
 
-## 0. Uma vez só: deixar as imagens públicas no GitHub
+## 0. Imagens
 
-As imagens do sistema ficam no GitHub (GHCR). Para a VPS baixá-las sem senha, elas precisam ser públicas (o código já é público):
-
-1. GitHub → seu perfil → aba **Packages** → `opcoesfinanceiras-api` → **Package settings** → **Change visibility** → **Public**.
-2. Repita para `opcoesfinanceiras-web`.
-
-(Alternativa: deixar privadas e cadastrar o GHCR no Portainer em Registries, com um token do GitHub que só lê pacotes.)
+As imagens do sistema ficam no GitHub (`ghcr.io/gilsonalvesgwta/opcoesfinanceiras-api` e `-web`) e já são públicas: a VPS baixa sem senha. O CI confere isso a cada publicação. Se um dia aparecer "pull access denied", no GitHub abra Packages → o pacote → Package settings → Change visibility → Public.
 
 ## 1. Conferir a VPS (só leitura, não muda nada)
 
