@@ -333,10 +333,34 @@ test.describe.serial('jornada', () => {
     await foto(page, 'posicoes');
   });
 
+  test('rolagens: sugestões, comparação lado a lado e registro', async ({ page }) => {
+    await entrarNoPainel(page, EMAIL, SENHA);
+    await page.getByRole('link', { name: 'Posições' }).first().click();
+    await page.getByRole('link', { name: 'Simular rolagem' }).click();
+    await expect(page).toHaveURL(/\/rolagens\?estrategia=/);
+    await expect(page.getByLabel('Perna')).toHaveValue('ITUBK360');
+    await page.getByRole('button', { name: 'Buscar séries' }).click();
+    await page.getByRole('button', { name: 'Comparar ITUBL360' }).click();
+    await page.getByRole('button', { name: 'Comparar ITUBL380' }).click();
+    // Sair da call vendida pagando 0,69; vender a de dezembro 36 a 1,38 (crédito) ou a 38 a 0,58 (débito).
+    await expect(page.getByText(/Crédito de R\$\s69,00/).first()).toBeVisible();
+    await expect(page.getByText(/Débito de R\$\s11,00/).first()).toBeVisible();
+    await expect(page.getByText(/não é lucro/).first()).toBeVisible();
+    await expect(page.getByRole('img', { name: /antes \(tracejado\)/ })).toBeVisible();
+    await semViolacoes(page, 'rolagens');
+    await foto(page, 'rolagens');
+    await page.getByRole('button', { name: 'Registrar esta rolagem' }).first().click();
+    await page.getByLabel('Custos (R$)').first().fill('2,50');
+    await page.getByRole('button', { name: 'Registrar rolagem' }).click();
+    await expect(page.getByText(/registrada na estratégia/)).toBeVisible();
+    await expect(page.getByRole('button', { name: /Desfazer a rolagem/ })).toBeVisible();
+    await expect(page.getByLabel('Perna')).toHaveValue('ITUBL360');
+  });
+
   test('telas das próximas fases explicam o que vem, e sair encerra a sessão', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
-    await page.getByRole('link', { name: 'Rolagens' }).first().click();
-    await expect(page.getByText('Chega na Fase 7')).toBeVisible();
+    await page.getByRole('link', { name: 'Histórico' }).first().click();
+    await expect(page.getByText('Chega na Fase 8')).toBeVisible();
     await foto(page, 'em-breve');
     await page.getByRole('button', { name: 'Sair' }).click();
     await expect(page).toHaveURL(/\/entrar$/);

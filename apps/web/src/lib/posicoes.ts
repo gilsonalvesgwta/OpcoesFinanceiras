@@ -16,6 +16,12 @@ export type CotacaoDaApi = {
 export type ExecucaoDaApi = {
   id: string; codigo: string; tipo: Tipo; strike: number | null; vencimento: string | null; multiplicador: number;
   lado: Lado; quantidade: number; preco: number; custos: number; instante: string; origem: 'manual' | 'importada_mt5'; observacao: string | null;
+  rolagemId?: string | null;
+};
+
+export type RolagemRegistrada = {
+  id: string; instante: string; observacao: string | null;
+  resumo: { fluxo?: { liquido: number }; pernas?: { acao: string; codigo: string; lado: Lado; quantidade: number; preco: number }[]; avisos?: string[] } | null;
 };
 
 export type InstrumentoDaApi = {
@@ -40,7 +46,7 @@ export type Resultado = {
 export type Estrategia = {
   id: string; nome: string; ativoObjeto: string; observacao: string | null; situacao: 'aberta' | 'encerrada';
   criadaEm: string; encerradaEm: string | null; execucoes: ExecucaoDaApi[]; instrumentos: InstrumentoDaApi[];
-  resultado: Resultado | null; ativo: CotacaoDaApi | null; payoff: Payoff | null; erro?: string;
+  resultado: Resultado | null; ativo: CotacaoDaApi | null; payoff: Payoff | null; erro?: string; rolagens?: RolagemRegistrada[];
 };
 
 export type Exposicao = {

@@ -62,3 +62,10 @@ Critérios configuráveis pelo usuário: dias até o vencimento, strike pretendi
 Para cada candidato, a sugestão lista os critérios **atendidos**, **não atendidos** e **sem dado** (ex.: delta ausente porque o plano não traz gregas). Nenhuma sugestão vira ordem, e nenhuma é enviada pelo Telegram sem o consentimento explícito do usuário.
 
 Com as fontes gratuitas, os candidatos usam preços do fechamento do último pregão (arquivo oficial da B3), e a sugestão diz isso.
+
+## Na api e na tela (Fase 7)
+
+- `POST /api/rolagens/simular`: até 4 alternativas `{nome, encerrar[], abrir[]}`. Preço não informado = executável do momento (sair de vendida paga o ask, sair de comprada recebe o bid; abrir venda recebe o bid, abrir compra paga o ask); sem oferta, último negócio marcado como estimativa; sem nada, a alternativa volta com `sem_preco` (nunca zero). Série nova sem tipo/strike/vencimento é completada pelo cadastro da B3. Devolve, por alternativa, os preços usados com a origem, o fluxo, o realizado, o payoff da estratégia antes e depois, avisos com texto e as curvas de antes e depois na mesma faixa.
+- `GET /api/rolagens/sugestoes`: séries do mesmo tipo nos próximos vencimentos (e, se pedido, no mesmo), strikes até ±30% do ativo, a partir do fechamento oficial da B3. Cada candidato simula sair da perna inteira e entrar na série nova, mesma quantidade e lado, sem custos. Critérios: `diasMin/diasMax`, `deltaMin/deltaMax` (delta calculado pelo sistema), `creditoMinimo`, `debitoMaximo`, `negociosMin`, `spreadMaximoPct`, `strike` (manter/acima/abaixo), `perdaMaximaNaoAumenta`. A lista sai por vencimento e strike, nunca por crédito.
+- `POST /api/rolagens`: registra o que foi feito na corretora (preços obrigatórios). Grava a rolagem com o resumo e as execuções com `rolagem_id`; tudo auditado. Execução de rolagem não é apagada sozinha: `DELETE /api/rolagens/:id` desfaz a rolagem inteira.
+- Contratos em aberto e volume financeiro mínimo não entram como critério: o COTAHIST não traz contratos em aberto.

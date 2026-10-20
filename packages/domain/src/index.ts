@@ -16,3 +16,4 @@ export * from './coleta.ts';
 export * from './calculo-diario.ts';
 export * from './alertas-texto.ts';
 export * from './indicadores.ts';
+export * from './sugestoes-rolagem.ts';

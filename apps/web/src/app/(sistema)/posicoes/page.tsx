@@ -200,6 +200,7 @@ function CartaoDaEstrategia({ e, aoAgir }: { e: Estrategia; aoAgir: (fn: () => P
           </span>
         </div>
         <div className="ponte-acoes">
+          {!encerrada && abertos.some((i) => i.tipo !== 'ativo') && <Link className="botao botao-pequeno" href={`/rolagens?estrategia=${e.id}`}>Simular rolagem</Link>}
           {!encerrada && !registrando && <button type="button" className="botao botao-pequeno botao-principal" onClick={() => { setErroForm(null); setRegistrando(pernaVazia(new Date())); }}>Registrar operação</button>}
           {!encerrada && abertos.length === 0 && e.execucoes.length > 0 && (
             <button type="button" className="botao botao-pequeno" onClick={() => void aoAgir(() => chamar('PATCH', `/api/posicoes/${e.id}`, { situacao: 'encerrada' }), `"${e.nome}" encerrada.`)}>Encerrar</button>
@@ -341,7 +342,8 @@ function CartaoDaEstrategia({ e, aoAgir }: { e: Estrategia; aoAgir: (fn: () => P
                   {x.origem === 'importada_mt5' ? ' · importada do MetaTrader 5' : ''}{x.observacao ? ` · ${x.observacao}` : ''}
                 </span>
               </div>
-              {!encerrada && (
+              {!encerrada && x.rolagemId && <span className="linha-lista-apoio" style={{ fontSize: 13 }}>Parte de uma rolagem (<Link href={`/rolagens?estrategia=${e.id}`}>desfazer em Rolagens</Link>)</span>}
+              {!encerrada && !x.rolagemId && (
                 <div className="ponte-acoes">
                   {confirmar === x.id ? (
                     <>

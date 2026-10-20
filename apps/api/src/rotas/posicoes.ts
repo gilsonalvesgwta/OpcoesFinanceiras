@@ -20,13 +20,13 @@ import { auditar } from '../auditoria.ts';
 import type { CacheDoCalendario } from '../calendario.ts';
 import { cotacoesDoUsuario, paraCotacao, type CotacaoDeSaida } from '../cotacoes.ts';
 
-const UUID = { type: 'string', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' } as const;
-const CODIGO = { type: 'string', pattern: '^[A-Za-z0-9]{4,12}$' } as const;
+export const UUID = { type: 'string', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' } as const;
+export const CODIGO = { type: 'string', pattern: '^[A-Za-z0-9]{4,12}$' } as const;
 const DIA = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' } as const;
 const MAXIMO_DE_ESTRATEGIAS_ABERTAS = 100;
 const MAXIMO_DE_EXECUCOES = 200;
 
-const EXECUCAO = {
+export const EXECUCAO = {
   type: 'object', additionalProperties: false,
   required: ['codigo', 'tipo', 'lado', 'quantidade', 'preco', 'instante'],
   properties: {
@@ -44,7 +44,7 @@ const EXECUCAO = {
   },
 } as const;
 
-type CorpoDaExecucao = {
+export type CorpoDaExecucao = {
   codigo: string; tipo: 'call' | 'put' | 'ativo'; strike?: number; vencimento?: string; multiplicador?: number;
   lado: 'compra' | 'venda'; quantidade: number; preco: number; custos?: number; instante: string; observacao?: string;
 };
@@ -52,7 +52,7 @@ type CorpoDaExecucao = {
 const iso = (d: unknown) => (d ? new Date(d as string).toISOString() : null);
 
 // Confere a execução vinda da tela. Opção precisa de strike e vencimento; ativo não pode ter.
-function lerExecucao(b: CorpoDaExecucao, agora: Date): CorpoDaExecucao {
+export function lerExecucao(b: CorpoDaExecucao, agora: Date): CorpoDaExecucao {
   const codigo = b.codigo.toUpperCase();
   if (b.tipo === 'ativo') {
     if (b.strike !== undefined || b.vencimento !== undefined) throw new ErroHttp(400, 'ativo_sem_strike_nem_vencimento');
@@ -68,17 +68,17 @@ function lerExecucao(b: CorpoDaExecucao, agora: Date): CorpoDaExecucao {
   return { ...resto, codigo, instante: new Date(t).toISOString(), ...(obs ? { observacao: obs } : {}) };
 }
 
-async function inserirExecucao(c: Cliente, userId: string, estrategiaId: string, e: CorpoDaExecucao, origem: 'manual' | 'importada_mt5'): Promise<string> {
+export async function inserirExecucao(c: Cliente, userId: string, estrategiaId: string, e: CorpoDaExecucao, origem: 'manual' | 'importada_mt5', rolagemId: string | null = null): Promise<string> {
   const r = await c.query(
-    `insert into execucoes (user_id, estrategia_id, codigo, tipo, strike, vencimento, multiplicador, lado, quantidade, preco, custos, instante, origem, observacao)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) returning id`,
+    `insert into execucoes (user_id, estrategia_id, codigo, tipo, strike, vencimento, multiplicador, lado, quantidade, preco, custos, instante, origem, observacao, rolagem_id)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) returning id`,
     [userId, estrategiaId, e.codigo, e.tipo, e.strike ?? null, e.vencimento ?? null, e.multiplicador ?? 1, e.lado, e.quantidade, e.preco,
-      e.custos ?? 0, e.instante, origem, e.observacao ?? null],
+      e.custos ?? 0, e.instante, origem, e.observacao ?? null, rolagemId],
   );
   return r.rows[0].id as string;
 }
 
-function paraDominio(l: Record<string, any>): Execucao {
+export function paraDominio(l: Record<string, any>): Execucao {
   return {
     codigo: l.codigo, tipo: l.tipo, lado: l.lado, quantidade: Number(l.quantidade), preco: Number(l.preco), custos: Number(l.custos),
     multiplicador: Number(l.multiplicador), instante: new Date(l.instante).toISOString(),
@@ -89,7 +89,7 @@ function paraDominio(l: Record<string, any>): Execucao {
 
 // Depois de gravar, a estratégia inteira tem de continuar consistente: o mesmo código
 // sempre com o mesmo tipo, strike, vencimento e multiplicador, e a carteira montável.
-async function conferirEstrategia(c: Cliente, estrategiaId: string): Promise<void> {
+export async function conferirEstrategia(c: Cliente, estrategiaId: string): Promise<void> {
   const r = await c.query(
     `select codigo, tipo, strike, to_char(vencimento, 'YYYY-MM-DD') as vencimento, multiplicador, lado, quantidade, preco, custos, instante
      from execucoes where estrategia_id = $1`, [estrategiaId],
@@ -112,7 +112,7 @@ async function conferirEstrategia(c: Cliente, estrategiaId: string): Promise<voi
 
 // Série pelo código: opção no cadastro da B3 (o vencimento mais próximo que ainda não
 // passou; senão o último conhecido) ou ação/unit/ETF pelo formato do código.
-async function serieDoCodigo(c: Cliente, codigo: string, hoje: string) {
+export async function serieDoCodigo(c: Cliente, codigo: string, hoje: string) {
   const r = await c.query(
     `select codigo, tipo, strike, to_char(vencimento, 'YYYY-MM-DD') as vencimento, ativo_objeto
      from series_opcoes where codigo = $1
@@ -150,9 +150,10 @@ export async function rotasDePosicoes(app: FastifyInstance, dep: Dependencias, c
       const estrategias = (await c.query('select * from estrategias order by situacao, criada_em desc')).rows as LinhaEstrategia[];
       const execs = (await c.query(
         `select id, estrategia_id, codigo, tipo, strike, to_char(vencimento, 'YYYY-MM-DD') as vencimento, multiplicador, lado, quantidade,
-                preco, custos, instante, origem, observacao
+                preco, custos, instante, origem, observacao, rolagem_id
          from execucoes order by instante, criada_em`,
       )).rows;
+      const rolagens = (await c.query('select id, estrategia_id, instante, observacao, resumo from rolagens order by instante desc')).rows;
       const porEstrategia = new Map<string, Record<string, any>[]>();
       for (const e of execs) porEstrategia.set(e.estrategia_id, [...(porEstrategia.get(e.estrategia_id) ?? []), e]);
 
@@ -185,8 +186,9 @@ export async function rotasDePosicoes(app: FastifyInstance, dep: Dependencias, c
           execucoes: linhas.map((l) => ({
             id: l.id, codigo: l.codigo, tipo: l.tipo, strike: l.strike === null ? null : Number(l.strike), vencimento: l.vencimento,
             multiplicador: Number(l.multiplicador), lado: l.lado, quantidade: Number(l.quantidade), preco: Number(l.preco),
-            custos: Number(l.custos), instante: iso(l.instante), origem: l.origem, observacao: l.observacao,
+            custos: Number(l.custos), instante: iso(l.instante), origem: l.origem, observacao: l.observacao, rolagemId: l.rolagem_id,
           })),
+          rolagens: rolagens.filter((r) => r.estrategia_id === e.id).map((r) => ({ id: r.id, instante: iso(r.instante), observacao: r.observacao, resumo: r.resumo })),
         };
         const cart = carteiras.get(e.id);
         if (!cart || !(cart instanceof Map)) return { ...base, erro: (cart as { erro: string } | undefined)?.erro ?? 'erro', instrumentos: [], resultado: null, ativo: null, payoff: null };
@@ -363,6 +365,8 @@ export async function rotasDePosicoes(app: FastifyInstance, dep: Dependencias, c
       const est = (await c.query('select situacao from estrategias where id = $1 for update', [id])).rows[0];
       if (!est) throw new ErroHttp(404, 'nao_encontrado');
       if (est.situacao !== 'aberta') throw new ErroHttp(409, 'estrategia_encerrada');
+      const daRolagem = (await c.query('select rolagem_id from execucoes where id = $1 and estrategia_id = $2', [execId, id])).rows[0];
+      if (daRolagem?.rolagem_id) throw new ErroHttp(409, 'faz_parte_de_rolagem', { rolagemId: daRolagem.rolagem_id });
       const r = (await c.query('delete from execucoes where id = $1 and estrategia_id = $2 returning codigo, lado, quantidade, preco', [execId, id])).rows[0];
       if (!r) throw new ErroHttp(404, 'nao_encontrado');
       await conferirEstrategia(c, id);
@@ -476,7 +480,7 @@ export async function rotasDePosicoes(app: FastifyInstance, dep: Dependencias, c
 }
 
 // Payoff da parte aberta, já somando o que foi realizado (resultado acumulado da estratégia).
-function payoffDe(pernas: Perna[], realizadoLiquido: number, ativo: CotacaoDeSaida | null) {
+export function payoffDe(pernas: Perna[], realizadoLiquido: number, ativo: CotacaoDeSaida | null) {
   if (pernas.length === 0) return { motivo: 'sem_pernas_abertas' as const };
   let analise: ReturnType<typeof analisarPayoff>;
   try {
