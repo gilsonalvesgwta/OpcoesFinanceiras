@@ -12,6 +12,9 @@ test('condição em português, com reais e percentuais', () => {
       { tipo: 'ou', filhos: [{ tipo: 'comparacao', campo: 'volume', operador: '>', valor: 1000000 }, { tipo: 'comparacao', campo: 'bid', operador: '>=', valor: 3790 }] },
     ],
   }), 'último preço acima de R$ 38,00 e (volume do dia acima de 1.000.000 ou melhor oferta de compra igual ou acima de R$ 37,90)');
+  assert.equal(descreverCondicao({ tipo: 'comparacao', campo: 'rsi_14', operador: 'cruza_abaixo', valor: 30 }), 'RSI de 14 dias cruzar para baixo de 30');
+  assert.equal(descreverCondicao({ tipo: 'comparacao', campo: 'dist_maxima_20_pct', operador: 'cruza_acima', valor: 0 }), 'distância da máxima de 20 pregões cruzar para cima de 0%');
+  assert.equal(descreverCondicao({ tipo: 'comparacao', campo: 'volume_relativo_20', operador: '>=', valor: 2 }), 'volume em relação à média de 20 pregões igual ou acima de 2 vezes');
   assert.equal(descreverRearme({ tipo: 'intervalo', minutos: 30 }), 'avisa de novo depois de 30 minutos, se ainda valer');
 });
 

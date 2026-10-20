@@ -332,3 +332,4 @@ p { margin: 0; }
 .caixa-de-marcar { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; min-height: 44px; padding-top: 10px; }
 .caixa-de-marcar input { width: 18px; height: 18px; margin-top: 2px; flex: none; }
 .previa-da-regra { margin: 0; padding: 12px 14px; border-radius: 8px; background: var(--painel2); color: var(--texto); }
+.ajuda-da-linha { flex: 1 1 100%; color: var(--apoio); font-size: 13px; margin-top: -4px; }

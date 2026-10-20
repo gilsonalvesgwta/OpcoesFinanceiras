@@ -10,7 +10,20 @@ export const CAMPOS_DE_ALERTA = Object.freeze({
   ask: { nome: 'melhor oferta de venda', unidade: 'reais' },
   variacao_dia_pct: { nome: 'variação do dia', unidade: 'percentual' },
   volume: { nome: 'volume do dia', unidade: 'quantidade' },
+  // Indicadores (histórico diário da B3 + preço de agora); ver indicadores.ts.
+  dist_media_20_pct: { nome: 'distância da média de 20 dias', unidade: 'percentual' },
+  dist_media_50_pct: { nome: 'distância da média de 50 dias', unidade: 'percentual' },
+  dist_media_200_pct: { nome: 'distância da média de 200 dias', unidade: 'percentual' },
+  rsi_14: { nome: 'RSI de 14 dias', unidade: 'numero' },
+  dist_maxima_20_pct: { nome: 'distância da máxima de 20 pregões', unidade: 'percentual' },
+  dist_minima_20_pct: { nome: 'distância da mínima de 20 pregões', unidade: 'percentual' },
+  variacao_em_atr: { nome: 'movimento do dia em ATRs', unidade: 'numero' },
+  volume_relativo_20: { nome: 'volume em relação à média de 20 pregões', unidade: 'vezes' },
 } as const);
+
+export const CAMPOS_DE_INDICADOR = Object.freeze([
+  'dist_media_20_pct', 'dist_media_50_pct', 'dist_media_200_pct', 'rsi_14', 'dist_maxima_20_pct', 'dist_minima_20_pct', 'variacao_em_atr', 'volume_relativo_20',
+] as const);
 
 export type CampoDeAlerta = keyof typeof CAMPOS_DE_ALERTA;
 
@@ -24,6 +37,8 @@ export function formatarValorDoCampo(campo: string, v: number): string {
   const u = (CAMPOS_DE_ALERTA as Record<string, { unidade: string }>)[campo]?.unidade;
   if (u === 'reais') return reais.format(v / 100).replace(/\s/g, ' ');
   if (u === 'percentual') return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
+  if (u === 'vezes') return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} vezes`;
+  if (u === 'numero') return v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
   return v.toLocaleString('pt-BR');
 }
 

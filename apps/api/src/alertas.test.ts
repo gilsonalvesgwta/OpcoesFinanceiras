@@ -205,6 +205,28 @@ describe('alertas de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : fa
     assert.deepEqual(acoes, ['alerta.criado', 'alerta.alterado', 'alerta.removido']);
   });
 
+  test('indicador: rompimento da máxima de 20 pregões usa o histórico da B3 e o preço de agora', async () => {
+    for (let i = 1; i <= 25; i += 1) {
+      const dia = `2026-09-${String(i).padStart(2, '0')}`;
+      await dono.query(
+        `insert into fechamentos (dia, codigo, tipo_mercado, maxima, minima, ultimo, negocios, quantidade, volume)
+         values ($1, 'PETR4', 10, 3900, 3700, 3800, 10, 1000, 380000) on conflict do nothing`, [dia],
+      );
+    }
+    const r = await pedir('ana', 'POST', '/api/alertas', {
+      nome: 'Rompimento 20 pregões', codigo: 'PETR4', condicao: { tipo: 'comparacao', campo: 'dist_maxima_20_pct', operador: 'cruza_acima', valor: 0 },
+      rearme: { tipo: 'ao_desfazer' },
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.corpo));
+    assert.equal(r.corpo.descricao, 'distância da máxima de 20 pregões cruzar para cima de 0%');
+    assert.equal((await robo([cot(38.90, 30)])).corpo.alertas, 0, 'abaixo da máxima de R$ 39,00');
+    assert.equal((await robo([cot(39.20, 31)])).corpo.alertas, 1, 'rompeu a máxima');
+    const ev = (await pedir('ana', 'GET', '/api/alertas')).corpo.eventos[0];
+    assert.equal(ev.descricao, 'distância da máxima de 20 pregões cruzar para cima de 0%');
+    assert.equal(ev.valores.dist_maxima_20_pct, 0.51);
+    await pedir('ana', 'DELETE', `/api/alertas/${r.corpo.id}`);
+  });
+
   test('aviso vencido não é enviado', async () => {
     const id = (await dono.query("select id from users where email like $1", [`ana.alertas.${sufixo}%`])).rows[0].id;
     await dono.query("insert into avisos (user_id, canal, chave, texto, criado_em) values ($1, 'telegram', $2, 'velho', now() - interval '2 hours')", [id, `velho-${sufixo}`]);

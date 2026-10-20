@@ -3,15 +3,26 @@
 
 import type { Comparacao, Condicao, PoliticaDeRearme } from '@wta/domain';
 
-export type CampoDaTela = 'ultimo' | 'bid' | 'ask' | 'variacao_dia_pct' | 'volume';
+export type CampoDaTela =
+  | 'ultimo' | 'bid' | 'ask' | 'variacao_dia_pct' | 'volume'
+  | 'dist_media_20_pct' | 'dist_media_50_pct' | 'dist_media_200_pct' | 'rsi_14' | 'dist_maxima_20_pct' | 'dist_minima_20_pct' | 'variacao_em_atr' | 'volume_relativo_20';
 export type OperadorDaTela = Comparacao['operador'];
 
-export const CAMPOS: { valor: CampoDaTela; nome: string; unidade: 'reais' | 'percentual' | 'quantidade' }[] = [
-  { valor: 'ultimo', nome: 'Último preço', unidade: 'reais' },
-  { valor: 'bid', nome: 'Melhor oferta de compra', unidade: 'reais' },
-  { valor: 'ask', nome: 'Melhor oferta de venda', unidade: 'reais' },
-  { valor: 'variacao_dia_pct', nome: 'Variação do dia (%)', unidade: 'percentual' },
-  { valor: 'volume', nome: 'Volume do dia', unidade: 'quantidade' },
+type Unidade = 'reais' | 'percentual' | 'quantidade' | 'numero' | 'vezes';
+export const CAMPOS: { valor: CampoDaTela; nome: string; unidade: Unidade; grupo: 'preco' | 'indicador'; dica?: string }[] = [
+  { valor: 'ultimo', nome: 'Último preço', unidade: 'reais', grupo: 'preco' },
+  { valor: 'bid', nome: 'Melhor oferta de compra', unidade: 'reais', grupo: 'preco' },
+  { valor: 'ask', nome: 'Melhor oferta de venda', unidade: 'reais', grupo: 'preco' },
+  { valor: 'variacao_dia_pct', nome: 'Variação do dia (%)', unidade: 'percentual', grupo: 'preco' },
+  { valor: 'volume', nome: 'Volume do dia', unidade: 'quantidade', grupo: 'preco' },
+  { valor: 'dist_maxima_20_pct', nome: 'Distância da máxima de 20 pregões (%)', unidade: 'percentual', grupo: 'indicador', dica: 'Cruzar para cima de 0 = romper a máxima dos últimos 20 pregões.' },
+  { valor: 'dist_minima_20_pct', nome: 'Distância da mínima de 20 pregões (%)', unidade: 'percentual', grupo: 'indicador', dica: 'Cruzar para baixo de 0 = perder a mínima dos últimos 20 pregões.' },
+  { valor: 'dist_media_20_pct', nome: 'Distância da média de 20 dias (%)', unidade: 'percentual', grupo: 'indicador', dica: 'Cruzar para cima de 0 = o preço passar para cima da média.' },
+  { valor: 'dist_media_50_pct', nome: 'Distância da média de 50 dias (%)', unidade: 'percentual', grupo: 'indicador', dica: 'Cruzar para cima de 0 = o preço passar para cima da média.' },
+  { valor: 'dist_media_200_pct', nome: 'Distância da média de 200 dias (%)', unidade: 'percentual', grupo: 'indicador', dica: 'Cruzar para cima de 0 = o preço passar para cima da média.' },
+  { valor: 'rsi_14', nome: 'RSI de 14 dias', unidade: 'numero', grupo: 'indicador', dica: 'De 0 a 100. Abaixo de 30 costuma ser lido como sobrevendido; acima de 70, sobrecomprado.' },
+  { valor: 'variacao_em_atr', nome: 'Movimento do dia em ATRs', unidade: 'numero', grupo: 'indicador', dica: 'Quanto o preço andou desde o fechamento de ontem, em múltiplos do ATR de 14 dias.' },
+  { valor: 'volume_relativo_20', nome: 'Volume em relação à média de 20 pregões', unidade: 'vezes', grupo: 'indicador', dica: '2 = o dobro do volume médio.' },
 ];
 
 export const OPERADORES: { valor: OperadorDaTela; nome: string }[] = [

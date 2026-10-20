@@ -2,7 +2,9 @@
 // Lê o diretório central (não confia nos tamanhos do cabeçalho local, que podem vir
 // zerados) e limita o tamanho descompactado para não estourar a memória.
 
-import { crc32, deflateRawSync, inflateRawSync } from 'node:zlib';
+import { createInflateRaw, crc32, deflateRawSync, inflateRawSync } from 'node:zlib';
+import { Readable } from 'node:stream';
+import { createInterface } from 'node:readline';
 
 const FIM_DO_DIRETORIO = 0x06054b50;
 const ENTRADA_CENTRAL = 0x02014b50;
@@ -14,7 +16,9 @@ export function ehZip(b: Uint8Array): boolean {
   return b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04;
 }
 
-export function extrairPrimeiroArquivo(zip: Buffer, limite = 400 * 1024 * 1024): { nome: string; conteudo: Buffer } {
+type Entrada = { nome: string; metodo: number; crc: number; tamanho: number; bruto: Buffer };
+
+function localizarPrimeiro(zip: Buffer): Entrada {
   if (!ehZip(zip)) throw new ErroDeZip('nao_e_zip');
   // O fim do diretório central fica nos últimos 22 bytes + comentário (até 64 KiB).
   let fim = -1;
@@ -31,17 +35,31 @@ export function extrairPrimeiroArquivo(zip: Buffer, limite = 400 * 1024 * 1024):
   const tamNome = zip.readUInt16LE(inicioCentral + 28);
   const local = zip.readUInt32LE(inicioCentral + 42);
   const nome = zip.subarray(inicioCentral + 46, inicioCentral + 46 + tamNome).toString('latin1');
-  if (tamanho > limite) throw new ErroDeZip('arquivo_grande_demais');
   if (local + 30 > zip.length || zip.readUInt32LE(local) !== CABECALHO_LOCAL) throw new ErroDeZip('zip_corrompido');
   const dados = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
   if (dados + compactado > zip.length) throw new ErroDeZip('zip_truncado');
-  const bruto = zip.subarray(dados, dados + compactado);
+  return { nome, metodo, crc, tamanho, bruto: zip.subarray(dados, dados + compactado) };
+}
+
+export function extrairPrimeiroArquivo(zip: Buffer, limite = 400 * 1024 * 1024): { nome: string; conteudo: Buffer } {
+  const { nome, metodo, crc, tamanho, bruto } = localizarPrimeiro(zip);
+  if (tamanho > limite) throw new ErroDeZip('arquivo_grande_demais');
   let conteudo: Buffer;
   if (metodo === 0) conteudo = Buffer.from(bruto);
   else if (metodo === 8) conteudo = inflateRawSync(bruto, { maxOutputLength: limite });
   else throw new ErroDeZip('compressao_nao_suportada');
   if (conteudo.length !== tamanho || crc32(conteudo) !== crc) throw new ErroDeZip('zip_corrompido');
   return { nome, conteudo };
+}
+
+// Linhas do primeiro arquivo do .ZIP, descompactando aos poucos (para arquivos grandes,
+// como o mensal da B3, sem carregar o texto inteiro na memória). Texto em latin1.
+export async function* linhasDoPrimeiroArquivo(zip: Buffer): AsyncGenerator<string> {
+  const { metodo, bruto } = localizarPrimeiro(zip);
+  const fluxo = metodo === 0 ? Readable.from([bruto]) : Readable.from([bruto]).pipe(createInflateRaw());
+  if (metodo !== 0 && metodo !== 8) throw new ErroDeZip('compressao_nao_suportada');
+  fluxo.setEncoding('latin1');
+  for await (const linha of createInterface({ input: fluxo, crlfDelay: Infinity })) yield linha;
 }
 
 // Monta um .ZIP de um arquivo só (usado nos testes e para conferir a leitura).
