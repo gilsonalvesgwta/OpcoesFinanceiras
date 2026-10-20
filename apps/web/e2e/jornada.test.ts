@@ -288,13 +288,13 @@ test.describe.serial('jornada', () => {
     await page.getByRole('link', { name: 'Cadeia de opções' }).first().click();
     await expect(page.getByRole('heading', { name: 'Cadeia de opções', level: 1 })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'ITUB4: fechamento de 16/10' })).toBeVisible();
-    await expect(page.getByLabel('Vencimento')).toContainText('23/11/2026');
+    await expect(page.getByLabel('Vencimento', { exact: true })).toContainText('23/11/2026');
     const linha36 = page.getByRole('row', { name: /36,00/ });
     await expect(linha36).toContainText('ITUBK360');
     await expect(linha36).toContainText('24,1%');
     await expect(linha36).toContainText('0,49');
     await expect(page.getByLabel('Sem negócio nem oferta no fechamento: não há prêmio para calcular.').first()).toBeVisible();
-    await page.getByLabel('Strikes').selectOption('todas');
+    await page.getByLabel('Strikes', { exact: true }).selectOption('todas');
     await expect(page.getByRole('row', { name: /38,00/ })).toContainText('ITUBK380');
     await page.getByText('Mostrar gama, theta e vega').click();
     await expect(page.getByRole('columnheader', { name: 'Theta' }).first()).toBeVisible();
