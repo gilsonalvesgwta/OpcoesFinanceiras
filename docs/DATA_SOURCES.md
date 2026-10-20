@@ -42,7 +42,15 @@ O responsável tem conta na Genial com acesso ao MetaTrader 5. Um robô só leit
 
 ### Orçamento do plano gratuito da brapi
 
-15 mil requisições por mês, 1 ativo por requisição, 1 requisição simultânea. Consultando a cada 30 minutos durante cerca de 7 horas de pregão e 21 pregões no mês: 14 × 21 = 294 requisições por ativo por mês. Cabem cerca de **45 ações acompanhadas**, com folga para buscas. O `worker` não consulta mais rápido que o atraso do plano (não traria dado novo) e mostra a cota restante no diagnóstico.
+15 mil requisições por mês, 1 ativo por requisição, 1 requisição simultânea. Como funciona (`apps/api/src/coleta/brapi.ts`):
+
+- Só com `BRAPI_API_KEY` no `worker`; a chave vai no cabeçalho `Authorization` (nunca na URL nem em registro).
+- Só em dia de pregão, da abertura até 40 minutos depois do fechamento (o atraso do plano).
+- Quais ações: as dos alertas que aceitam dado periódico, depois os ativos-objeto das estratégias abertas, depois os favoritos (só ações; opções não existem no plano gratuito).
+- Cota: `BRAPI_LIMITE_MENSAL` (padrão 14 000, folga sobre os 15 000) dividido pelos pregões que faltam no mês e pelos ciclos do worker (a cada 10 minutos), com teto de 20 por ciclo. Se a lista for maior que a cota do ciclo, os códigos se revezam.
+- Na tela: "atualização periódica" se chegou há até 45 minutos durante o pregão; mais velho, "atrasado". Sem oferta de compra e venda (o resultado estimado usa o último negócio, marcado como estimativa). Com a ponte MT5 ligada, vale a ponte.
+- Alertas: a api confere a cada minuto as cotações novas e avalia só as regras que aceitam dado periódico. Dado "atrasado" não dispara.
+- Diagnóstico: consultas do mês, última atualização e última falha (chave recusada, limite atingido).
 
 ### Arquivo COTAHIST
 

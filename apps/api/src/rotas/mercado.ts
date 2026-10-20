@@ -244,6 +244,11 @@ export async function rotasDeMercado(app: FastifyInstance, dep: Dependencias, ca
       const ultimoOk = (await c.query(
         "select to_char(max(referencia), 'YYYY-MM-DD') as dia from importacoes where fonte = 'b3-cotahist' and situacao = 'ok'",
       )).rows[0]?.dia ?? null;
+      const mes = new Date(agora.getTime() - 3 * 3_600_000).toISOString().slice(0, 7);
+      const brapi = (await c.query(
+        `select (select consultas from uso_brapi where mes = $1) as consultas, (select ultima_falha from uso_brapi where mes = $1) as falha,
+                (select max(recebido_em) from cotacoes_brapi) as ultima, (select count(*)::int from cotacoes_brapi where recebido_em > now() - interval '1 day') as ativos`, [mes],
+      )).rows[0];
       const banco = (await c.query("select count(*)::int as fechamentos, (select count(*)::int from series_opcoes where vencimento >= current_date) as series_vigentes from fechamentos where dia >= current_date - 30")).rows[0];
       return {
         agora: agora.toISOString(),
@@ -251,7 +256,14 @@ export async function rotasDeMercado(app: FastifyInstance, dep: Dependencias, ca
         cotahist: { ultimoImportado: ultimoOk, esperado: ultimoPregaoEncerrado(agora, cfg) },
         banco: { fechamentosUltimos30Dias: banco?.fechamentos ?? 0, seriesVigentes: banco?.series_vigentes ?? 0 },
         // A chave da brapi fica só no servidor; aqui só se diz se ela existe.
-        brapi: { configurada: Boolean(process.env.BRAPI_API_KEY?.trim()) },
+        brapi: {
+          configurada: Boolean(process.env.BRAPI_API_KEY?.trim()),
+          consultasNoMes: Number(brapi?.consultas ?? 0),
+          limiteMensal: Number(process.env.BRAPI_LIMITE_MENSAL) > 0 ? Number(process.env.BRAPI_LIMITE_MENSAL) : 14_000,
+          ultimaCotacaoEm: iso(brapi?.ultima ?? null),
+          ativosHoje: Number(brapi?.ativos ?? 0),
+          ultimaFalha: brapi?.falha ?? null,
+        },
         importacoes: importacoes.map((l) => ({
           id: Number(l.id), fonte: l.fonte, referencia: l.referencia, situacao: l.situacao, registros: l.registros, recusados: l.recusados,
           detalhe: l.detalhe, iniciadaEm: iso(l.iniciada_em), terminadaEm: iso(l.terminada_em),

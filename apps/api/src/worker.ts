@@ -6,6 +6,7 @@ import { hostname } from 'node:os';
 import { criarPool } from './banco.ts';
 import { cicloDeColeta } from './coleta/coleta.ts';
 import { cicloDeAvisosDePosicao } from './coleta/avisos-posicao.ts';
+import { cicloDaBrapi, configuracaoDaBrapi } from './coleta/brapi.ts';
 import { enviarAvisos, processarAtualizacoes, telegramReal } from './coleta/telegram.ts';
 
 const url = process.env.DATABASE_URL_COLETA?.trim();
@@ -31,6 +32,14 @@ async function rodar(): Promise<void> {
   } catch (e) {
     log(`ciclo falhou: ${e instanceof Error ? e.message : String(e)}; nova tentativa em 1 minuto`);
     proximoMin = 1;
+  }
+  // Ações pela brapi (com atraso), quando houver a chave.
+  if (proximoMin !== 1) {
+    try {
+      await cicloDaBrapi(pool, fetch, new Date(), configuracaoDaBrapi(), log);
+    } catch (e) {
+      log(`brapi falhou: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
   // Avisos das posições (vencimento, risco, cobertura, sugestões com consentimento).
   if (proximoMin !== 1) {
@@ -80,7 +89,7 @@ async function lacoDeComandos(tg: ReturnType<typeof telegramReal>): Promise<void
   }
 }
 
-log(`coleta iniciada, ciclo a cada ${intervaloMin} min`);
+log(`coleta iniciada, ciclo a cada ${intervaloMin} min; brapi ${configuracaoDaBrapi() ? 'ligada' : 'desligada (sem BRAPI_API_KEY)'}`);
 if (tokenTelegram) {
   const tg = telegramReal(tokenTelegram, fetch);
   void lacoDeAvisos(tg);

@@ -83,6 +83,7 @@ export function haQuanto(iso: string | null, agora: Date): string {
 export function detalheDaCotacao(c: CotacaoDaApi, agora: Date): string {
   if (!c.instanteDaFonte) return '';
   const mudou = c.instanteDaFonte;
+  if (c.provedor === 'brapi') return `brapi, com uns 30 min de atraso: preço de ${diaCurto.format(new Date(mudou))} às ${horaCurta.format(new Date(mudou))}`;
   switch (c.qualidade) {
     case 'tempo_real':
       return `mudou às ${horaExata(mudou)}`;

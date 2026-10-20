@@ -68,3 +68,16 @@ test('calendário: ordem dos feriados e aviso do ano seguinte', () => {
   assert.equal(faltaCalendarioDe([{ dia: '2026-12-25' }], '2026-10-17'), '2027');
   assert.equal(faltaCalendarioDe([{ dia: '2026-12-25' }], '2026-05-01'), null);
 });
+
+test('brapi no diagnóstico: ligada, funcionando e as tentativas', () => {
+  const ligada = cartaoDaBrapi(diag({ brapi: { configurada: true, consultasNoMes: 0, limiteMensal: 14000, ultimaCotacaoEm: null, ativosHoje: 0, ultimaFalha: null } }));
+  assert.equal(ligada.estado, 'Ligada');
+  assert.match(ligada.texto, /0 de 14\.000 consultas no mês/);
+  const ok = cartaoDaBrapi(diag({ brapi: { configurada: true, consultasNoMes: 1234, limiteMensal: 14000, ultimaCotacaoEm: '2026-10-16T19:40:00Z', ativosHoje: 7, ultimaFalha: null } }));
+  assert.equal(ok.estado, 'Funcionando');
+  assert.match(ok.texto, /7 ações atualizadas; última em 16\/10 16:40\. .*1\.234 de 14\.000/);
+  const l = linhaDaTentativa(imp({ fonte: 'brapi', registros: 7, recusados: 1, detalhe: '8 consultas (40 no mês)' }));
+  assert.deepEqual([l.fonte, l.pregao, l.resultado], ['brapi', '16/10/2026', 'Importado']);
+  assert.equal(l.detalhe, '7 ações atualizadas, 1 sem resposta · 8 consultas (40 no mês)');
+  assert.equal(linhaDaTentativa(imp({ fonte: 'b3-cotahist-mensal', referencia: '2026-09-01', detalhe: '21 pregões do mercado à vista' })).fonte, 'B3 (histórico mensal)');
+});

@@ -24,7 +24,9 @@ const classeDoValor = (v: number | null) => (v === null || v === 0 ? '' : v > 0 
 
 function SeloDaCotacao({ q }: { q: CotacaoDaApi | null }) {
   if (!q) return <span className="selo selo-neutro">Sem preço</span>;
-  const s = QUALIDADE[q.qualidade] ?? { texto: q.qualidade, classe: 'selo-neutro' };
+  const s = q.provedor === 'brapi'
+    ? { texto: q.qualidade === 'periodica' ? 'brapi (~30 min)' : 'brapi, atrasado', classe: q.qualidade === 'periodica' ? 'selo-periodica' : 'selo-atencao' }
+    : QUALIDADE[q.qualidade] ?? { texto: q.qualidade, classe: 'selo-neutro' };
   return <span className={`selo ${s.classe}`} title={q.instanteDaFonte ? `Dado de ${quandoCurto(q.instanteDaFonte)}` : undefined} style={{ fontSize: 13 }}>{s.texto}</span>;
 }
 
