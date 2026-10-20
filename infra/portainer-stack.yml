@@ -65,6 +65,7 @@ services:
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:?preencha SUPERADMIN_EMAIL}
       SUPERADMIN_SENHA_INICIAL: ${SUPERADMIN_SENHA_INICIAL:?preencha SUPERADMIN_SENHA_INICIAL}
       BRAPI_API_KEY: ${BRAPI_API_KEY:-}
+      TELEGRAM_BOT_NOME: ${TELEGRAM_BOT_NOME:-}
     networks: [interna]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/saude').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -87,6 +88,7 @@ services:
       NODE_ENV: production
       DATABASE_URL_COLETA: postgres://wtaopt_coleta:${SENHA_COLETA}@db:5432/wtaopt
       COLETA_INTERVALO_MIN: "10"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
     networks: [interna]
     logging: *logs
     deploy:

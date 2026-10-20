@@ -135,7 +135,7 @@ describe('ponte com o MetaTrader 5', { skip: pular ? 'sem DATABASE_URL e DATABAS
       posicoes: [{ codigo: 'PETRK380', lado: 'venda', quantidade: 300, preco_medio: 0.72 }],
     });
     assert.equal(r.status, 200, JSON.stringify(r.corpo));
-    assert.deepEqual(r.corpo, { gravadas: 2, ignoradas: 0, posicoes: 1, descartadas: 1, avisos: ['horario_fora_do_intervalo'] });
+    assert.deepEqual(r.corpo, { gravadas: 2, ignoradas: 0, posicoes: 1, descartadas: 1, avisos: ['horario_fora_do_intervalo'], alertas: 0 });
     assert.deepEqual((await robo('GET', '/api/ponte/simbolos', chaveDaAna)).corpo, { simbolos: ['PETR4', 'PETRK380'] }, 'o que está em posição também é acompanhado');
   });
 

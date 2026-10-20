@@ -22,7 +22,7 @@ const MAXIMO_POR_CICLO = 3;
 const TAMANHO_MAXIMO = 150 * 1024 * 1024;
 const CODIGO = /^[A-Z0-9]{4,12}$/;
 
-export type Buscar = (url: string, init?: { signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; arrayBuffer(): Promise<ArrayBuffer>; json(): Promise<unknown> }>;
+export type Buscar = (url: string, init?: { signal?: AbortSignal; method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ ok: boolean; status: number; arrayBuffer(): Promise<ArrayBuffer>; json(): Promise<unknown> }>;
 
 export type DependenciasDaColeta = {
   pool: Pool;

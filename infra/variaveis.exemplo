@@ -17,6 +17,9 @@ HORA_DA_COPIA=03:30
 MANTER_DIAS=14
 VERSAO=main
 BRAPI_API_KEY=
+# Bot do Telegram (criado no @BotFather): o token fica só no worker; o nome (sem @) monta o link de vínculo.
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_BOT_NOME=
 
 # Stack do MetaTrader 5 (infra/mt5-stack.yml), opcional:
 # DOMINIO_MT5=mt5.opcoes.wtatech.com.br
