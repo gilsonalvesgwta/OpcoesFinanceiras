@@ -340,7 +340,7 @@ p { margin: 0; }
 .tabela-cadeia .lado { text-align: center; font-weight: 600; color: var(--texto); padding: 8px; }
 .tabela-cadeia .coluna-strike { text-align: center; font-weight: 700; background: var(--painel2); padding: 8px 12px; }
 .tabela-cadeia tbody th.coluna-strike { padding-left: 12px; }
-.tabela-cadeia td.dentro { background: color-mix(in srgb, var(--latao) 9%, transparent); }
+.tabela-cadeia td.dentro { background: color-mix(in srgb, var(--latao) 16%, var(--painel)); }
 .tabela-cadeia td.vazia { color: var(--linha); text-align: center; }
 .tabela-cadeia tr.no-dinheiro { outline: 2px solid var(--latao); outline-offset: -2px; }
 .codigo-serie { font-weight: 600; }

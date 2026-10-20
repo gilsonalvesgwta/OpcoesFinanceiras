@@ -139,7 +139,7 @@ export default function PaginaCadeia() {
             <div className="campo" style={{ flex: '0 1 240px' }}>
               <label htmlFor="cadeia-venc">Vencimento</label>
               <select id="cadeia-venc" value={vencimento ?? ''} onChange={(e) => setVencimento(e.target.value)} disabled={!cadeia?.vencimentos.length}>
-                {cadeia?.vencimentos.map((v) => <option key={v} value={v}>{dataBr(v, true)} · em {diasAte(cadeia.ativo.dia, v)} dias</option>)}
+                {cadeia?.vencimentos.map((v) => <option key={v} value={v}>{dataBr(v)} ({diasAte(cadeia.ativo.dia, v)} dias)</option>)}
               </select>
             </div>
             <div className="campo" style={{ flex: '0 1 180px' }}>
