@@ -526,9 +526,9 @@ export default function PaginaPosicoes() {
                   <tr key={`${x.ativoObjeto}|${x.vencimento}`}>
                     <th scope="row">{x.ativoObjeto}</th>
                     <td>{x.vencimento ? formatarData(x.vencimento) : 'Ações'}</td>
-                    <td className="numero">{x.quantidadeLiquidaCalls.toLocaleString('pt-BR')}</td>
-                    <td className="numero">{x.quantidadeLiquidaPuts.toLocaleString('pt-BR')}</td>
-                    <td className="numero">{x.quantidadeLiquidaAcoes.toLocaleString('pt-BR')}</td>
+                    <td className="numero">{x.quantidadeLiquidaCalls.toLocaleString('pt-BR').replace('-', '−')}</td>
+                    <td className="numero">{x.quantidadeLiquidaPuts.toLocaleString('pt-BR').replace('-', '−')}</td>
+                    <td className="numero">{x.quantidadeLiquidaAcoes.toLocaleString('pt-BR').replace('-', '−')}</td>
                     <td className={`numero ${x.callsVendidasDescobertas > 0 ? 'resultado-baixa' : ''}`}>{x.vencimento ? x.callsVendidasDescobertas.toLocaleString('pt-BR') : '—'}</td>
                   </tr>
                 ))}
@@ -558,7 +558,7 @@ export default function PaginaPosicoes() {
                       {c.situacao === 'nao_registrada' && <span className="selo selo-atencao"><Icone nome="aviso" tamanho={16} />Não registrada aqui</span>}
                       {c.situacao === 'so_no_sistema' && <span className="selo selo-neutro">Só aqui (não aparece no MT5)</span>}
                     </div>
-                    <span className="ponte-apoio">Corretora: {descreverPosicao(c.corretora)} · Registrado: {descreverPosicao(c.registrado)}</span>
+                    <span className="ponte-apoio">Corretora: {c.corretora === 0 ? 'nada' : descreverPosicao(c.corretora).toLowerCase()} · Registrado aqui: {c.registrado === 0 ? 'nada' : descreverPosicao(c.registrado).toLowerCase()}</span>
                   </div>
                   {pode && c.situacao === 'nao_registrada' && (
                     <label className="caixa-de-marcar" style={{ paddingTop: 0 }}>

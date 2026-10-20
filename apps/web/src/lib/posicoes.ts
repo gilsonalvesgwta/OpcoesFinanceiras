@@ -173,7 +173,7 @@ export type Grafico = {
 
 // Escala a curva (preço em centavos × resultado em centavos) num retângulo. As áreas de
 // lucro e de prejuízo são recortadas no zero para colorir cada lado.
-export function montarGrafico(curva: readonly { s: number; resultado: number }[], largura = 640, altura = 240, margem = { e: 64, d: 12, t: 14, b: 28 }): Grafico | null {
+export function montarGrafico(curva: readonly { s: number; resultado: number }[], largura = 640, altura = 240, margem = { e: 92, d: 12, t: 14, b: 28 }): Grafico | null {
   if (curva.length < 2) return null;
   const de = curva[0]?.s as number;
   const ate = curva[curva.length - 1]?.s as number;

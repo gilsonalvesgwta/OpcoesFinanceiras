@@ -63,10 +63,10 @@ test('gráfico: zero dentro da escala, áreas fechadas', () => {
   const g = montarGrafico([{ s: 3000, resultado: -8000 }, { s: 3800, resultado: -8000 }, { s: 4000, resultado: 12000 }, { s: 5000, resultado: 12000 }]);
   assert.ok(g);
   assert.ok(g.min < -8000 && g.max > 12000);
-  assert.equal(g.x(3000), 64);
+  assert.equal(g.x(3000), 92);
   assert.equal(g.x(5000), 640 - 12);
   assert.ok((g.yZero as number) > g.y(12000) && (g.yZero as number) < g.y(-8000));
-  assert.ok(g.caminhoLucro.endsWith('Z') && g.caminhoPrejuizo.startsWith('M64.0'));
+  assert.ok(g.caminhoLucro.endsWith('Z') && g.caminhoPrejuizo.startsWith('M92.0'));
   assert.equal(montarGrafico([{ s: 1, resultado: 0 }]), null);
   const plano = montarGrafico([{ s: 1, resultado: 0 }, { s: 2, resultado: 0 }]);
   assert.ok(plano && plano.max > plano.min, 'curva plana não divide por zero');
