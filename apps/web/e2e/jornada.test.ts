@@ -283,10 +283,33 @@ test.describe.serial('jornada', () => {
     await expect(page.getByText('O bot do Telegram ainda não foi configurado no servidor. Quando for', { exact: false })).toBeVisible();
   });
 
-  test('telas das próximas fases explicam o que vem, e sair encerra a sessão', async ({ page }) => {
+  test('cadeia de opções: fechamento com volatilidade e gregas, filtros e premissas', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Cadeia de opções' }).first().click();
-    await expect(page.getByText('Chega na Fase 5')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Cadeia de opções', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'ITUB4: fechamento de 16/10' })).toBeVisible();
+    await expect(page.getByLabel('Vencimento')).toContainText('23/11/2026');
+    const linha36 = page.getByRole('row', { name: /36,00/ });
+    await expect(linha36).toContainText('ITUBK360');
+    await expect(linha36).toContainText('24,1%');
+    await expect(linha36).toContainText('0,49');
+    await expect(page.getByLabel('Sem negócio nem oferta no fechamento: não há prêmio para calcular.').first()).toBeVisible();
+    await page.getByLabel('Strikes').selectOption('todas');
+    await expect(page.getByRole('row', { name: /38,00/ })).toContainText('ITUBK380');
+    await page.getByText('Mostrar gama, theta e vega').click();
+    await expect(page.getByRole('columnheader', { name: 'Theta' }).first()).toBeVisible();
+    await page.getByText('Só séries com negócio no dia').click();
+    await expect(page.getByText('ITUBW360')).toHaveCount(0);
+    await page.getByText('Premissas do cálculo').click();
+    await expect(page.getByText('Modelo Black-Scholes-Merton', { exact: false })).toBeVisible();
+    await semViolacoes(page, 'cadeia');
+    await foto(page, 'cadeia');
+  });
+
+  test('telas das próximas fases explicam o que vem, e sair encerra a sessão', async ({ page }) => {
+    await entrarNoPainel(page, EMAIL, SENHA);
+    await page.getByRole('link', { name: 'Posições' }).first().click();
+    await expect(page.getByText('Chega na Fase 6')).toBeVisible();
     await foto(page, 'em-breve');
     await page.getByRole('button', { name: 'Sair' }).click();
     await expect(page).toHaveURL(/\/entrar$/);
