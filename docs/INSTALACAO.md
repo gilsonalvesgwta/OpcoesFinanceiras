@@ -12,7 +12,7 @@ Este roteiro inteiro roda automaticamente no CI a cada mudança (workflow "Insta
 
 ## 0. Imagens
 
-As imagens do sistema ficam no GitHub (`ghcr.io/gilsonalvesgwta/opcoesfinanceiras-api` e `-web`) e já são públicas: a VPS baixa sem senha. O CI confere isso a cada publicação. Se um dia aparecer "pull access denied", no GitHub abra Packages → o pacote → Package settings → Change visibility → Public.
+As imagens do sistema ficam no GitHub (`ghcr.io/gilsonalvesgwta/opcoesfinanceiras-api` e `-web`) e já são públicas: a VPS baixa sem senha. Elas servem para os dois tipos de processador: Intel/AMD (`amd64`) e ARM (`arm64`, como as VPS da Oracle Cloud); a VPS escolhe a certa sozinha. Para saber o da sua: `uname -m` (`x86_64` ou `aarch64`). O CI confere isso a cada publicação. Se um dia aparecer "pull access denied", no GitHub abra Packages → o pacote → Package settings → Change visibility → Public.
 
 ## 1. Conferir a VPS (só leitura, não muda nada)
 

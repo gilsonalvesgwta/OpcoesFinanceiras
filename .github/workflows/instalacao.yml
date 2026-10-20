@@ -125,23 +125,66 @@ jobs:
           done | tee falha.txt
           tail -c 3800 falha.txt | tr '\n' ' ' | sed 's/^/::error title=Stack::/'; echo
 
-      - name: Publicar as imagens (só no main)
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+  # Imagens para os dois tipos de processador: Intel/AMD (amd64) e ARM (arm64, como as
+  # VPS da Oracle Cloud). No pedido de mesclagem: monta a ARM e confere que ela liga.
+  # No main, depois que a instalação de teste passou: publica as duas.
+  publicar:
+    name: Imagens amd64 e arm64
+    needs: stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Etiqueta curta da versão
+        id: versao
+        run: echo "curta=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - name: Imagem da api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          platforms: ${{ github.event_name == 'pull_request' && 'linux/arm64' || 'linux/amd64,linux/arm64' }}
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ github.event_name == 'pull_request' && format('{0}:teste-arm', env.IMAGEM_API) || format('{0}:main,{0}:{1}', env.IMAGEM_API, steps.versao.outputs.curta) }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - name: Imagem da interface
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          platforms: ${{ github.event_name == 'pull_request' && 'linux/arm64' || 'linux/amd64,linux/arm64' }}
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ github.event_name == 'pull_request' && format('{0}:teste-arm', env.IMAGEM_WEB) || format('{0}:main,{0}:{1}', env.IMAGEM_WEB, steps.versao.outputs.curta) }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+      - name: A imagem ARM liga? (pedido de mesclagem)
+        if: github.event_name == 'pull_request'
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          for img in "$IMAGEM_API" "$IMAGEM_WEB"; do
-            for tag in main "${GITHUB_SHA::12}"; do
-              docker tag "$img:teste" "$img:$tag"
-              docker push -q "$img:$tag"
-            done
-          done
-          echo "::notice title=Publicado::$IMAGEM_API e $IMAGEM_WEB com as etiquetas main e ${GITHUB_SHA::12}"
-
-      - name: As imagens podem ser baixadas sem login? (só no main)
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+          docker run --rm --platform linux/arm64 "$IMAGEM_API:teste-arm" node -e "require('pg'); console.log('api', process.arch)" | tee r.txt
+          docker run --rm --platform linux/arm64 "$IMAGEM_WEB:teste-arm" node -e "console.log('web', process.arch)" | tee -a r.txt
+          grep -q 'api arm64' r.txt && grep -q 'web arm64' r.txt
+          echo "::notice title=ARM::$(tr '\n' ' ' < r.txt)"
+      - name: As imagens servem para ARM e podem ser baixadas sem login? (main)
+        if: github.event_name != 'pull_request'
         run: |
           docker logout ghcr.io > /dev/null 2>&1 || true
+          r=""
           for img in "$IMAGEM_API" "$IMAGEM_WEB"; do
-            if docker manifest inspect "$img:main" > /dev/null 2>&1; then r="$r ${img##*/}: pública"; else r="$r ${img##*/}: PRIVADA (tornar pública no GitHub ou dar login no Portainer)"; fi
+            plat=$(docker buildx imagetools inspect "$img:main" --format '{{range .Manifest.Manifests}}{{.Platform.Architecture}} {{end}}' 2>/dev/null || true)
+            [[ "$plat" == *amd64* && "$plat" == *arm64* ]] || { echo "::error title=Imagens::$img sem as duas arquiteturas ($plat)"; exit 1; }
+            r="$r ${img##*/}: pública ($plat)"
           done
-          echo "::notice title=Visibilidade::$r"
+          docker run --rm --platform linux/arm64 "$IMAGEM_API:main" node -e "require('pg'); console.log('api arm64 ok')"
+          docker run --rm --platform linux/arm64 "$IMAGEM_WEB:main" node -e "console.log('web arm64 ok')"
+          echo "::notice title=Publicado::$r"
