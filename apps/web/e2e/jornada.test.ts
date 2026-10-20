@@ -306,10 +306,37 @@ test.describe.serial('jornada', () => {
     await foto(page, 'cadeia');
   });
 
-  test('telas das próximas fases explicam o que vem, e sair encerra a sessão', async ({ page }) => {
+  test('posições: venda coberta com a série vinda do cadastro, resultado e gráfico', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Posições' }).first().click();
-    await expect(page.getByText('Chega na Fase 6')).toBeVisible();
+    await expect(page.getByText('Nenhuma estratégia aberta')).toBeVisible();
+    await page.getByRole('button', { name: 'Nova estratégia' }).click();
+    await page.getByLabel('Nome', { exact: true }).fill('Venda coberta ITUB4');
+    await page.locator('#nova-0-codigo').fill('ITUB4');
+    await page.locator('#nova-0-tipo').selectOption('ativo');
+    await page.locator('#nova-0-lado').selectOption('compra');
+    await page.locator('#nova-0-preco').fill('35,00');
+    await page.getByRole('button', { name: 'Adicionar perna' }).click();
+    await page.locator('#nova-1-codigo').fill('ITUBK360');
+    await page.locator('#nova-1-codigo').blur();
+    await expect(page.locator('#nova-1-strike')).toHaveValue('36,00');
+    await expect(page.locator('#nova-1-venc')).toHaveValue('2026-11-23');
+    await page.locator('#nova-1-preco').fill('0,70');
+    await expect(page.getByLabel('Ativo-objeto')).toHaveValue('ITUB4');
+    await page.getByRole('button', { name: 'Criar estratégia' }).click();
+    await expect(page.getByRole('heading', { name: 'Venda coberta ITUB4' })).toBeVisible();
+    await expect(page.getByText('R$ 34,30')).toBeVisible();
+    await expect(page.getByText(/170,00/).first()).toBeVisible();
+    await expect(page.getByRole('img', { name: /Resultado no vencimento de Venda coberta ITUB4/ })).toBeVisible();
+    await expect(page.getByText('Fechamento B3').first()).toBeVisible();
+    await semViolacoes(page, 'posicoes');
+    await foto(page, 'posicoes');
+  });
+
+  test('telas das próximas fases explicam o que vem, e sair encerra a sessão', async ({ page }) => {
+    await entrarNoPainel(page, EMAIL, SENHA);
+    await page.getByRole('link', { name: 'Rolagens' }).first().click();
+    await expect(page.getByText('Chega na Fase 7')).toBeVisible();
     await foto(page, 'em-breve');
     await page.getByRole('button', { name: 'Sair' }).click();
     await expect(page).toHaveURL(/\/entrar$/);

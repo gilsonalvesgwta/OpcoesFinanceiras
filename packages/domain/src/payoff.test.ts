@@ -101,4 +101,6 @@ test('curva inclui as quinas dos strikes', () => {
   assert.ok(curva.some((p) => p.s === 3050 && p.resultado === -15000));
   assert.equal(curva[0]?.s, 2500);
   assert.equal(curva.at(-1)?.s, 3500);
+  const comAjuste = curvaDePayoff([call('compra', 3050, 150)], 2500, 3500, 4, 5000);
+  assert.ok(comAjuste.some((p) => p.s === 3050 && p.resultado === -10000), 'o ajuste (já realizado) entra na curva');
 });
