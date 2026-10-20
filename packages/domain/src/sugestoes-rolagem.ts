@@ -73,7 +73,7 @@ export function avaliarCandidato(c: CandidatoDeRolagem, k: CriteriosDeRolagem): 
     r.push({ criterio: 'debitoMaximo', texto: `débito de no máximo R$ ${reais(k.debitoMaximo)}`, situacao: sit(c.liquido === null ? null : -c.liquido <= k.debitoMaximo) });
   }
   if (!nada(k.negociosMin)) {
-    r.push({ criterio: 'negociosMin', texto: `pelo menos ${k.negociosMin} negócios no último pregão`, situacao: sit(c.negocios === null ? null : c.negocios >= k.negociosMin) });
+    r.push({ criterio: 'negociosMin', texto: k.negociosMin === 1 ? 'com negócio no último pregão' : `pelo menos ${k.negociosMin} negócios no último pregão`, situacao: sit(c.negocios === null ? null : c.negocios >= k.negociosMin) });
   }
   if (!nada(k.spreadMaximoPct)) {
     const s = spreadPct(c.bid, c.ask);
