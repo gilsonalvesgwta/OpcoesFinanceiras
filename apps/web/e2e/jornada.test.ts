@@ -271,7 +271,7 @@ test.describe.serial('jornada', () => {
     await expect(page.getByText('Regra alterada.', { exact: false })).toBeVisible();
     await expect(page.getByText('cruzar para cima de R$ 39,00', { exact: false })).toBeVisible();
     await page.getByRole('button', { name: 'Pausar' }).click();
-    await expect(page.getByText('Pausada')).toBeVisible();
+    await expect(page.getByText('Pausada', { exact: true })).toBeVisible();
     await semViolacoes(page, 'alertas');
     await foto(page, 'alertas');
     await page.getByRole('button', { name: 'Excluir a regra PETR4 rompendo' }).click();
