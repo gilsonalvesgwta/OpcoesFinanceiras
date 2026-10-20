@@ -99,7 +99,9 @@ describe('posições de ponta a ponta', { skip: pular ? 'sem as URLs do banco' :
     const k380 = e.instrumentos.find((i: { codigo: string }) => i.codigo === 'POSIK380');
     assert.equal(k380.cotacao.qualidade, 'historico', 'fechamento da B3 aparece como histórico');
     assert.equal(k380.diasCorridos, 38);
-    assert.equal(k380.diasDePregao, 24, 'sem fins de semana nem os feriados de 02/11 e 20/11');
+    // 26 dias úteis de 19/10 a 23/11, menos os feriados do calendário nesse intervalo (outros testes mexem no calendário).
+    const feriados = Number((await dono.query("select count(*) from feriados where dia between '2026-10-17' and '2026-11-23' and extract(isodow from dia) < 6")).rows[0].count);
+    assert.equal(k380.diasDePregao, 26 - feriados, 'sem fins de semana nem feriados');
     assert.equal(k380.vencido, false);
     // Débito 0,70 × 100 + custos 10,00 = 80,00. Lucro máximo 200 − 80 = 120,00. Equilíbrio em 38,80.
     assert.deepEqual(e.payoff.analise.perdaMaxima, { tipo: 'limitado', valor: -8000, emPreco: 0 });

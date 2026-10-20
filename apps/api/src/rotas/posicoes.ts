@@ -63,7 +63,9 @@ function lerExecucao(b: CorpoDaExecucao, agora: Date): CorpoDaExecucao {
   if (Number.isNaN(t)) throw new ErroHttp(400, 'instante_invalido');
   if (t > agora.getTime() + 5 * 60_000) throw new ErroHttp(400, 'instante_no_futuro');
   if (t < Date.parse('2000-01-01T00:00:00Z')) throw new ErroHttp(400, 'instante_invalido');
-  return { ...b, codigo, instante: new Date(t).toISOString(), observacao: b.observacao?.trim() || undefined };
+  const { observacao, ...resto } = b;
+  const obs = observacao?.trim();
+  return { ...resto, codigo, instante: new Date(t).toISOString(), ...(obs ? { observacao: obs } : {}) };
 }
 
 async function inserirExecucao(c: Cliente, userId: string, estrategiaId: string, e: CorpoDaExecucao, origem: 'manual' | 'importada_mt5'): Promise<string> {
