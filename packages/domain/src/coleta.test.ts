@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { diasParaColetar, lerSerieSgs, ultimoPregaoEncerrado, urlDaSerieSgs, urlDoCotahistDiario } from './coleta.ts';
+import { diasParaColetar, lerSerieSgs, mesesParaCarregar, ultimoPregaoEncerrado, urlDaSerieSgs, urlDoCotahistDiario, urlDoCotahistMensal } from './coleta.ts';
 import type { ConfiguracaoDoCalendario } from './calendario.ts';
 
 const cfg: ConfiguracaoDoCalendario = {
@@ -44,4 +44,12 @@ test('último pregão encerrado', () => {
   assert.equal(ultimoPregaoEncerrado(new Date('2026-10-16T15:00:00Z'), cfg), '2026-10-15'); // sexta 12:00
   assert.equal(ultimoPregaoEncerrado(new Date('2026-10-18T15:00:00Z'), cfg), '2026-10-16'); // domingo
   assert.equal(ultimoPregaoEncerrado(new Date('2026-10-13T12:00:00Z'), cfg), '2026-10-09'); // terça 9h, segunda feriado
+});
+
+test('carga do histórico: meses completos, do mais recente ao mais antigo', () => {
+  assert.equal(urlDoCotahistMensal('2026-09'), 'https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_M092026.ZIP');
+  const agora = new Date('2026-10-20T15:00:00Z');
+  assert.deepEqual(mesesParaCarregar(agora, new Set(), new Map(), 3), ['2026-09', '2026-08', '2026-07']);
+  assert.deepEqual(mesesParaCarregar(agora, new Set(['2026-09']), new Map([['2026-08', '2026-10-20T14:00:00Z']]), 3), ['2026-07']);
+  assert.deepEqual(mesesParaCarregar(new Date('2026-01-10T15:00:00Z'), new Set(), new Map(), 2), ['2025-12', '2025-11']);
 });

@@ -14,6 +14,30 @@ export function urlDoCotahistDiario(dia: string): string {
   return `https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_D${d}${m}${a}.ZIP`;
 }
 
+// Arquivo mensal: COTAHIST_MmmAAAA.ZIP (mês com dois dígitos). Usado na carga do histórico.
+export function urlDoCotahistMensal(mes: string): string {
+  const [a, m] = mes.split('-') as [string, string];
+  return `https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_M${m}${a}.ZIP`;
+}
+
+// Meses completos (anteriores ao atual) ainda sem histórico, do mais recente ao mais
+// antigo. Mês tentado sem sucesso só volta depois de `esperaHoras`.
+export function mesesParaCarregar(
+  agora: Date, importados: ReadonlySet<string>, ultimaTentativa: ReadonlyMap<string, string>, meses = 12, esperaHoras = 6,
+): string[] {
+  const [a, m] = partesEmBrasilia(agora).dia.split('-').map(Number) as [number, number];
+  const lista: string[] = [];
+  for (let i = 1; i <= meses; i += 1) {
+    const d = new Date(Date.UTC(a, m - 1 - i, 1));
+    const mes = d.toISOString().slice(0, 7);
+    if (importados.has(mes)) continue;
+    const t = ultimaTentativa.get(mes);
+    if (t && agora.getTime() - Date.parse(t) < esperaHoras * 3_600_000) continue;
+    lista.push(mes);
+  }
+  return lista;
+}
+
 export function urlDaSerieSgs(codigo: number, ultimos = 10): string {
   return `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigo}/dados/ultimos/${ultimos}?formato=json`;
 }

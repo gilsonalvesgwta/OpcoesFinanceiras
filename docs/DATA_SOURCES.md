@@ -33,6 +33,13 @@ O responsável tem conta na Genial com acesso ao MetaTrader 5. Um robô só leit
 - Uso **pessoal**: o dado vem da conta dele na corretora. Tudo é gravado no nome do dono da chave e só ele lê (RLS); não alimenta telas de outros usuários. Para atender outros usuários com dado em tempo real, só fonte licenciada (ver fontes pagas).
 - As posições da corretora ficam separadas das posições cadastradas no sistema (Fase 6), que poderão importá-las com confirmação.
 
+### Histórico e indicadores (Fase 4c)
+
+- Carga do histórico: o worker importa os arquivos mensais `COTAHIST_MmmAAAA.ZIP` dos últimos 12 meses (um por ciclo, quando não houve arquivo diário no ciclo), lendo o arquivo aos poucos e guardando só o mercado à vista. Não sobrescreve o que veio do arquivo diário.
+- Limpeza: opções e cálculos com mais de 120 dias são apagados; o histórico das ações fica.
+- Indicadores para alertas (`packages/domain/src/indicadores.ts`): distância das médias de 20, 50 e 200 dias, RSI(14) de Wilder, distância da máxima e da mínima de 20 pregões (rompimento), movimento do dia em ATRs (ATR 14) e volume relativo à média de 20 pregões. Usam os pregões anteriores e o preço do momento; sem histórico suficiente o indicador fica vazio e a regra não dispara.
+- VWAP precisa dos negócios do dia, que as fontes gratuitas não dão: fica para quando houver fonte intradiária.
+
 ### Orçamento do plano gratuito da brapi
 
 15 mil requisições por mês, 1 ativo por requisição, 1 requisição simultânea. Consultando a cada 30 minutos durante cerca de 7 horas de pregão e 21 pregões no mês: 14 × 21 = 294 requisições por ativo por mês. Cabem cerca de **45 ações acompanhadas**, com folga para buscas. O `worker` não consulta mais rápido que o atraso do plano (não traria dado novo) e mostra a cota restante no diagnóstico.

@@ -12,7 +12,7 @@ import { criarPool, emTransacao } from './banco.ts';
 import type { Config } from './config.ts';
 import { CorreioDeTeste } from './correio.ts';
 import { gerarHashDeSenha } from './seguranca.ts';
-import { cicloDeColeta, importarCotahist, type Buscar } from './coleta/coleta.ts';
+import { cicloDeColeta, coletarHistoricoMensal, importarCotahist, type Buscar } from './coleta/coleta.ts';
 import { ErroDeZip, extrairPrimeiroArquivo, montarZip } from './coleta/zip.ts';
 
 // ---------- Linhas do COTAHIST (layout oficial, posições 1-indexadas) ----------
@@ -162,6 +162,25 @@ describe('coleta gratuita e rotas de mercado', { skip: pular ? 'sem as três URL
     assert.ok(!pedidas.some((u) => /D1[456]102026/.test(u)), 'não insiste em 14, 15 e 16');
   });
 
+  test('histórico mensal: só mercado à vista, sem sobrescrever o arquivo diário', async () => {
+    const linhas = [
+      linha({ data: '20260901', codigo: 'VALE3', tpmerc: 10, especi: 'ON', ult: 6000 }),
+      linha({ data: '20260902', codigo: 'VALE3', tpmerc: 10, especi: 'ON', ult: 6050 }),
+      linha({ data: '20260902', codigo: 'VALEK600', tpmerc: 70, ult: 100, exe: 6000, venc: '20261120' }), // opção: fica de fora
+      linha({ data: '20261015', codigo: 'PETR4', tpmerc: 10, especi: 'PN N2', ult: 1 }), // já veio do diário: não sobrescreve
+      linha({ data: '20260903', codigo: 'XXXX3', tpmerc: 10, ult: 105, fat: 1000 }), // recusada
+    ];
+    arquivos.set('https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_M092026.ZIP', montarZip('COTAHIST_M092026.TXT', arquivo('2026-09-30', linhas)));
+    assert.equal(await coletarHistoricoMensal({ pool: coleta, buscar }, '2026-09'), 'ok');
+    const v = (await dono.query("select to_char(dia, 'YYYY-MM-DD') as dia, ultimo from fechamentos where codigo = 'VALE3' order by dia")).rows;
+    assert.deepEqual(v.map((l) => [l.dia, Number(l.ultimo)]), [['2026-09-01', 6000], ['2026-09-02', 6050]]);
+    assert.equal((await dono.query("select count(*)::int as n from fechamentos where codigo = 'VALEK600'")).rows[0].n, 0);
+    assert.equal(Number((await dono.query("select ultimo from fechamentos where codigo = 'PETR4' and dia = '2026-10-15'")).rows[0].ultimo), 3800);
+    const imp = (await dono.query("select situacao, registros, recusados from importacoes where fonte = 'b3-cotahist-mensal'")).rows[0];
+    assert.deepEqual([imp.situacao, imp.registros, imp.recusados], ['ok', 3, 1]);
+    assert.equal(await coletarHistoricoMensal({ pool: coleta, buscar }, '2026-08'), 'sem_arquivo');
+  });
+
   test('Selic com resposta inválida fica registrada como erro, sem gravar zero', async () => {
     selic = { erro: 'indisponível' };
     await dono.query("delete from importacoes where fonte = 'bcb-selic'");
@@ -182,7 +201,7 @@ describe('coleta gratuita e rotas de mercado', { skip: pular ? 'sem as três URL
     assert.equal(sit.corpo.fechamento.ultimoImportado, '2026-10-16');
     assert.equal(sit.corpo.fechamento.series, 2, 'PETRK380 e PETRW360 vistas no arquivo de 16/10 e ainda não vencidas');
     assert.deepEqual(sit.corpo.selic, { dia: '2026-10-16', valor: 14.9 });
-    const f = await pedir('ana', 'GET', '/api/mercado/fechamentos?codigos=petrk380,VALE3');
+    const f = await pedir('ana', 'GET', '/api/mercado/fechamentos?codigos=petrk380,ITUB4');
     assert.deepEqual(f.corpo.fechamentos.map((x: { codigo: string; ultimo: number }) => [x.codigo, x.ultimo]), [['PETRK380', 93]]);
   });
 

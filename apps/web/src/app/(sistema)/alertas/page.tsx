@@ -155,7 +155,8 @@ export default function PaginaAlertas() {
                     <div className="campo" style={{ flex: '1 1 190px' }}>
                       <label htmlFor={`c${i}-campo`}>Condição {i + 1}</label>
                       <select id={`c${i}-campo`} value={l.campo} onChange={(e) => mudarLinha(i, { campo: e.target.value as LinhaDaCondicao['campo'] })}>
-                        {CAMPOS.map((c) => <option key={c.valor} value={c.valor}>{c.nome}</option>)}
+                        <optgroup label="Preço">{CAMPOS.filter((c) => c.grupo === 'preco').map((c) => <option key={c.valor} value={c.valor}>{c.nome}</option>)}</optgroup>
+                        <optgroup label="Indicadores (histórico diário da B3)">{CAMPOS.filter((c) => c.grupo === 'indicador').map((c) => <option key={c.valor} value={c.valor}>{c.nome}</option>)}</optgroup>
                       </select>
                     </div>
                     <div className="campo" style={{ flex: '1 1 190px' }}>
@@ -165,8 +166,8 @@ export default function PaginaAlertas() {
                       </select>
                     </div>
                     <div className="campo" style={{ flex: '0 1 130px' }}>
-                      <label htmlFor={`c${i}-valor`}>{un === 'reais' ? 'Valor (R$)' : un === 'percentual' ? 'Valor (%)' : 'Valor'}</label>
-                      <input id={`c${i}-valor`} inputMode="decimal" value={l.valor} placeholder={un === 'reais' ? '38,50' : un === 'percentual' ? '-3' : '1000000'} onChange={(e) => mudarLinha(i, { valor: e.target.value })} />
+                      <label htmlFor={`c${i}-valor`}>{un === 'reais' ? 'Valor (R$)' : un === 'percentual' ? 'Valor (%)' : un === 'vezes' ? 'Vezes' : 'Valor'}</label>
+                      <input id={`c${i}-valor`} inputMode="decimal" value={l.valor} placeholder={un === 'reais' ? '38,50' : un === 'percentual' ? '0' : un === 'vezes' ? '2' : un === 'numero' ? '30' : '1000000'} onChange={(e) => mudarLinha(i, { valor: e.target.value })} />
                     </div>
                     {faixa && (
                       <div className="campo" style={{ flex: '0 1 130px' }}>
@@ -177,6 +178,7 @@ export default function PaginaAlertas() {
                     {f.linhas.length > 1 && (
                       <button type="button" className="botao-texto botao-perigo" onClick={() => mudar({ linhas: f.linhas.filter((_, j) => j !== i) })} aria-label={`Remover a condição ${i + 1}`}>Remover</button>
                     )}
+                    {CAMPOS.find((c) => c.valor === l.campo)?.dica && <span className="ajuda-da-linha">{CAMPOS.find((c) => c.valor === l.campo)?.dica}</span>}
                   </div>
                 );
               })}
@@ -225,7 +227,7 @@ export default function PaginaAlertas() {
               )}
               <label className="caixa-de-marcar">
                 <input type="checkbox" checked={f.aceitarPeriodica} onChange={(e) => mudar({ aceitarPeriodica: e.target.checked })} />
-                <span>Também avisar com preço de atualização periódica (até 30 minutos de atraso). Desmarcado: só com o MetaTrader 5 em tempo real.</span>
+                <span>Também avisar com preço de atualização periódica (até 30 minutos de atraso). Desmarcado: só com o MetaTrader 5 em tempo real. Indicadores usam o histórico diário da B3 com o preço do momento.</span>
               </label>
             </fieldset>
 

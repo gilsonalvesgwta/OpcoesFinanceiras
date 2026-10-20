@@ -4,7 +4,10 @@
 // (regra + versão + número) impede evento e aviso em dobro se a mesma cotação
 // for processada de novo.
 
-import { avaliar, descreverCondicao, ESTADO_INICIAL, textoDoAviso, valoresDaCotacao, type Condicao, type EstadoDaRegra, type PoliticaDeRearme, type Qualidade, type Regra } from '@wta/domain';
+import {
+  avaliar, CAMPOS_DE_INDICADOR, descreverCondicao, ESTADO_INICIAL, indicadoresDoMomento, partesEmBrasilia, textoDoAviso, valoresDaCotacao,
+  type Barra, type Condicao, type EstadoDaRegra, type PoliticaDeRearme, type Qualidade, type Regra,
+} from '@wta/domain';
 import type { Cliente } from '../banco.ts';
 
 export type CotacaoParaAlerta = {
@@ -32,6 +35,21 @@ export function regraDaLinha(l: Pick<LinhaDaRegra, 'id' | 'versao' | 'condicao' 
   };
 }
 
+const INDICADORES = new Set<string>(CAMPOS_DE_INDICADOR);
+function usaIndicador(c: Condicao): boolean {
+  return c.tipo === 'comparacao' ? INDICADORES.has(c.campo) : c.filhos.some(usaIndicador);
+}
+
+// Histórico diário (pregões anteriores ao dia da cotação) para os indicadores.
+async function historico(c: Cliente, codigo: string, antesDe: string): Promise<Barra[]> {
+  const r = await c.query<{ dia: string; maxima: string | null; minima: string | null; ultimo: string | null; quantidade: string | null }>(
+    `select to_char(dia, 'YYYY-MM-DD') as dia, maxima, minima, ultimo, quantidade from fechamentos
+     where codigo = $1 and tipo_mercado = 10 and dia < $2 order by dia desc limit 220`, [codigo, antesDe],
+  );
+  const n = (v: string | null) => (v === null ? null : Number(v));
+  return r.rows.reverse().map((l) => ({ dia: l.dia, maxima: n(l.maxima), minima: n(l.minima), fechamento: n(l.ultimo), quantidade: n(l.quantidade) }));
+}
+
 export async function avaliarCotacoes(c: Cliente, userId: string, cotacoes: CotacaoParaAlerta[], fonte: string): Promise<{ avaliadas: number; disparos: number }> {
   if (cotacoes.length === 0) return { avaliadas: 0, disparos: 0 };
   const codigos = [...new Set(cotacoes.map((q) => q.codigo))];
@@ -45,6 +63,7 @@ export async function avaliarCotacoes(c: Cliente, userId: string, cotacoes: Cota
   )).rows;
   let avaliadas = 0;
   let disparos = 0;
+  const historicos = new Map<string, Barra[]>();
   for (const linha of regras) {
     const regra = regraDaLinha(linha);
     // Regra editada (versão nova) recomeça do estado inicial.
@@ -52,7 +71,14 @@ export async function avaliarCotacoes(c: Cliente, userId: string, cotacoes: Cota
     const doCodigo = cotacoes.filter((q) => q.codigo === linha.codigo).sort((a, b) => a.instante.localeCompare(b.instante));
     let mudou = false;
     for (const q of doCodigo) {
-      const a = avaliar(regra, estado, { instante: q.instante, qualidade: q.qualidade, valores: valoresDaCotacao(q) });
+      let valores = valoresDaCotacao(q);
+      if (usaIndicador(linha.condicao)) {
+        const dia = partesEmBrasilia(new Date(q.instante)).dia;
+        const chave = `${q.codigo}:${dia}`;
+        if (!historicos.has(chave)) historicos.set(chave, await historico(c, q.codigo, dia));
+        valores = { ...valores, ...indicadoresDoMomento(historicos.get(chave) as Barra[], q.ultimo, q.volume) };
+      }
+      const a = avaliar(regra, estado, { instante: q.instante, qualidade: q.qualidade, valores });
       avaliadas += 1;
       if (a.estado !== estado) mudou = true;
       estado = a.estado;

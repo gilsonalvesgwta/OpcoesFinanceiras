@@ -8,12 +8,12 @@
 // Toda tentativa fica registrada em `importacoes`, com sucesso ou motivo da falha.
 
 import {
-  diasParaColetar, lerCotahist, lerSerieSgs, MERCADO, partesEmBrasilia, SERIE_SELIC, seriesDeOpcoes, urlDaSerieSgs, urlDoCotahistDiario,
+  diasParaColetar, lerCotahist, lerLinhaCotahist, lerSerieSgs, MERCADO, mesesParaCarregar, urlDoCotahistMensal, partesEmBrasilia, SERIE_SELIC, seriesDeOpcoes, urlDaSerieSgs, urlDoCotahistDiario,
   type RegistroCotahist,
 } from '@wta/domain';
 import { emTransacao, type Cliente, type Pool } from '../banco.ts';
 import { lerCalendario } from '../calendario.ts';
-import { ehZip, extrairPrimeiroArquivo } from './zip.ts';
+import { ehZip, extrairPrimeiroArquivo, linhasDoPrimeiroArquivo } from './zip.ts';
 import { calcularDia, diasParaRecalcular } from './calculos.ts';
 
 export const VERSAO_DA_COLETA = '0.1.0';
@@ -143,6 +143,74 @@ export async function coletarCotahist(dep: DependenciasDaColeta, dia: string): P
   }
 }
 
+// ---------- Histórico (arquivo mensal, só mercado à vista) ----------
+
+export async function importarHistoricoVista(c: Cliente, linhas: AsyncIterable<string>): Promise<{ registros: number; recusados: number; dias: number }> {
+  let lote: RegistroCotahist[] = [];
+  let registros = 0;
+  let recusados = 0;
+  const dias = new Set<string>();
+  const gravar = async () => {
+    if (lote.length === 0) return;
+    const col = <K extends keyof RegistroCotahist>(k: K) => lote.map((r) => r[k]);
+    // Não sobrescreve o que veio do arquivo diário.
+    await c.query(
+      `insert into fechamentos (dia, codigo, tipo_mercado, especificacao, abertura, maxima, minima, media, ultimo,
+                                melhor_compra, melhor_venda, negocios, quantidade, volume)
+       select * from unnest($1::date[], $2::text[], $3::smallint[], $4::text[], $5::bigint[], $6::bigint[], $7::bigint[], $8::bigint[],
+                            $9::bigint[], $10::bigint[], $11::bigint[], $12::int[], $13::bigint[], $14::bigint[])
+       on conflict (dia, codigo) do nothing`,
+      [col('data'), col('codigo'), col('tipoMercado'), col('especificacao'), col('abertura'), col('maxima'), col('minima'), col('media'),
+        col('ultimo'), col('melhorCompra'), col('melhorVenda'), col('negocios'), col('quantidade'), col('volumeFinanceiro')],
+    );
+    lote = [];
+  };
+  for await (const linha of linhas) {
+    // Filtro barato antes de ler a linha inteira: registro de cotação ('01') do mercado à vista ('010').
+    if (!linha.startsWith('01') || linha.slice(24, 27) !== '010') continue;
+    try {
+      const r = lerLinhaCotahist(linha);
+      if (!r || !CODIGO.test(r.codigo)) continue;
+      lote.push(r);
+      dias.add(r.data);
+      registros += 1;
+    } catch {
+      recusados += 1;
+      continue;
+    }
+    if (lote.length >= LOTE) await gravar();
+  }
+  await gravar();
+  return { registros, recusados, dias: dias.size };
+}
+
+export async function coletarHistoricoMensal(dep: DependenciasDaColeta, mes: string): Promise<'ok' | 'sem_arquivo' | 'erro'> {
+  const inicio = relogio(dep)();
+  const referencia = `${mes}-01`;
+  try {
+    const d = await baixar(dep.buscar, urlDoCotahistMensal(mes), 300_000);
+    if (d.situacao === 'sem_arquivo') {
+      await registrar(dep, 'b3-cotahist-mensal', referencia, 'sem_arquivo', inicio, { detalhe: d.detalhe });
+      return 'sem_arquivo';
+    }
+    const r = await emTransacao(dep.pool, null, async (c) => {
+      const res = await importarHistoricoVista(c, linhasDoPrimeiroArquivo(d.bytes));
+      if (res.registros === 0) throw new Error('arquivo_sem_registros');
+      await c.query(
+        'insert into importacoes (fonte, referencia, situacao, registros, recusados, detalhe, iniciada_em, terminada_em) values ($1, $2, $3, $4, $5, $6, $7, $8)',
+        ['b3-cotahist-mensal', referencia, 'ok', res.registros, res.recusados, `${res.dias} pregões do mercado à vista`, inicio, relogio(dep)()],
+      );
+      return res;
+    });
+    dep.log?.(`Histórico ${mes}: ${r.registros} registros em ${r.dias} pregões`);
+    return 'ok';
+  } catch (e) {
+    await registrar(dep, 'b3-cotahist-mensal', referencia, 'erro', inicio, { detalhe: mensagem(e) });
+    dep.log?.(`Histórico ${mes}: erro ${mensagem(e)}`);
+    return 'erro';
+  }
+}
+
 // ---------- Selic ----------
 
 export async function coletarSelic(dep: DependenciasDaColeta): Promise<'ok' | 'erro'> {
@@ -178,6 +246,7 @@ export type ResumoDoCiclo = {
   cotahist: Record<string, 'ok' | 'sem_arquivo' | 'erro'>;
   selic: 'ok' | 'erro' | 'em_dia';
   calculos: Record<string, { calculadas: number; semCalculo: number }>;
+  historico: Record<string, 'ok' | 'sem_arquivo' | 'erro'>;
 };
 
 export async function cicloDeColeta(dep: DependenciasDaColeta): Promise<ResumoDoCiclo> {
@@ -212,7 +281,7 @@ export async function cicloDeColeta(dep: DependenciasDaColeta): Promise<ResumoDo
     };
   });
 
-  const resumo: ResumoDoCiclo = { cotahist: {}, selic: 'em_dia', calculos: {} };
+  const resumo: ResumoDoCiclo = { cotahist: {}, selic: 'em_dia', calculos: {}, historico: {} };
   // Selic primeiro: o cálculo das gregas do arquivo novo já sai com ela.
   // A do dia sai de manhã; antes das 9h buscar não traz nada novo.
   if (!estado.selicEmDia && partesEmBrasilia(agora).hora >= '09:00') resumo.selic = await coletarSelic(dep);
@@ -230,5 +299,24 @@ export async function cicloDeColeta(dep: DependenciasDaColeta): Promise<ResumoDo
       dep.log?.(`Gregas ${dia}: erro ${mensagem(e)}`);
     }
   }
+  // Carga do histórico (um mês por ciclo, só quando não houve arquivo diário neste ciclo).
+  if (Object.keys(resumo.cotahist).length === 0) {
+    const meses = await emTransacao(dep.pool, null, async (c) => {
+      const ok = (await c.query<{ mes: string }>(
+        "select distinct to_char(referencia, 'YYYY-MM') as mes from importacoes where fonte = 'b3-cotahist-mensal' and situacao = 'ok'",
+      )).rows.map((l) => l.mes);
+      const tent = (await c.query<{ mes: string; quando: Date }>(
+        "select to_char(referencia, 'YYYY-MM') as mes, max(terminada_em) as quando from importacoes where fonte = 'b3-cotahist-mensal' and situacao <> 'ok' group by 1",
+      )).rows;
+      return mesesParaCarregar(agora, new Set(ok), new Map(tent.map((l) => [l.mes, new Date(l.quando).toISOString()])));
+    });
+    const mes = meses[0];
+    if (mes) resumo.historico[mes] = await coletarHistoricoMensal(dep, mes);
+  }
+  // Limpeza: opções e cálculos com mais de 120 dias (o histórico das ações fica).
+  await emTransacao(dep.pool, null, async (c) => {
+    await c.query("delete from fechamentos where tipo_mercado in (70, 80) and dia < ($1::timestamptz - interval '120 days')::date", [agora]);
+    await c.query("delete from calculos_opcoes where dia < ($1::timestamptz - interval '120 days')::date", [agora]);
+  });
   return resumo;
 }
