@@ -244,9 +244,48 @@ test.describe.serial('jornada', () => {
     await foto(page, 'diagnostico');
   });
 
+  test('alertas: cria, edita, pausa e exclui uma regra; Telegram explica o que falta', async ({ page }) => {
+    await entrarNoPainel(page, EMAIL, SENHA);
+    await page.getByRole('link', { name: 'Alertas' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Alertas', level: 1 })).toBeVisible();
+    await expect(page.getByText('O bot do Telegram ainda não foi configurado no servidor.')).toBeVisible();
+    await page.getByRole('button', { name: 'Nova regra' }).click();
+    await page.getByLabel('Nome').fill('PETR4 rompendo');
+    await page.getByLabel('Ativo').fill('petr4');
+    await page.getByLabel('Valor (R$)').fill('38,5');
+    await expect(page.getByText('Vai avisar quando PETR4: último preço cruzar para cima de R$ 38,50.')).toBeVisible();
+    await page.getByRole('button', { name: 'Adicionar condição' }).click();
+    await page.getByLabel('Condição 2').selectOption('variacao_dia_pct');
+    await page.getByLabel('Quando').nth(1).selectOption('>=');
+    await page.getByLabel('Valor (%)').fill('2');
+    await page.getByLabel('Avisar quando').selectOption('ou');
+    await semViolacoes(page, 'editor de alertas');
+    await foto(page, 'alertas-editor');
+    await page.getByRole('button', { name: 'Criar regra' }).click();
+    await expect(page.getByText('Regra criada.')).toBeVisible();
+    await expect(page.getByText('último preço cruzar para cima de R$ 38,50 ou variação do dia igual ou acima de 2%')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Editar' }).click();
+    await page.getByLabel('Valor (R$)').fill('39');
+    await page.getByRole('button', { name: 'Salvar alterações' }).click();
+    await expect(page.getByText('Regra alterada.', { exact: false })).toBeVisible();
+    await expect(page.getByText('cruzar para cima de R$ 39,00', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'Pausar' }).click();
+    await expect(page.getByText('Pausada')).toBeVisible();
+    await semViolacoes(page, 'alertas');
+    await foto(page, 'alertas');
+    await page.getByRole('button', { name: 'Excluir a regra PETR4 rompendo' }).click();
+    await page.getByRole('button', { name: 'Confirmar exclusão' }).click();
+    await expect(page.getByText('Nenhuma regra ainda.', { exact: false })).toBeVisible();
+
+    await page.goto('/preferencias#telegram');
+    await expect(page.getByRole('heading', { name: 'Telegram' })).toBeVisible();
+    await expect(page.getByText('O bot do Telegram ainda não foi configurado no servidor. Quando for', { exact: false })).toBeVisible();
+  });
+
   test('telas das próximas fases explicam o que vem, e sair encerra a sessão', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
-    await page.getByRole('link', { name: 'Cadeia de opções' }).click();
+    await page.getByRole('link', { name: 'Cadeia de opções' }).first().click();
     await expect(page.getByText('Chega na Fase 5')).toBeVisible();
     await foto(page, 'em-breve');
     await page.getByRole('button', { name: 'Sair' }).click();

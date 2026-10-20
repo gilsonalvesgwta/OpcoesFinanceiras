@@ -7,7 +7,7 @@ import { Icone, Seta } from '../../componentes/Icone.tsx';
 import { ReguaDoPregao } from '../../componentes/Regua.tsx';
 import { useConsultaPeriodica } from '../../componentes/Consulta.tsx';
 import { chamar, type Favorito } from '../../lib/api.ts';
-import { cartaoDaCadeia, diaMes, type SituacaoDoMercado } from '../../lib/mercado.ts';
+import { cartaoDaCadeia, diaMes, quandoCurto, type SituacaoDoMercado } from '../../lib/mercado.ts';
 import { diasAte, formatarData, formatarDataLonga, formatarReais, formatarVariacao } from '../../lib/formatos.ts';
 import {
   contaDaPonte, detalheDaCotacao, encerrarAgora, formatarPreco, formatarPrecoMedio, formatarResultado, haQuanto, horaExata,
@@ -38,6 +38,8 @@ export default function Painel() {
   const pontes = useConsultaPeriodica<{ pontes: Ponte[] }>('/api/ponte', 10_000).dados?.pontes;
   const situacao = useConsultaPeriodica<SituacaoDoMercado>('/api/mercado/situacao', 60_000).dados;
   const cadeia = cartaoDaCadeia(situacao);
+  const alertas = useConsultaPeriodica<{ regras: { ativa: boolean }[]; eventos: { codigo: string; instante: string }[] }>('/api/alertas', 60_000).dados;
+  const resumoAlertas = alertas ? { ativas: alertas.regras.filter((r) => r.ativa).length, ultimo: alertas.eventos[0] ?? null } : null;
   const ultimoFechamento = situacao?.fechamento.ultimoImportado ?? null;
   const posicoes = useConsultaPeriodica<{ posicoes: PosicaoDaCorretora[] }>('/api/posicoes-corretora', 10_000).dados?.posicoes;
   const agora = new Date();
@@ -137,8 +139,15 @@ export default function Painel() {
 
       <section className="secao" aria-labelledby="alertas-titulo">
         <h2 id="alertas-titulo">Alertas</h2>
-        <p className="secao-vazia">Você ainda não tem regras de alerta. Crie uma para ser avisado no Telegram quando um preço cruzar o nível que você escolher.</p>
-        <div><Link href="/alertas" className="botao botao-contorno">Criar regra de alerta</Link></div>
+        {resumoAlertas && resumoAlertas.ativas > 0 ? (
+          <p className="secao-vazia">
+            {resumoAlertas.ativas === 1 ? '1 regra ativa' : `${resumoAlertas.ativas} regras ativas`}.
+            {resumoAlertas.ultimo ? ` Último aviso: ${resumoAlertas.ultimo.codigo} em ${quandoCurto(resumoAlertas.ultimo.instante)}.` : ' Nenhum aviso ainda.'}
+          </p>
+        ) : (
+          <p className="secao-vazia">Você ainda não tem regras de alerta. Crie uma para ser avisado no Telegram quando um preço cruzar o nível que você escolher.</p>
+        )}
+        <div><Link href="/alertas" className="botao botao-contorno">{resumoAlertas && resumoAlertas.ativas > 0 ? 'Ver alertas' : 'Criar regra de alerta'}</Link></div>
       </section>
 
       <section className="secao" aria-labelledby="pos-titulo">

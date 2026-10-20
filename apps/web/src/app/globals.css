@@ -324,3 +324,11 @@ p { margin: 0; }
 .rotulo-em-linha { display: inline-flex; align-items: center; gap: 8px; color: var(--apoio); font-size: 14px; }
 .rotulo-em-linha select { min-height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--borda-campo); background: var(--bg); color: var(--texto); font: inherit; }
 .botao-texto.botao-perigo { color: var(--baixa); font-weight: 600; min-height: 44px; }
+
+/* Fase 4: alertas */
+.grupo-de-campos { border: 1px solid var(--linha); border-radius: 10px; padding: 14px 16px 16px; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.grupo-de-campos legend { font-weight: 600; padding: 0 6px; }
+.linha-condicao { padding-top: 4px; }
+.caixa-de-marcar { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; min-height: 44px; padding-top: 10px; }
+.caixa-de-marcar input { width: 18px; height: 18px; margin-top: 2px; flex: none; }
+.previa-da-regra { margin: 0; padding: 12px 14px; border-radius: 8px; background: var(--painel2); color: var(--texto); }
