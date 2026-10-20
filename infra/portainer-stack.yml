@@ -66,7 +66,12 @@ services:
       SUPERADMIN_SENHA_INICIAL: ${SUPERADMIN_SENHA_INICIAL:?preencha SUPERADMIN_SENHA_INICIAL}
       BRAPI_API_KEY: ${BRAPI_API_KEY:-}
       TELEGRAM_BOT_NOME: ${TELEGRAM_BOT_NOME:-}
-    networks: [interna]
+    # Nome exclusivo na rede interna: a interface também está na rede do Traefik, onde outra
+    # stack pode ter um serviço chamado "api" (o CRM tem). Com "api" a interface poderia
+    # falar com a api de outro sistema.
+    networks:
+      interna:
+        aliases: [wtaopt-api]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/saude').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
