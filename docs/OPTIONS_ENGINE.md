@@ -87,3 +87,13 @@ Calculadas pelo worker depois de cada arquivo da B3 (`calcularDoFechamento` em `
 - tempo: dias de pregão do fechamento até o vencimento (calendário do banco) sobre 252; no dia do vencimento não calcula;
 - dividendos: q = 0. Sem resultado, a linha guarda o motivo e os números ficam vazios (nunca zero).
 - A api devolve a cadeia em `/api/mercado/cadeia?ativo=PETR4&vencimento=AAAA-MM-DD` com as premissas.
+
+## Posições na api (Fase 6)
+
+- Estratégia = nome + ativo-objeto + execuções. A posição é sempre recalculada das execuções; o mesmo código na mesma estratégia precisa ter sempre o mesmo tipo, strike, vencimento e multiplicador (a api recusa com `codigo_com_dados_diferentes`).
+- Marcação do não realizado: política `executavel_ou_ultimo` — comprado pelo bid, vendido pelo ask; sem esse lado, último negócio marcado como estimativa. Sem preço nenhum, o não realizado fica `null` e a tela diz qual perna está sem preço (nunca zero).
+- Preço: o da ponte MT5 quando conectada; senão o fechamento oficial da B3 do último pregão (qualidade `historico`).
+- Payoff: só das pernas abertas, ao preço médio, com o realizado líquido somado como ajuste (o gráfico mostra o resultado total da estratégia). Pernas de vencimentos diferentes: sem payoff, com o motivo.
+- Faixa do gráfico: ±30% do preço do ativo (ou da média dos strikes), alargada para caber strikes e pontos de equilíbrio.
+- "Venceu sem exercício": registra a saída a R$ 0,00, sem custo, no fechamento do dia do vencimento; só para opção já vencida. Exercício real deve ser registrado como as operações que aconteceram.
+- Encerrar só com tudo zerado. Importação do MT5: usa o preço médio da corretora e a hora do último envio do robô; tipo, strike e vencimento vêm do cadastro de séries da B3.

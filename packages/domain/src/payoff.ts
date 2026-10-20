@@ -183,10 +183,11 @@ export function analisarPayoff(pernas: readonly Perna[], ajuste: Centavos = 0): 
 
 // Curva para o gráfico: pontos (preço em centavos, resultado em centavos) num intervalo.
 // Inclui todos os strikes dentro do intervalo, para o desenho não "cortar" as quinas.
-export function curvaDePayoff(pernas: readonly Perna[], de: Centavos, ate: Centavos, passos = 60): { s: Centavos; resultado: Centavos }[] {
+// `ajuste`: o mesmo de analisarPayoff (resultado já realizado), para a curva bater com a análise.
+export function curvaDePayoff(pernas: readonly Perna[], de: Centavos, ate: Centavos, passos = 60, ajuste: Centavos = 0): { s: Centavos; resultado: Centavos }[] {
   if (de < 0 || ate <= de || !Number.isInteger(passos) || passos < 2) throw new ErroDeValor('intervalo_invalido');
   const precos = new Set<number>();
   for (let i = 0; i <= passos; i += 1) precos.add(Math.round(de + ((ate - de) * i) / passos));
   for (const p of pernas) if (p.strike !== undefined && p.strike >= de && p.strike <= ate) precos.add(p.strike);
-  return [...precos].sort((a, b) => a - b).map((s) => ({ s, resultado: resultadoNoVencimento(pernas, s) }));
+  return [...precos].sort((a, b) => a - b).map((s) => ({ s, resultado: resultadoNoVencimento(pernas, s, ajuste) }));
 }
