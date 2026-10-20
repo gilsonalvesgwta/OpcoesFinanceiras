@@ -67,8 +67,10 @@
 
 ## Telegram
 
-- Vínculo por código temporário: o usuário gera no painel um código de uso único (10 minutos, só o hash fica no banco) e abre `t.me/<bot>?start=<código>`. O chat fica ligado à conta que gerou o código.
-- Um chat só é ligado a uma conta; trocar exige desvincular no painel.
+- Vínculo por código temporário: o usuário gera em Preferências um código de uso único (8 caracteres, 15 minutos, só o hash fica no banco) e abre `t.me/<bot>?start=<código>`. O chat fica ligado à conta que gerou o código. Só conversas privadas.
+- Um chat só é ligado a uma conta (vincular em outra conta move o chat); desvincular pelo painel ou por /sair.
+- O token do bot fica só no worker (`TELEGRAM_BOT_TOKEN`); a api só conhece o nome do bot. O worker não lê as tabelas de avisos e vínculos: usa funções que entregam o mínimo (texto e chat) e marcam o resultado.
+- Mensagens com HTML escapado; aviso com mais de 30 minutos não é enviado (preço velho); silêncio respeitado.
 - Todo comando confere o `chat_id` contra o vínculo; chat desconhecido recebe só a instrução de vínculo.
 - Sugestões proativas só com consentimento explícito, registrado com data.
 

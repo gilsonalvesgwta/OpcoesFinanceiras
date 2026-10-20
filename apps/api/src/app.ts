@@ -12,6 +12,7 @@ import { rotasDeAdministracao } from './rotas/administracao.ts';
 import { rotasPessoais } from './rotas/pessoais.ts';
 import { rotasDaPonte } from './rotas/ponte.ts';
 import { rotasDeMercado } from './rotas/mercado.ts';
+import { rotasDeAlertas } from './rotas/alertas.ts';
 import { CacheDoCalendario } from './calendario.ts';
 
 export type Politica = 'publica' | 'autenticado' | 'admin' | 'superadmin';
@@ -54,7 +55,8 @@ export class ErroHttp extends Error {
   }
 }
 
-export type Dependencias = { config: Config; pool: Pool; correio: Correio };
+// relogio: só os testes trocam (para simular pregão aberto ou fechado).
+export type Dependencias = { config: Config; pool: Pool; correio: Correio; relogio?: () => Date };
 
 const METODOS_SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -161,5 +163,6 @@ export async function construirApp(dep: Dependencias): Promise<FastifyInstance> 
   const calendario = new CacheDoCalendario(dep.pool);
   await rotasDaPonte(app, dep, calendario);
   await rotasDeMercado(app, dep, calendario);
+  await rotasDeAlertas(app, dep);
   return app;
 }

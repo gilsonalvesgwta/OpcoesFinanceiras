@@ -74,6 +74,7 @@ jobs:
           db/tests/rodar.sh | tee banco.txt
           echo "::notice title=Banco::$(grep -h 'verificações' banco.txt | tr '\n' ' ')"
           grep -q 'ACESSO: todos os testes passaram' banco.txt
+          grep -q 'ALERTAS: todos os testes passaram' banco.txt
           grep -q 'MERCADO: todos os testes passaram' banco.txt
           grep -q 'PONTE: todos os testes passaram' banco.txt
       - name: Preparar o banco da API

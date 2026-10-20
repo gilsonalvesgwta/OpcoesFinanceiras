@@ -14,3 +14,4 @@ export * from './cotahist.ts';
 export * from './ponte.ts';
 export * from './coleta.ts';
 export * from './calculo-diario.ts';
+export * from './alertas-texto.ts';
