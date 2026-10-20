@@ -1,6 +1,8 @@
 # Imagem da interface (Next.js em modo standalone).
 # Construída a partir da raiz do repositório: docker build -f apps/web/Dockerfile .
-# O endereço interno da api (API_INTERNA, padrão http://api:3001) entra na hora do build.
+# O endereço interno da api (API_INTERNA, padrão http://wtaopt-api:3001) entra na hora do build.
+# Nome exclusivo de propósito: a interface também fica na rede do Traefik, onde outras stacks
+# podem ter um serviço chamado "api".
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json ./
@@ -8,7 +10,7 @@ COPY packages/domain packages/domain
 COPY apps/web apps/web
 COPY ponte-mt5 ponte-mt5
 RUN npm install -w @wta/web --include-workspace-root --no-audit --no-fund
-ARG API_INTERNA=http://api:3001
+ARG API_INTERNA=http://wtaopt-api:3001
 ENV API_INTERNA=$API_INTERNA NEXT_TELEMETRY_DISABLED=1
 RUN npm run build -w @wta/web
 

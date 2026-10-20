@@ -53,6 +53,10 @@ jobs:
         run: |
           docker swarm init > /dev/null
           docker network create -d overlay --attachable rede_traefik_teste > /dev/null
+          # Isca: outra stack com serviços "api" e "db" na rede do Traefik (como o CRM na VPS de
+          # produção). A interface não pode falar com ela.
+          docker service create --detach --quiet --name outra_stack_api --network name=rede_traefik_teste,alias=api,alias=db \
+            node:22-alpine node -e "require('http').createServer((q,r)=>{r.setHeader('content-type','application/json');r.end(JSON.stringify({isca:true,url:q.url}))}).listen(3001)" > /dev/null
           if docker stack config --help > /dev/null 2>&1; then docker stack config -c infra/portainer-stack.yml > /dev/null; fi
           docker stack deploy -c infra/portainer-stack.yml wtaopt
           cont() { docker ps -q -f "name=wtaopt_$1" | head -1; }
@@ -64,6 +68,12 @@ jobs:
             sleep 5
           done
           docker exec "$(cont web)" node -e "fetch('http://127.0.0.1:3000/api/saude').then(r=>r.text()).then(console.log)"
+          # Com a isca no ar: 20 pedidos seguidos têm de chegar sempre na api desta stack.
+          for i in $(seq 1 20); do
+            docker exec "$(cont web)" node -e "fetch('http://127.0.0.1:3000/api/saude').then(async r=>{const t=await r.text();if(!t.includes('\"banco\":\"ok\"')||t.includes('isca')){console.error('resposta de outro serviço: '+t);process.exit(1)}}).catch(e=>{console.error(e.message);process.exit(1)})" \
+              || { echo "::error title=Rede::a interface falou com um serviço de outra stack"; exit 1; }
+          done
+          echo "::notice title=Rede::com outra stack tendo \"api\" e \"db\" na rede do Traefik, a interface só fala com a própria api"
           docker service ls
           echo "::notice title=Stack::$(docker service ls --format '{{.Name}} {{.Replicas}}' | tr '\n' ' ')"
 

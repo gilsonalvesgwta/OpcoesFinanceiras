@@ -3,7 +3,9 @@ import { resolve } from 'node:path';
 
 // A interface fala com a api pelo mesmo endereço: /api/* é repassado ao serviço
 // da api na rede interna da stack (API_INTERNA), então só a interface fica exposta.
-const API_INTERNA = process.env.API_INTERNA ?? 'http://api:3001';
+// "wtaopt-api" e não "api": a interface também está na rede do Traefik, onde outra stack
+// pode ter um serviço "api" (na VPS de produção, o CRM tem).
+const API_INTERNA = process.env.API_INTERNA ?? 'http://wtaopt-api:3001';
 
 const config: NextConfig = {
   output: 'standalone',
