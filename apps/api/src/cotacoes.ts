@@ -34,9 +34,15 @@ export async function cotacoesDoUsuario(c: Cliente, codigos: string[], agora: Da
     qualidade: l.revogada_em ? 'desconectado' : qualidadeDaPonte(iso(l.ultimo_contato_em), agora, mercado.aberto),
   }]));
   const daB3 = new Map((await cotacoesDaB3(c, codigos, cfg)).map((q) => [q.codigo, q]));
+  const daBrapi = new Map((await cotacoesDaBrapi(c, codigos, agora, mercado.aberto)).map((q) => [q.codigo, q]));
   return [...new Set(codigos)].sort().flatMap((codigo): CotacaoDeSaida[] => {
     const p = daPonte.get(codigo);
-    const doFechamento = daB3.get(codigo);
+    const b3 = daB3.get(codigo);
+    const brapi = daBrapi.get(codigo);
+    // Sem a ponte: o mais novo entre a brapi (com atraso) e o fechamento oficial.
+    const doFechamento = brapi && (!b3 || (brapi.instanteDaFonte ?? '') > (b3.instanteDaFonte ?? ''))
+      ? { ...brapi, fechamentoAnterior: brapi.fechamentoAnterior ?? b3?.ultimo ?? null }
+      : b3;
     if (p && (p.qualidade !== 'desconectado' || !doFechamento || (p.instanteDaFonte ?? '') > (doFechamento.instanteDaFonte ?? ''))) {
       // A ponte não manda o fechamento anterior de séries novas: completa com o da B3.
       if (p.fechamentoAnterior === null && doFechamento && (doFechamento.instanteDaFonte ?? '') < (p.instanteDaFonte ?? '')) {
@@ -45,6 +51,27 @@ export async function cotacoesDoUsuario(c: Cliente, codigos: string[], agora: Da
       return [p];
     }
     return doFechamento ? [doFechamento] : [];
+  });
+}
+
+// Ações pela brapi (plano gratuito): cerca de 30 minutos de atraso. Durante o pregão a
+// qualidade é "atualização periódica" se chegou há até 45 minutos; mais velha, "atrasada".
+// Com o mercado fechado, "histórico". Não tem oferta de compra e venda (bid/ask).
+export const IDADE_MAXIMA_DA_BRAPI_MIN = 45;
+export async function cotacoesDaBrapi(c: Cliente, codigos: string[], agora: Date, mercadoAberto: boolean): Promise<CotacaoDeSaida[]> {
+  if (codigos.length === 0) return [];
+  const r = await c.query(
+    'select codigo, ultimo, fechamento_anterior, volume, instante_fonte, recebido_em from cotacoes_brapi where codigo = any($1::text[])', [codigos],
+  );
+  return r.rows.map((l) => {
+    const instante = iso(l.instante_fonte) as string;
+    const idadeMin = (agora.getTime() - Date.parse(instante)) / 60_000;
+    return {
+      codigo: l.codigo as string, provedor: 'brapi',
+      ultimo: num(l.ultimo), bid: null, ask: null, fechamentoAnterior: num(l.fechamento_anterior), volume: num(l.volume),
+      instanteDaFonte: instante, instanteDeRecebimento: iso(l.recebido_em), sinalDaPonteEm: null,
+      qualidade: !mercadoAberto ? 'historico' : idadeMin <= IDADE_MAXIMA_DA_BRAPI_MIN ? 'periodica' : 'atrasada',
+    };
   });
 }
 

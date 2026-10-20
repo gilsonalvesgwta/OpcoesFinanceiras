@@ -19,3 +19,4 @@ export * from './indicadores.ts';
 export * from './sugestoes-rolagem.ts';
 export * from './cenarios.ts';
 export * from './avisos-posicao.ts';
+export * from './brapi.ts';

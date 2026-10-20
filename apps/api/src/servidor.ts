@@ -5,6 +5,8 @@ import { criarPool, emTransacao } from './banco.ts';
 import { lerConfig } from './config.ts';
 import { CorreioDesligado } from './correio.ts';
 import { gerarHashDeSenha } from './seguranca.ts';
+import { avaliarAlertasDaBrapi } from './alertas/brapi.ts';
+import { lerCalendario } from './calendario.ts';
 
 const config = lerConfig();
 const pool = criarPool(config.bancoUrl);
@@ -34,7 +36,21 @@ if (config.superadmin) {
   if (criado) app.log.info('superadministrador criado; a senha inicial deve ser trocada no primeiro acesso');
 }
 
+// Alertas com as cotações da brapi (gravadas pelo worker): confere a cada minuto.
+const lacoDaBrapi = setInterval(() => {
+  void (async () => {
+    try {
+      const cfg = await emTransacao(pool, null, lerCalendario);
+      const r = await avaliarAlertasDaBrapi(pool, new Date(), cfg);
+      if (r.disparos) app.log.info(`alertas pela brapi: ${r.disparos} disparo(s)`);
+    } catch (e) {
+      app.log.error({ err: e }, 'falha ao avaliar alertas da brapi');
+    }
+  })();
+}, 60_000);
+
 const encerrar = async () => {
+  clearInterval(lacoDaBrapi);
   await app.close();
   await pool.end();
   process.exit(0);

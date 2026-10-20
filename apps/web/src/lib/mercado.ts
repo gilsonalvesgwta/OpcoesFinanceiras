@@ -20,7 +20,7 @@ export type Diagnostico = {
   coleta: { nome: string; versao: string | null; vistoEm: string | null }[];
   cotahist: { ultimoImportado: string | null; esperado: string };
   banco: { fechamentosUltimos30Dias: number; seriesVigentes: number };
-  brapi: { configurada: boolean };
+  brapi: { configurada: boolean; consultasNoMes?: number; limiteMensal?: number; ultimaCotacaoEm?: string | null; ativosHoje?: number; ultimaFalha?: string | null };
   importacoes: Importacao[];
 };
 
@@ -89,7 +89,15 @@ export function cartaoDaSelic(s: SituacaoDoMercado | null): Cartao {
 }
 
 export function cartaoDaBrapi(d: Diagnostico): Cartao {
-  if (d.brapi.configurada) return { nome: 'brapi (ações a cada 30 min)', estado: 'Ligada', classe: 'selo-alta', icone: 'certo', texto: 'Chave gratuita configurada no servidor.' };
+  if (d.brapi.configurada) {
+    const uso = `${numero(d.brapi.consultasNoMes ?? 0)} de ${numero(d.brapi.limiteMensal ?? 14000)} consultas no mês.`;
+    if (d.brapi.ultimaCotacaoEm) {
+      return { nome: 'brapi (ações a cada 30 min)', estado: 'Funcionando', classe: 'selo-alta', icone: 'certo',
+        texto: `${numero(d.brapi.ativosHoje ?? 0)} ações atualizadas; última em ${quandoCurto(d.brapi.ultimaCotacaoEm)}. Preços com cerca de 30 min de atraso. ${uso}` };
+    }
+    return { nome: 'brapi (ações a cada 30 min)', estado: 'Ligada', classe: 'selo-periodica', icone: 'relogio',
+      texto: `Chave configurada. As consultas começam no próximo pregão, para as ações dos seus alertas, estratégias e favoritos.${d.brapi.ultimaFalha ? ` Última falha: ${d.brapi.ultimaFalha}.` : ''} ${uso}` };
+  }
   return { nome: 'brapi (ações a cada 30 min)', estado: 'Desligada', classe: 'selo-neutro', icone: 'indisponivel', texto: 'Falta a chave gratuita da brapi. Quando você criar, ela entra na configuração do servidor.' };
 }
 
@@ -119,7 +127,15 @@ export type LinhaDaTentativa = { quando: string; fonte: string; pregao: string; 
 
 export function linhaDaTentativa(i: Importacao): LinhaDaTentativa {
   const b3 = i.fonte === 'b3-cotahist';
-  const base = { quando: i.terminadaEm ? quandoCurto(i.terminadaEm) : '—', fonte: b3 ? 'B3 (COTAHIST)' : 'Banco Central', pregao: b3 && i.referencia ? dataBr(i.referencia) : '—' };
+  const NOMES: Record<string, string> = { 'b3-cotahist': 'B3 (COTAHIST)', 'b3-cotahist-mensal': 'B3 (histórico mensal)', 'bcb-selic': 'Banco Central', brapi: 'brapi' };
+  const base = { quando: i.terminadaEm ? quandoCurto(i.terminadaEm) : '—', fonte: NOMES[i.fonte] ?? i.fonte, pregao: (b3 || i.fonte === 'brapi') && i.referencia ? dataBr(i.referencia) : '—' };
+  if (i.fonte === 'brapi') {
+    return { ...base, resultado: i.situacao === 'ok' ? 'Importado' : 'Erro', classe: i.situacao === 'ok' ? 'selo-alta' : 'selo-baixa',
+      detalhe: `${numero(i.registros ?? 0)} ações atualizadas${i.recusados ? `, ${numero(i.recusados)} sem resposta` : ''}${i.detalhe ? ` · ${i.detalhe}` : ''}` };
+  }
+  if (i.fonte === 'b3-cotahist-mensal' && i.situacao === 'ok') {
+    return { ...base, pregao: i.referencia ? dataBr(i.referencia).slice(3) : '—', resultado: 'Importado', classe: 'selo-alta', detalhe: `${numero(i.registros ?? 0)} registros${i.detalhe ? `, ${i.detalhe}` : ''}` };
+  }
   if (i.situacao === 'ok') {
     const detalhe = b3
       ? [`${numero(i.registros ?? 0)} ações e opções`, i.detalhe ?? null, (i.recusados ?? 0) === 0 ? 'nenhuma linha recusada' : `${numero(i.recusados ?? 0)} linhas recusadas`].filter(Boolean).join(', ')

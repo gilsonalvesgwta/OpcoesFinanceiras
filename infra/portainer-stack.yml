@@ -94,6 +94,8 @@ services:
       DATABASE_URL_COLETA: postgres://wtaopt_coleta:${SENHA_COLETA}@db:5432/wtaopt
       COLETA_INTERVALO_MIN: "10"
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      # Ações pela brapi (plano gratuito, ~30 min de atraso). Sem a chave, fica desligada.
+      BRAPI_API_KEY: ${BRAPI_API_KEY:-}
     networks: [interna]
     logging: *logs
     deploy:

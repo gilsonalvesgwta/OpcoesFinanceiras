@@ -15,6 +15,7 @@ const nb = (t: string) => t.replace(/\s/g, ' ');
 
 test('linha de apoio de cada estado', () => {
   assert.equal(detalheDaCotacao(cot(), agora), 'mudou às 14:52:07');
+  assert.equal(detalheDaCotacao(cot({ provedor: 'brapi', qualidade: 'periodica' }), agora), 'brapi, com uns 30 min de atraso: preço de 16/10 às 14:52');
   assert.equal(detalheDaCotacao(cot({ qualidade: 'atrasada', sinalDaPonteEm: '2026-10-16T17:51:45Z' }), agora), 'sem sinal há 25 segundos');
   assert.equal(detalheDaCotacao(cot({ qualidade: 'desconectado', sinalDaPonteEm: '2026-10-16T17:31:00Z' }), agora), 'último sinal em 16/10 às 14:31');
   assert.equal(detalheDaCotacao(cot({ qualidade: 'historico', instanteDaFonte: '2026-10-16T19:54:00Z' }), agora), 'preço de 16/10 às 16:54');
