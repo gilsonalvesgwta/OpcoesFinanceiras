@@ -6,6 +6,7 @@ import { Cabecalho } from '../../../componentes/Casca.tsx';
 import { MensagemDeErro } from '../../../componentes/Acesso.tsx';
 import { PonteMt5 } from '../../../componentes/PonteMt5.tsx';
 import { Telegram } from '../../../componentes/Telegram.tsx';
+import { AvisosDasPosicoes } from '../../../componentes/AvisosDasPosicoes.tsx';
 import { aplicarTema, useSessao } from '../../../componentes/Sessao.tsx';
 import { chamar, ErroDaApi } from '../../../lib/api.ts';
 import { PAPEIS } from '../../../lib/formatos.ts';
@@ -118,6 +119,7 @@ export default function PaginaPreferencias() {
       </section>
 
       <Telegram />
+      <AvisosDasPosicoes />
       <PonteMt5 />
     </>
   );

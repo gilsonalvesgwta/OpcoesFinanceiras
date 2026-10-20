@@ -27,3 +27,7 @@ insert into series_opcoes (codigo, vencimento, ativo_objeto, tipo, strike, visto
   ('ITUBL380', '2026-12-18', 'ITUB4', 'call', 3800, '2026-10-16', '2026-10-16');
 insert into calculos_opcoes (dia, codigo, vencimento, ativo_objeto, spot, premio, origem_premio, dias_uteis, selic, vol_implicita, preco_teorico, delta, gamma, theta, vega, rho, motivo) values
   ('2026-10-16', 'ITUBL380', '2026-12-18', 'ITUB4', 3590, 59.5, 'meio_do_livro', 43, 14.9, 0.252, 0.595, 0.29, 0.07, -0.007, 0.052, 0.013, null);
+-- Selic e volatilidade da série de dezembro, para os cenários.
+insert into taxas_juros (serie, dia, valor, fonte) values ('selic', '2026-10-16', 14.9, 'teste') on conflict do nothing;
+insert into calculos_opcoes (dia, codigo, vencimento, ativo_objeto, spot, premio, origem_premio, dias_uteis, selic, vol_implicita, preco_teorico, delta, gamma, theta, vega, rho, motivo) values
+  ('2026-10-16', 'ITUBL360', '2026-12-18', 'ITUB4', 3590, 139.5, 'meio_do_livro', 43, 14.9, 0.248, 1.395, 0.55, 0.08, -0.008, 0.06, 0.02, null);

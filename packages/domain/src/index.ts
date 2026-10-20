@@ -17,3 +17,5 @@ export * from './calculo-diario.ts';
 export * from './alertas-texto.ts';
 export * from './indicadores.ts';
 export * from './sugestoes-rolagem.ts';
+export * from './cenarios.ts';
+export * from './avisos-posicao.ts';

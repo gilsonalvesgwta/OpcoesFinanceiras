@@ -17,7 +17,7 @@ import {
   type Estrategia, type InstrumentoDaApi, type RespostaDePosicoes,
 } from '../../../lib/posicoes.ts';
 import {
-  alternativaDoCandidato, consultaDasSugestoes, corpoDaConfirmacao, CRITERIOS_PADRAO, graficoComparado, linhasDaConfirmacao,
+  alternativaDoCandidato, consultaDasSugestoes, corpoDaConfirmacao, criteriosDoFormulario, CRITERIOS_PADRAO, graficoComparado, linhasDaConfirmacao,
   textoDoErroDaAlternativa, textoDoFluxo, textoDoLiquido,
   type Alternativa, type Candidato, type FormularioDeCriterios, type LinhaDaConfirmacao, type ResumoDoPayoff, type Simulada,
 } from '../../../lib/rolagens.ts';
@@ -291,6 +291,14 @@ export default function PaginaRolagens() {
             <div className="form-em-linha">
               <button type="submit" className="botao botao-principal" disabled={buscando}>{buscando ? 'Buscando…' : 'Buscar séries'}</button>
               {!manual && <button type="button" className="botao" onClick={() => { setErroForm(null); setManual({ codigo: '', quantidade: String(Math.abs(perna.quantidade)), preco: '' }); }}>Montar alternativa à mão</button>}
+              <button type="button" className="botao-texto" onClick={() => {
+                const c = criteriosDoFormulario(criterios);
+                if (!c.ok) return setErroForm(c.erro);
+                setErroForm(null);
+                chamar('PUT', '/api/avisos-posicao/preferencias', { criterios: c.criterios })
+                  .then(() => setAviso('Critérios guardados para as sugestões automáticas. Para receber, autorize em Preferências › Avisos das posições.'))
+                  .catch((x: Error) => setErroForm(x instanceof ErroDaApi ? x.message : 'Não foi possível guardar agora.'));
+              }}>Usar estes critérios nos avisos</button>
             </div>
           </form>
 

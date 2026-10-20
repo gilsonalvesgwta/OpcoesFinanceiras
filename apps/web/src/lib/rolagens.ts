@@ -187,3 +187,15 @@ export function graficoComparado(curvas: readonly (Curva | null)[], largura = 64
   const caminho = (c: Curva | null) => (c && c.length >= 2 ? `M${c.map((p) => `${x(p.s).toFixed(1)},${y(p.resultado).toFixed(1)}`).join(' L')}` : null);
   return { largura, altura, de, ate, min, max, x, y, caminhos: curvas.map(caminho) };
 }
+
+// Critérios do formulário no formato guardado nas preferências dos avisos (os mesmos da consulta).
+export function criteriosDoFormulario(f: FormularioDeCriterios): { ok: true; criterios: Record<string, number | string | boolean> } | { ok: false; erro: string } {
+  const c = consultaDasSugestoes('x', 'x', f);
+  if (!c.ok) return c;
+  const criterios: Record<string, number | string | boolean> = {};
+  for (const [k, v] of new URLSearchParams(c.consulta)) {
+    if (k === 'estrategiaId' || k === 'codigo' || k === 'mesmoVencimento') continue;
+    criterios[k] = k === 'strike' ? v : k === 'perdaMaximaNaoAumenta' ? true : Number(v);
+  }
+  return { ok: true, criterios };
+}

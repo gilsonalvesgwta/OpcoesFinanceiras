@@ -33,6 +33,25 @@ export async function cotacoesDoUsuario(c: Cliente, codigos: string[], agora: Da
     sinalDaPonteEm: iso(l.ultimo_contato_em),
     qualidade: l.revogada_em ? 'desconectado' : qualidadeDaPonte(iso(l.ultimo_contato_em), agora, mercado.aberto),
   }]));
+  const daB3 = new Map((await cotacoesDaB3(c, codigos, cfg)).map((q) => [q.codigo, q]));
+  return [...new Set(codigos)].sort().flatMap((codigo): CotacaoDeSaida[] => {
+    const p = daPonte.get(codigo);
+    const doFechamento = daB3.get(codigo);
+    if (p && (p.qualidade !== 'desconectado' || !doFechamento || (p.instanteDaFonte ?? '') > (doFechamento.instanteDaFonte ?? ''))) {
+      // A ponte não manda o fechamento anterior de séries novas: completa com o da B3.
+      if (p.fechamentoAnterior === null && doFechamento && (doFechamento.instanteDaFonte ?? '') < (p.instanteDaFonte ?? '')) {
+        return [{ ...p, fechamentoAnterior: doFechamento.ultimo }];
+      }
+      return [p];
+    }
+    return doFechamento ? [doFechamento] : [];
+  });
+}
+
+// Só o fechamento oficial da B3 (último pregão de cada código, qualidade "histórico").
+// Serve também ao worker, que não alcança a ponte de ninguém.
+export async function cotacoesDaB3(c: Cliente, codigos: string[], cfg: ConfiguracaoDoCalendario): Promise<CotacaoDeSaida[]> {
+  if (codigos.length === 0) return [];
   // Últimos dois pregões de cada código: o último é o preço, o anterior serve para a variação.
   const f = await c.query(
     `select codigo, to_char(dia, 'YYYY-MM-DD') as dia, ultimo, melhor_compra, melhor_venda, quantidade, n from (
@@ -44,29 +63,17 @@ export async function cotacoesDoUsuario(c: Cliente, codigos: string[], agora: Da
     if (Number(l.n) === 1) fechamentos.set(l.codigo, { atual: l, anterior: null });
     else { const x = fechamentos.get(l.codigo); if (x) x.anterior = l; }
   }
-  return [...new Set(codigos)].sort().flatMap((codigo): CotacaoDeSaida[] => {
-    const p = daPonte.get(codigo);
-    const b3 = fechamentos.get(codigo);
-    const doFechamento: CotacaoDeSaida | undefined = b3 && (() => {
-      const dia = b3.atual.dia as string;
-      const fim = (sessaoDoDia(dia, cfg) ?? SESSAO_PADRAO).fechamento;
-      return {
-        codigo, provedor: 'b3-cotahist',
-        ultimo: num(b3.atual.ultimo), bid: num(b3.atual.melhor_compra), ask: num(b3.atual.melhor_venda),
-        fechamentoAnterior: b3.anterior ? num(b3.anterior.ultimo) : null,
-        volume: num(b3.atual.quantidade),
-        instanteDaFonte: new Date(`${dia}T${fim}:00-03:00`).toISOString(), instanteDeRecebimento: null,
-        sinalDaPonteEm: null, qualidade: 'historico',
-      };
-    })();
-    if (p && (p.qualidade !== 'desconectado' || !doFechamento || (p.instanteDaFonte ?? '') > (doFechamento.instanteDaFonte ?? ''))) {
-      // A ponte não manda o fechamento anterior de séries novas: completa com o da B3.
-      if (p.fechamentoAnterior === null && doFechamento && (doFechamento.instanteDaFonte ?? '') < (p.instanteDaFonte ?? '')) {
-        return [{ ...p, fechamentoAnterior: doFechamento.ultimo }];
-      }
-      return [p];
-    }
-    return doFechamento ? [doFechamento] : [];
+  return [...fechamentos.entries()].sort(([x], [y]) => x.localeCompare(y)).map(([codigo, b3]) => {
+    const dia = b3.atual.dia as string;
+    const fim = (sessaoDoDia(dia, cfg) ?? SESSAO_PADRAO).fechamento;
+    return {
+      codigo, provedor: 'b3-cotahist',
+      ultimo: num(b3.atual.ultimo), bid: num(b3.atual.melhor_compra), ask: num(b3.atual.melhor_venda),
+      fechamentoAnterior: b3.anterior ? num(b3.anterior.ultimo) : null,
+      volume: num(b3.atual.quantidade),
+      instanteDaFonte: new Date(`${dia}T${fim}:00-03:00`).toISOString(), instanteDeRecebimento: null,
+      sinalDaPonteEm: null, qualidade: 'historico',
+    };
   });
 }
 

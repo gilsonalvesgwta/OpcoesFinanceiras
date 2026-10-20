@@ -357,11 +357,25 @@ test.describe.serial('jornada', () => {
     await expect(page.getByLabel('Perna')).toHaveValue('ITUBL360');
   });
 
-  test('telas das próximas fases explicam o que vem, e sair encerra a sessão', async ({ page }) => {
+  test('cenários, avisos das posições e histórico com exportação; sair encerra a sessão', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
+    await page.getByRole('link', { name: 'Posições' }).first().click();
+    await page.getByText(/E se ITUB4 for para outro preço/).click();
+    await expect(page.getByRole('columnheader', { name: /No vencimento/ })).toBeVisible();
+    await expect(page.getByText(/ITUBL360 24,8% \(implícita do fechamento de 16\/10\)/)).toBeVisible();
+    await page.getByRole('link', { name: 'Preferências' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Avisos das posições' })).toBeVisible();
+    await page.getByText('Autorizo o sistema a me mandar sugestões de rolagem.').click();
+    await expect(page.getByText(/Sugestões autorizadas/)).toBeVisible();
     await page.getByRole('link', { name: 'Histórico' }).first().click();
-    await expect(page.getByText('Chega na Fase 8')).toBeVisible();
-    await foto(page, 'em-breve');
+    await expect(page.getByText(/Rolagem com crédito de R\$ 66,50/)).toBeVisible();
+    await expect(page.getByText('Venda de 100 ITUBK360 a R$ 0,70')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Exportar para planilha (CSV)' })).toHaveAttribute('href', /formato=csv/);
+    await page.getByLabel('Código (ou parte)').fill('ITUBL');
+    await page.getByRole('button', { name: 'Filtrar' }).click();
+    await expect(page.getByText('Venda de 100 ITUBK360 a R$ 0,70')).toHaveCount(0);
+    await semViolacoes(page, 'historico');
+    await foto(page, 'historico');
     await page.getByRole('button', { name: 'Sair' }).click();
     await expect(page).toHaveURL(/\/entrar$/);
     await page.goto('/');

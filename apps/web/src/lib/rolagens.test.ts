@@ -75,3 +75,10 @@ test('gráfico comparado usa uma escala só para todas as curvas', async () => {
   assert.ok(g.caminhos[0]?.startsWith('M92.0'));
   assert.equal(graficoComparado([null]), null);
 });
+
+test('critérios do formulário para guardar nos avisos', async () => {
+  const { criteriosDoFormulario } = await import('./rolagens.ts');
+  const r = criteriosDoFormulario({ ...CRITERIOS_PADRAO, deltaMax: '0,3', creditoMinimo: '10', strike: 'manter', mesmoVencimento: true, perdaMaximaNaoAumenta: true });
+  assert.deepEqual(r, { ok: true, criterios: { diasMin: 20, diasMax: 70, negociosMin: 1, deltaMax: 0.3, creditoMinimo: 1000, strike: 'manter', perdaMaximaNaoAumenta: true } });
+  assert.equal(criteriosDoFormulario({ ...CRITERIOS_PADRAO, diasMin: 'x' }).ok, false);
+});
