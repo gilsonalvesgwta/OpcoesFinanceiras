@@ -5,6 +5,7 @@
 import { hostname } from 'node:os';
 import { criarPool } from './banco.ts';
 import { cicloDeColeta } from './coleta/coleta.ts';
+import { cicloDeAvisosDePosicao } from './coleta/avisos-posicao.ts';
 import { enviarAvisos, processarAtualizacoes, telegramReal } from './coleta/telegram.ts';
 
 const url = process.env.DATABASE_URL_COLETA?.trim();
@@ -30,6 +31,15 @@ async function rodar(): Promise<void> {
   } catch (e) {
     log(`ciclo falhou: ${e instanceof Error ? e.message : String(e)}; nova tentativa em 1 minuto`);
     proximoMin = 1;
+  }
+  // Avisos das posições (vencimento, risco, cobertura, sugestões com consentimento).
+  if (proximoMin !== 1) {
+    try {
+      const a = await cicloDeAvisosDePosicao(pool, new Date(), log);
+      if (a.eventos || a.sugestoes) log(`avisos das posições: ${a.eventos} eventos, ${a.sugestoes} sugestões`);
+    } catch (e) {
+      log(`avisos das posições falharam: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
   if (!parar) espera = setTimeout(() => void rodar(), proximoMin * 60_000);
 }

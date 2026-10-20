@@ -12,6 +12,7 @@ import { Icone } from '../../../componentes/Icone.tsx';
 import { chamar, ErroDaApi } from '../../../lib/api.ts';
 import { formatarData, formatarReais } from '../../../lib/formatos.ts';
 import { quandoCurto } from '../../../lib/mercado.ts';
+import { lerVolatilidade, NOME_DO_EVENTO, rotuloDaVariacao, type EventoDePosicao, type RespostaDeCenarios } from '../../../lib/inteligencia.ts';
 import {
   conferirComCorretora, descreverExecucao, descreverInstrumento, descreverPosicao, execucaoDoFormulario, montarGrafico, MOTIVO_DO_PAYOFF,
   NOME_DO_TIPO, ORIGEM_DO_PRECO, pernaVazia, QUALIDADE, textoDoExtremo,
@@ -330,6 +331,8 @@ function CartaoDaEstrategia({ e, aoAgir }: { e: Estrategia; aoAgir: (fn: () => P
         </form>
       )}
 
+      {!encerrada && abertos.length > 0 && <Cenarios e={e} />}
+
       <details>
         <summary className="linha-lista-apoio">Operações registradas ({e.execucoes.length})</summary>
         <div className="pontes" style={{ marginTop: 8 }}>
@@ -363,6 +366,109 @@ function CartaoDaEstrategia({ e, aoAgir }: { e: Estrategia; aoAgir: (fn: () => P
   );
 }
 
+// ---------- Cenários "e se" ----------
+
+function Cenarios({ e }: { e: Estrategia }) {
+  const [aberto, setAberto] = useState(false);
+  const [vol, setVol] = useState('');
+  const [r, setR] = useState<RespostaDeCenarios | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function calcular(volTexto: string) {
+    const v = lerVolatilidade(volTexto);
+    if (!v.ok) return setErro(v.erro);
+    setErro(null);
+    try {
+      setR(await chamar<RespostaDeCenarios>('POST', `/api/posicoes/${e.id}/cenarios`, v.volPct === null ? {} : { volPct: v.volPct }));
+    } catch (x) {
+      setErro(x instanceof ErroDaApi ? x.message : 'Não foi possível calcular agora.');
+    }
+  }
+
+  return (
+    <details onToggle={(ev) => { const a = (ev.currentTarget as HTMLDetailsElement).open; setAberto(a); if (a && !r) void calcular(vol); }}>
+      <summary className="linha-lista-apoio">E se {e.ativoObjeto} for para outro preço? (cenários)</summary>
+      {aberto && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+          <MensagemDeErro texto={erro} />
+          {!r && !erro && <p className="secao-vazia" role="status">Calculando…</p>}
+          {r && (
+            <>
+              <div className="tabela-caixa" tabIndex={0} role="region" aria-label={`Cenários de ${e.nome}`} style={{ margin: '0 -24px' }}>
+                <table className="tabela">
+                  <thead>
+                    <tr>
+                      <th scope="col">{e.ativoObjeto} a</th>
+                      {r.grade.colunas.map((c) => <th key={c.rotulo} scope="col" className="numero">{c.rotulo}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {r.grade.linhas.map((l) => (
+                      <tr key={l.preco} style={l.variacao === 0 ? { background: 'var(--painel2)' } : undefined}>
+                        <th scope="row">{reais(l.preco)}<span className="sub">{rotuloDaVariacao(l.variacao)}</span></th>
+                        {l.resultados.map((v, i) => <td key={i} className={`numero ${classeDoValor(v)}`}>{formatarReais(v)}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {r.grade.semVol.length > 0 && <p className="aviso-tracejado">Sem volatilidade para {r.grade.semVol.join(', ')}: informe uma abaixo para estimar.</p>}
+              <form className="form-em-linha" noValidate onSubmit={(ev) => { ev.preventDefault(); void calcular(vol); }}>
+                <div className="campo" style={{ flex: '0 1 220px' }}>
+                  <label htmlFor={`vol-${e.id}`}>Volatilidade (% ao ano)</label>
+                  <input id={`vol-${e.id}`} inputMode="decimal" value={vol} placeholder="a implícita" onChange={(ev) => setVol(ev.target.value)} />
+                </div>
+                <button type="submit" className="botao botao-pequeno">Recalcular</button>
+              </form>
+              <p className="linha-lista-apoio" style={{ margin: 0, fontSize: 13 }}>
+                Volatilidade usada: {r.vols.length ? r.vols.map((v) => `${v.codigo} ${v.volPct === null ? 'sem dado' : `${v.volPct.toLocaleString('pt-BR')}% (${v.origem})`}`).join('; ') : 'não se aplica (só ações)'}.
+                {' '}Selic {r.selic.valor.toLocaleString('pt-BR')}% ao ano. Preço de partida: {r.ativo?.ultimo ? reais(r.ativo.ultimo) : '—'} ({QUALIDADE[r.ativo?.qualidade ?? '']?.texto ?? r.ativo?.qualidade ?? '—'}).
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--apoio)', fontSize: 13 }}>{r.premissas.map((p) => <li key={p}>{p}</li>)}</ul>
+            </>
+          )}
+        </div>
+      )}
+    </details>
+  );
+}
+
+// ---------- Avisos das posições ----------
+
+function AvisosDasPosicoes({ eventos, aoLer }: { eventos: EventoDePosicao[]; aoLer: (ids?: number[]) => void }) {
+  const novos = eventos.filter((x) => !x.lido);
+  if (novos.length === 0) return null;
+  return (
+    <section className="secao" aria-labelledby="avisos-titulo" style={{ borderColor: 'var(--atencao)' }}>
+      <div className="secao-topo">
+        <h2 id="avisos-titulo">Avisos das suas posições ({novos.length})</h2>
+        <div className="form-em-linha">
+          <Link href="/preferencias#avisos-posicao" className="botao-texto">Configurar</Link>
+          <button type="button" className="botao botao-pequeno" onClick={() => aoLer()}>Marcar todos como lidos</button>
+        </div>
+      </div>
+      <div className="pontes">
+        {novos.slice(0, 8).map((x) => (
+          <div key={x.id} className="ponte" style={{ padding: '10px 14px' }}>
+            <div className="ponte-texto">
+              <div className="ponte-nome">
+                <span className={`selo ${x.tipo === 'sugestao_rolagem' ? 'selo-periodica' : 'selo-atencao'}`} style={{ fontSize: 13 }}><Icone nome="aviso" tamanho={14} />{NOME_DO_EVENTO[x.tipo]}</span>
+                <strong>{x.titulo}</strong>
+              </div>
+              <span className="ponte-apoio">{x.texto}</span>
+              <span className="ponte-apoio" style={{ fontSize: 12 }}>{quandoCurto(x.criadoEm)}{x.aviso === 'enviado' ? ' · enviado no Telegram' : ''}</span>
+            </div>
+            <div className="ponte-acoes">
+              {x.tipo === 'sugestao_rolagem' && x.estrategiaId && <Link className="botao botao-pequeno" href={`/rolagens?estrategia=${x.estrategiaId}`}>Comparar em Rolagens</Link>}
+              <button type="button" className="botao-texto" onClick={() => aoLer([x.id])} aria-label={`Marcar como lido: ${x.titulo}`}>Lido</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ---------- Página ----------
 
 export default function PaginaPosicoes() {
@@ -374,14 +480,17 @@ export default function PaginaPosicoes() {
   const [erroNova, setErroNova] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [importar, setImportar] = useState<{ codigos: string[]; destino: string; nome: string }>({ codigos: [], destino: 'nova', nome: '' });
+  const [eventos, setEventos] = useState<EventoDePosicao[]>([]);
 
   const carregar = useCallback(async () => {
-    const [p, c] = await Promise.all([
+    const [p, c, v] = await Promise.all([
       chamar<RespostaDePosicoes>('GET', '/api/posicoes'),
       chamar<{ posicoes: PosicaoDaCorretora[] }>('GET', '/api/posicoes-corretora').catch(() => ({ posicoes: [] })),
+      chamar<{ eventos: EventoDePosicao[] }>('GET', '/api/avisos-posicao').catch(() => ({ eventos: [] })),
     ]);
     setDados(p);
     setCorretora(c.posicoes);
+    setEventos(v.eventos);
   }, []);
 
   useEffect(() => {
@@ -461,6 +570,7 @@ export default function PaginaPosicoes() {
 
       <MensagemDeErro texto={erro} />
       <div role="status" aria-live="polite" className="selo selo-alta">{aviso}</div>
+      <AvisosDasPosicoes eventos={eventos} aoLer={(ids) => void chamar('POST', '/api/avisos-posicao/lidos', ids ? { ids } : {}).then(() => carregar()).catch(() => undefined)} />
 
       {nova && (
         <section className="secao" aria-labelledby="nova-titulo">

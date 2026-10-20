@@ -97,3 +97,16 @@ Calculadas pelo worker depois de cada arquivo da B3 (`calcularDoFechamento` em `
 - Faixa do gráfico: ±30% do preço do ativo (ou da média dos strikes), alargada para caber strikes e pontos de equilíbrio.
 - "Venceu sem exercício": registra a saída a R$ 0,00, sem custo, no fechamento do dia do vencimento; só para opção já vencida. Exercício real deve ser registrado como as operações que aconteceram.
 - Encerrar só com tudo zerado. Importação do MT5: usa o preço médio da corretora e a hora do último envio do robô; tipo, strike e vencimento vêm do cadastro de séries da B3.
+
+## Cenários "e se" (Fase 8, `cenarios.ts`)
+
+- Grade de preços do ativo (−20% a +20% do preço atual) × momentos (hoje, metade do prazo, vencimento).
+- Antes do vencimento cada opção é recalculada por Black-Scholes com a volatilidade implícita do último fechamento (ou a informada pelo usuário), Selic contínua e os pregões que faltam; no vencimento, valor intrínseco.
+- Resultado da estratégia inteira (pernas abertas contra o preço médio + realizado − custos pagos). Sem volatilidade para alguma opção viva, a célula fica vazia e a tela diz qual faltou.
+
+## Avisos das posições (Fase 8, `avisos-posicao.ts`)
+
+- Vencimento: um aviso por limite de pregões cruzado (padrão 5 e 1), dizendo se a opção está dentro ou fora do dinheiro pelo fechamento oficial.
+- Risco: opção vendida com o ativo a até X% do strike (padrão 2%) ou já dentro do dinheiro; no máximo um por pregão.
+- Calls sem cobertura: um aviso por quantidade descoberta.
+- O worker roda entre 08:00 e 21:00 (Brasília), lê as posições por `app.posicoes_para_avisos()` e grava por `app.registrar_evento_posicao()` (idempotente pela chave). Sugestões de rolagem só com o consentimento do usuário, com os critérios guardados por ele, em ordem de vencimento e strike, sem recomendação.
