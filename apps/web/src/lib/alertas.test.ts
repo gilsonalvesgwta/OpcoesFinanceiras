@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import type { Grupo } from '@wta/domain';
 import { FORMULARIO_VAZIO, formularioDaRegra, lerNumero, regraDoFormulario, type FormularioDaRegra } from './alertas.ts';
 
 test('números como a pessoa digita', () => {
@@ -29,9 +30,11 @@ test('várias condições viram um grupo; faixa e intervalo conferidos', () => {
     juncao: 'ou', rearme: 'intervalo', minutos: '15', usarJanela: true,
     linhas: [{ campo: 'variacao_dia_pct', operador: '<=', valor: '-3', valor2: '' }, { campo: 'ultimo', operador: 'fora', valor: '37', valor2: '39,5' }],
   }));
-  assert.ok(r.ok && r.regra.condicao.tipo === 'ou' && r.regra.condicao.filhos.length === 2);
-  if (!r.ok || r.regra.condicao.tipo === 'comparacao') return;
-  assert.deepEqual(r.regra.condicao.filhos[1], { tipo: 'comparacao', campo: 'ultimo', operador: 'fora', valor: 3700, valor2: 3950 });
+  if (!r.ok) return assert.fail(r.erro);
+  const grupo = r.regra.condicao as Grupo;
+  assert.equal(grupo.tipo, 'ou');
+  assert.equal(grupo.filhos.length, 2);
+  assert.deepEqual(grupo.filhos[1], { tipo: 'comparacao', campo: 'ultimo', operador: 'fora', valor: 3700, valor2: 3950 });
   assert.deepEqual(r.regra.rearme, { tipo: 'intervalo', minutos: 15 });
   assert.deepEqual(r.regra.janela, { inicio: '10:15', fim: '16:55' });
   assert.equal((regraDoFormulario(f({ linhas: [{ campo: 'ultimo', operador: 'dentro', valor: '40', valor2: '39' }] })) as { erro: string }).erro, 'Condição 1: o segundo valor precisa ser maior que o primeiro.');
