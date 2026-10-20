@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Cabecalho } from '../../../componentes/Casca.tsx';
 import { MensagemDeErro } from '../../../componentes/Acesso.tsx';
 import { PonteMt5 } from '../../../componentes/PonteMt5.tsx';
+import { Telegram } from '../../../componentes/Telegram.tsx';
 import { aplicarTema, useSessao } from '../../../componentes/Sessao.tsx';
 import { chamar, ErroDaApi } from '../../../lib/api.ts';
 import { PAPEIS } from '../../../lib/formatos.ts';
@@ -66,11 +67,12 @@ export default function PaginaPreferencias() {
 
   return (
     <>
-      <Cabecalho titulo="Preferências" apoio="Nome, tema, senha e a ligação com o MetaTrader 5 da corretora." />
+      <Cabecalho titulo="Preferências" apoio="Nome, tema, senha, Telegram e a ligação com o MetaTrader 5 da corretora." />
 
       <nav className="atalhos" aria-label="Seções das preferências">
         <a href="#conta">Sua conta</a>
         <a href="#aparencia">Aparência</a>
+        <a href="#telegram">Telegram</a>
         <a href="#metatrader">MetaTrader 5</a>
       </nav>
 
@@ -115,6 +117,7 @@ export default function PaginaPreferencias() {
         <div role="status" aria-live="polite" className="selo selo-alta">{aviso}</div>
       </section>
 
+      <Telegram />
       <PonteMt5 />
     </>
   );
