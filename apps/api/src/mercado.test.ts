@@ -201,7 +201,7 @@ describe('coleta gratuita e rotas de mercado', { skip: pular ? 'sem as três URL
     assert.equal(sit.corpo.fechamento.ultimoImportado, '2026-10-16');
     assert.equal(sit.corpo.fechamento.series, 2, 'PETRK380 e PETRW360 vistas no arquivo de 16/10 e ainda não vencidas');
     assert.deepEqual(sit.corpo.selic, { dia: '2026-10-16', valor: 14.9 });
-    const f = await pedir('ana', 'GET', '/api/mercado/fechamentos?codigos=petrk380,VALE3');
+    const f = await pedir('ana', 'GET', '/api/mercado/fechamentos?codigos=petrk380,ITUB4');
     assert.deepEqual(f.corpo.fechamentos.map((x: { codigo: string; ultimo: number }) => [x.codigo, x.ultimo]), [['PETRK380', 93]]);
   });
 
