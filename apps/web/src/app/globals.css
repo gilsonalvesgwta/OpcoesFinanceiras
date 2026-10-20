@@ -333,3 +333,15 @@ p { margin: 0; }
 .caixa-de-marcar input { width: 18px; height: 18px; margin-top: 2px; flex: none; }
 .previa-da-regra { margin: 0; padding: 12px 14px; border-radius: 8px; background: var(--painel2); color: var(--texto); }
 .ajuda-da-linha { flex: 1 1 100%; color: var(--apoio); font-size: 13px; margin-top: -4px; }
+
+/* Fase 5: cadeia de opções */
+.tabela-cadeia { font-size: 14px; }
+.tabela-cadeia th[scope='col'], .tabela-cadeia td { padding: 8px 8px; white-space: nowrap; }
+.tabela-cadeia .lado { text-align: center; font-weight: 600; color: var(--texto); padding: 8px; }
+.tabela-cadeia .coluna-strike { text-align: center; font-weight: 700; background: var(--painel2); padding: 8px 12px; }
+.tabela-cadeia tbody th.coluna-strike { padding-left: 12px; }
+.tabela-cadeia td.dentro { background: color-mix(in srgb, var(--latao) 16%, var(--painel)); }
+.tabela-cadeia td.vazia { color: var(--linha); text-align: center; }
+.tabela-cadeia tr.no-dinheiro { outline: 2px solid var(--latao); outline-offset: -2px; }
+.codigo-serie { font-weight: 600; }
+details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }

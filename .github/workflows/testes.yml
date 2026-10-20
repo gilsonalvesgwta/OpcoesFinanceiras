@@ -131,6 +131,7 @@ jobs:
         run: |
           psql -d postgres -c "create database wtaopt_web"
           PGDATABASE=wtaopt_web SENHA_APP=app-de-teste db/aplicar.sh
+          psql -X -q -v ON_ERROR_STOP=1 -d wtaopt_web -f apps/web/e2e/dados-de-mercado.sql
       - name: Instalar
         run: npm install --no-audit --no-fund
       - name: Testes dos utilitários da interface

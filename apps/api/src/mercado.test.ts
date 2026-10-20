@@ -219,6 +219,8 @@ describe('coleta gratuita e rotas de mercado', { skip: pular ? 'sem as três URL
     assert.deepEqual([put.ultimo, put.bid, put.ask, put.calculo], [null, null, null, { motivo: 'sem_premio' }], 'sem preço: nada de zero');
     assert.ok(r.corpo.premissas.some((p: string) => p.includes('Black-Scholes')));
     assert.equal((await pedir('ana', 'GET', '/api/mercado/cadeia?ativo=XXXX3')).corpo.erro, 'sem_fechamento');
+    const o = await pedir('ana', 'GET', '/api/mercado/objetos');
+    assert.deepEqual([o.corpo.dia, o.corpo.objetos[0]?.codigo, o.corpo.objetos[0]?.series], ['2026-10-16', 'PETR4', 2]);
   });
 
   test('calendário: todos leem; só o superadmin altera, com auditoria', async () => {

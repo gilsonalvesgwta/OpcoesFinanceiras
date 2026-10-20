@@ -65,6 +65,22 @@ export async function rotasDeMercado(app: FastifyInstance, dep: Dependencias, ca
     });
   });
 
+  // Ativos com opções no último arquivo importado (para escolher a cadeia), mais negociados primeiro.
+  app.get('/api/mercado/objetos', { config: { politica: 'autenticado' } }, async (req) => {
+    const s = req.sessao as Sessao;
+    return emTransacao(pool, s.usuarioId, async (c) => {
+      const dia = (await c.query("select to_char(max(dia), 'YYYY-MM-DD') as dia from fechamentos where tipo_mercado in (70, 80)")).rows[0]?.dia ?? null;
+      if (!dia) return { dia: null, objetos: [] };
+      const r = await c.query(
+        `select s.ativo_objeto as codigo, count(*)::int as series, coalesce(sum(f.negocios), 0)::int as negocios
+         from series_opcoes s join fechamentos f on f.codigo = s.codigo and f.dia = $1
+         where s.ativo_objeto is not null and s.visto_ultimo >= $1 and s.vencimento >= $1
+         group by s.ativo_objeto order by negocios desc, codigo limit 300`, [dia],
+      );
+      return { dia, objetos: r.rows };
+    });
+  });
+
   // Cadeia de opções de um ativo no último fechamento, com volatilidade implícita e
   // gregas calculadas pelo sistema (e o motivo quando não deu para calcular).
   app.get('/api/mercado/cadeia', {
