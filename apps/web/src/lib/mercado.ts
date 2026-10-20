@@ -11,7 +11,7 @@ export type SituacaoDoMercado = {
 };
 
 export type Importacao = {
-  id: number; fonte: 'b3-cotahist' | 'bcb-selic'; referencia: string | null; situacao: 'ok' | 'sem_arquivo' | 'erro';
+  id: number; fonte: 'b3-cotahist' | 'b3-cotahist-mensal' | 'bcb-selic' | 'brapi'; referencia: string | null; situacao: 'ok' | 'sem_arquivo' | 'erro';
   registros: number | null; recusados: number | null; detalhe: string | null; iniciadaEm: string | null; terminadaEm: string | null;
 };
 
