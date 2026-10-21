@@ -51,14 +51,17 @@ describe('simulador de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : 
          ('2026-10-15', 'SIMU3', 10, 3950, 3949, 3951, 1000, 100000, 395000000),
          ('2026-10-15', 'SIMUK400', 70, 125, 120, 130, 80, 8000, 1000000),
          ('2026-10-15', 'SIMUK420', 70, 55, 50, 60, 40, 4000, 200000),
-         ('2026-10-15', 'SIMUL400', 70, 185, 180, 190, 60, 6000, 1100000)
+         ('2026-10-15', 'SIMUL400', 70, 185, 180, 190, 60, 6000, 1100000),
+         ('2026-10-15', 'SIMV11', 10, 15000, 14999, 15001, 1000, 100000, 1500000000),
+         ('2026-10-15', 'SIMVK150', 70, 300, 290, 310, 10, 1000, 300000)
        on conflict do nothing`,
     );
     await dono.query(
       `insert into series_opcoes (codigo, vencimento, ativo_objeto, tipo, strike, visto_primeiro, visto_ultimo) values
          ('SIMUK400', '2026-11-23', 'SIMU3', 'call', 4000, '2026-10-15', '2026-10-15'),
          ('SIMUK420', '2026-11-23', 'SIMU3', 'call', 4200, '2026-10-15', '2026-10-15'),
-         ('SIMUL400', '2026-12-18', 'SIMU3', 'call', 4000, '2026-10-15', '2026-10-15')
+         ('SIMUL400', '2026-12-18', 'SIMU3', 'call', 4000, '2026-10-15', '2026-10-15'),
+         ('SIMVK150', '2026-11-23', 'SIMV11', 'call', 15000, '2026-10-15', '2026-10-15')
        on conflict do nothing`,
     );
     await dono.query("insert into calculos_opcoes (dia, codigo, vencimento, ativo_objeto, vol_implicita, delta) values ('2026-10-15', 'SIMUK400', '2026-11-23', 'SIMU3', 0.3, 0.45) on conflict do nothing");
@@ -102,6 +105,10 @@ describe('simulador de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : 
     const robo = await app.inject({ method: 'GET', url: '/api/ponte/simbolos', headers: { authorization: `Bearer ${k.corpo.chave}` }, remoteAddress: '198.51.100.40' });
     const simbolos = robo.json().simbolos as string[];
     for (const c of obs) assert.ok(simbolos.includes(c), `o robô recebe ${c}`);
+    // Trocar de ativo logo em seguida também pede as séries do novo (não espera 1 minuto).
+    assert.equal((await pedir('ana', 'GET', '/api/simulador/cadeia?ativo=SIMV11')).status, 200);
+    const obs2 = (await dono.query("select o.codigo from observados_ponte o join users u on u.id = o.user_id where u.email = $1 and o.ate > now() order by 1", [`ana.sim.${sufixo}@exemplo.test`])).rows.map((x) => x.codigo);
+    assert.ok(obs2.includes('SIMV11') && obs2.includes('SIMVK150'), JSON.stringify(obs2));
     // Do outro usuário, nada.
     const deBeto = (await dono.query("select count(*)::int as n from observados_ponte o join users u on u.id = o.user_id where u.email = $1", [`beto.sim.${sufixo}@exemplo.test`])).rows[0].n;
     assert.equal(deBeto, 0);

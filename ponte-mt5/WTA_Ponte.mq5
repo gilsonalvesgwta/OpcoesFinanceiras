@@ -23,7 +23,7 @@ input string Chave           = "";                               // Chave da pon
 input int    IntervaloMs     = 1500;                             // Intervalo entre envios de cotações (ms)
 input bool   EnviarPosicoes  = true;                             // Enviar posições abertas da conta
 
-#define VERSAO            "1.1.0"
+#define VERSAO            "1.2.0"
 #define TEMPO_LIMITE_MS   10000
 #define LOTE_MAX          150   // cotações por envio; o resto vai nos próximos ciclos
 #define PULSO_MS          5000
@@ -37,7 +37,8 @@ double   g_ultimoBid[], g_ultimoAsk[], g_ultimoLast[];
 ulong    g_proxPulso = 0, g_proxPosicoes = 0, g_proxLista = 0;
 int      g_falhasSeguidas = 0;
 ulong    g_esperarAte = 0;
-int      g_cursor = 0;          // de onde o próximo lote começa (todos têm vez)
+int      g_cursor = 0;
+int      g_ultimoPedidos = -1, g_ultimoAcompanhados = -1; // para avisar só quando a lista muda          // de onde o próximo lote começa (todos têm vez)
 int      g_pendIdx[];           // itens do lote em envio: só contam como enviados depois do 200
 long     g_pendMsc[];
 double   g_pendBid[], g_pendAsk[], g_pendLast[];
@@ -174,13 +175,20 @@ void AtualizarLista()
    string novos[];
    LerListaJson(resposta, novos);
    int n = 0;
+   string faltam = "";
+   int naoAchados = 0;
    string antigos[];
    ArrayCopy(antigos, g_ativos);
    ArrayResize(g_ativos, 0);
    for(int i = 0; i < ArraySize(novos) && n < MAX_ATIVOS; i++)
      {
       if(!SymbolSelect(novos[i], true)) // não existe nesta corretora: ignora
+        {
+         naoAchados++;
+         if(naoAchados <= 8)
+            faltam += (faltam == "" ? "" : ", ") + novos[i];
          continue;
+        }
       ArrayResize(g_ativos, n + 1);
       g_ativos[n++] = novos[i];
      }
@@ -198,6 +206,13 @@ void AtualizarLista()
    ArrayCopy(g_ultimoBid, b);   ArrayResize(g_ultimoBid, n);
    ArrayCopy(g_ultimoAsk, a);   ArrayResize(g_ultimoAsk, n);
    ArrayCopy(g_ultimoLast, l);  ArrayResize(g_ultimoLast, n);
+   if(ArraySize(novos) != g_ultimoPedidos || n != g_ultimoAcompanhados)
+     {
+      PrintFormat("WTA Ponte: lista com %d ativos, %d acompanhados%s", ArraySize(novos), n,
+                  naoAchados > 0 ? StringFormat("; %d não existem nesta corretora (ex.: %s)", naoAchados, faltam) : "");
+      g_ultimoPedidos = ArraySize(novos);
+      g_ultimoAcompanhados = n;
+     }
   }
 
 // Lê {"simbolos":["PETR4","VALE3"]} sem biblioteca de JSON (os códigos só têm A-Z e 0-9).
