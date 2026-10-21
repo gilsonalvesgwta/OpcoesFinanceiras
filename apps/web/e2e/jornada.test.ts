@@ -357,6 +357,29 @@ test.describe.serial('jornada', () => {
     await expect(page.getByLabel('Perna')).toHaveValue('ITUBL360');
   });
 
+  test('simulador: monta pela cadeia, vencimentos diferentes e carteira simulada', async ({ page }) => {
+    await entrarNoPainel(page, EMAIL, SENHA);
+    await page.getByRole('link', { name: 'Simulador' }).first().click();
+    await page.getByLabel('Ativo', { exact: true }).fill('ITUB4');
+    await page.getByRole('button', { name: 'Carregar' }).click();
+    await page.getByRole('button', { name: 'Comprar ITUBK360' }).click();
+    await page.getByRole('button', { name: 'Vender ITUBK380' }).click();
+    // Compra pelo ask (0,69) e venda pelo bid (0,16): débito de 53,00 em 100 de cada.
+    await expect(page.getByText(/débito de R\$\s53,00/)).toBeVisible();
+    await expect(page.getByRole('img', { name: /Resultado estimado da montagem em ITUB4/ })).toBeVisible();
+    await page.getByRole('button', { name: /18\/12\/2026/ }).click();
+    await page.getByRole('button', { name: 'Vender ITUBL380' }).click();
+    await expect(page.getByText(/Vencimentos diferentes: no primeiro vencimento/)).toBeVisible();
+    await semViolacoes(page, 'simulador');
+    await foto(page, 'simulador');
+    await page.getByLabel('Guardar como carteira simulada').fill('Trava teste');
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.getByText(/Carteira simulada "Trava teste" guardada/)).toBeVisible();
+    await expect(page.getByText('posição da carteira', { exact: false }).first()).toBeVisible();
+    await page.getByRole('button', { name: 'Encerrar' }).first().click();
+    await expect(page.getByRole('button', { name: 'Registrar na carteira simulada' })).toBeVisible();
+  });
+
   test('cenários, avisos das posições e histórico com exportação; sair encerra a sessão', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Posições' }).first().click();
