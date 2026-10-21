@@ -102,6 +102,25 @@ export async function rotasDoSimulador(app: FastifyInstance, dep: Dependencias, 
          where ativo_objeto = $1 and visto_ultimo >= $2 and vencimento >= $3 order by v`, [ativo, base, situacaoDoMercado(agora, cfg).dia],
       )).rows.map((l) => l.v as string);
       const vencimento = q.vencimento && vencimentos.includes(q.vencimento) ? q.vencimento : vencimentos[0] ?? null;
+      // Pede ao robô do MT5 (se houver) as séries dos 3 vencimentos mais próximos, perto do
+      // preço, por 15 minutos. Renova no máximo uma vez por minuto (a tela consulta a cada 2 s).
+      const renovar = (await c.query("select coalesce(max(ate), '-infinity') < now() + interval '14 minutes' as r from observados_ponte")).rows[0]?.r;
+      if (renovar && vencimentos.length) {
+        await c.query(
+          `insert into observados_ponte (user_id, codigo, ate)
+           select $1, codigo, now() + interval '15 minutes' from (
+             select $2::text as codigo
+             union
+             (select s.codigo from series_opcoes s join fechamentos a on a.codigo = $2 and a.dia = $3
+              where s.ativo_objeto = $2 and s.vencimento = any($4::date[]) and s.visto_ultimo >= $3
+                and s.strike between a.ultimo * 0.75 and a.ultimo * 1.25
+              order by s.vencimento, abs(s.strike - a.ultimo) limit 300)
+           ) x
+           on conflict (user_id, codigo) do update set ate = excluded.ate`,
+          [s.usuarioId, ativo, base, [...new Set([vencimento, ...vencimentos.slice(0, 3)].filter(Boolean))]],
+        );
+        await c.query('delete from observados_ponte where ate < now()');
+      }
       const linhas = vencimento ? (await c.query(
         `select s.codigo, s.tipo, s.strike, f.negocios, k.vol_implicita, k.delta
          from series_opcoes s
@@ -114,7 +133,7 @@ export async function rotasDoSimulador(app: FastifyInstance, dep: Dependencias, 
       const selic = (await c.query("select to_char(dia, 'YYYY-MM-DD') as dia, valor::float8 as valor from taxas_juros where serie = 'selic' order by dia desc limit 1")).rows[0] ?? null;
       const resumo = (x: CotacaoDeSaida | undefined) => (x ? { ultimo: x.ultimo, bid: x.bid, ask: x.ask, qualidade: x.qualidade, provedor: x.provedor, instanteDaFonte: x.instanteDaFonte } : null);
       return {
-        agora: agora.toISOString(), hoje: situacaoDoMercado(agora, cfg).dia, dia: base,
+        agora: agora.toISOString(), hoje: situacaoDoMercado(agora, cfg).dia, dia: base, mercadoAberto: situacaoDoMercado(agora, cfg).aberto,
         ativo: { codigo: ativo, cotacao: resumo(cotacoes.get(ativo)) },
         vencimentos, vencimento,
         series: linhas.map((l) => ({

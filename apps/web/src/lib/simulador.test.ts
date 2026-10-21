@@ -64,3 +64,20 @@ test('corpo para guardar: só o que é novo, em centavos', () => {
     { codigo: 'PETR4', tipo: 'ativo', lado: 'compra', quantidade: 100, preco: 2 },
   ]);
 });
+
+test('vol e delta ao vivo só com tempo real do MT5; senão, do fechamento', async () => {
+  const { volDaSerie, intervaloDeAtualizacao } = await import('./simulador.ts');
+  const { blackScholes, diasDePregaoEntre } = await import('@wta/domain');
+  const vivo = (bid: number, ask: number) => ({ bid, ask, ultimo: null, qualidade: 'tempo_real', provedor: 'mt5', instanteDaFonte: null });
+  // Prêmio que o próprio modelo dá para vol 35%: a implícita tem que voltar 35%.
+  const dias = diasDePregaoEntre('2026-10-21', '2026-11-23', cfg);
+  const teorico = blackScholes({ tipo: 'call', s: 39, k: 40, t: dias / 252, r: Math.log(1.149), sigma: 0.35 }).preco * 100;
+  const s = { ...serie, cotacao: vivo(Math.round(teorico) - 1, Math.round(teorico) + 1) };
+  const r = volDaSerie(s, vivo(3899, 3901), '2026-11-23', '2026-10-21', cfg, 14.9);
+  assert.equal(r.origem, 'ao_vivo');
+  assert.ok(Math.abs((r.vol as number) - 0.35) < 0.01, String(r.vol));
+  assert.deepEqual(volDaSerie(serie, vivo(3899, 3901), '2026-11-23', '2026-10-21', cfg, 14.9), { vol: 0.3, delta: 0.4, origem: 'fechamento' }, 'série sem MT5: fechamento');
+  assert.equal(volDaSerie(s, cot(3899, 3901, 3900), '2026-11-23', '2026-10-21', cfg, 14.9).origem, 'fechamento', 'ativo sem MT5: fechamento');
+  assert.equal(intervaloDeAtualizacao(true), 2000);
+  assert.equal(intervaloDeAtualizacao(false), 60000);
+});

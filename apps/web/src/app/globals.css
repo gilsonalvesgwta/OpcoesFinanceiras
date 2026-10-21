@@ -353,3 +353,13 @@ details > summary { cursor: pointer; min-height: 44px; display: flex; align-item
 .botao-v { color: var(--baixa); }
 .tabela input, .tabela select { min-height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--borda-campo); background: var(--bg); color: var(--texto); font: inherit; text-align: right; }
 input[type='range'] { width: 100%; accent-color: var(--latao); min-height: 32px; }
+.tabela-cadeia-caixa { max-height: 70vh; overflow-y: auto; }
+.tabela-cadeia-caixa thead { position: sticky; top: 0; z-index: 1; background: var(--painel); }
+.tabela-cadeia { table-layout: auto; }
+@media (max-width: 1400px) {
+  .tabela-cadeia { font-size: 13px; }
+  .tabela-cadeia th[scope='col'], .tabela-cadeia td { padding: 6px 5px; }
+  .tabela-cadeia th[scope='col']:first-child, .tabela-cadeia td:first-child { padding-left: 12px; }
+  .tabela-cadeia th[scope='col']:last-child, .tabela-cadeia td:last-child { padding-right: 12px; }
+  .tabela-cadeia .botao-cv { min-width: 26px; padding: 0 4px; }
+}
