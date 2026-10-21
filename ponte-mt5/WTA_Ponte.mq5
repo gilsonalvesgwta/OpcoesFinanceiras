@@ -23,8 +23,9 @@ input string Chave           = "";                               // Chave da pon
 input int    IntervaloMs     = 1500;                             // Intervalo entre envios de cotações (ms)
 input bool   EnviarPosicoes  = true;                             // Enviar posições abertas da conta
 
-#define VERSAO            "1.0.0"
-#define TEMPO_LIMITE_MS   3000
+#define VERSAO            "1.1.0"
+#define TEMPO_LIMITE_MS   10000
+#define LOTE_MAX          150   // cotações por envio; o resto vai nos próximos ciclos
 #define PULSO_MS          5000
 #define POSICOES_MS       10000
 #define LISTA_MS          60000
@@ -36,6 +37,10 @@ double   g_ultimoBid[], g_ultimoAsk[], g_ultimoLast[];
 ulong    g_proxPulso = 0, g_proxPosicoes = 0, g_proxLista = 0;
 int      g_falhasSeguidas = 0;
 ulong    g_esperarAte = 0;
+int      g_cursor = 0;          // de onde o próximo lote começa (todos têm vez)
+int      g_pendIdx[];           // itens do lote em envio: só contam como enviados depois do 200
+long     g_pendMsc[];
+double   g_pendBid[], g_pendAsk[], g_pendLast[];
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -101,6 +106,7 @@ void OnTimer()
    int status = Pedir("POST", "/api/ponte/dados", corpo, resposta);
    if(status == 200)
      {
+      ConfirmarLote();
       g_falhasSeguidas = 0;
       g_proxPulso = agora + PULSO_MS;
       if(posicoes)
@@ -246,11 +252,23 @@ double FechamentoAnterior(const string ativo)
    return(iClose(ativo, PERIOD_D1, indice));
   }
 
+// Monta até LOTE_MAX cotações que mudaram, começando de onde o lote anterior parou.
+// Só depois que o servidor confirma (ConfirmarLote) elas contam como enviadas: se o envio
+// falhar, vão de novo no próximo ciclo, mesmo que o preço não mude mais (opção pouco negociada).
 string MontarCotacoes()
   {
    string s = "";
+   ArrayResize(g_pendIdx, 0); ArrayResize(g_pendMsc, 0);
+   ArrayResize(g_pendBid, 0); ArrayResize(g_pendAsk, 0); ArrayResize(g_pendLast, 0);
+   int total = ArraySize(g_ativos);
+   if(total == 0)
+      return(s);
+   if(g_cursor >= total)
+      g_cursor = 0;
    long desloc = DeslocamentoMs();
-   for(int i = 0; i < ArraySize(g_ativos); i++)
+   int n = 0;
+   int i = g_cursor;
+   for(int passo = 0; passo < total && n < LOTE_MAX; passo++, i = (i + 1) % total)
      {
       MqlTick t;
       if(!SymbolInfoTick(g_ativos[i], t) || t.time_msc == 0)
@@ -267,9 +285,25 @@ string MontarCotacoes()
                     ",\"volume\":" + (volume > 0 ? IntegerToString((long)volume) : "null") +
                     ",\"instante\":" + IntegerToString(t.time_msc - desloc) + "}";
       s += (s == "" ? "" : ",") + item;
-      g_ultimoMsc[i] = t.time_msc; g_ultimoBid[i] = t.bid; g_ultimoAsk[i] = t.ask; g_ultimoLast[i] = t.last;
+      ArrayResize(g_pendIdx, n + 1); ArrayResize(g_pendMsc, n + 1);
+      ArrayResize(g_pendBid, n + 1); ArrayResize(g_pendAsk, n + 1); ArrayResize(g_pendLast, n + 1);
+      g_pendIdx[n] = i; g_pendMsc[n] = t.time_msc; g_pendBid[n] = t.bid; g_pendAsk[n] = t.ask; g_pendLast[n] = t.last;
+      n++;
      }
+   g_cursor = i;
    return(s);
+  }
+
+void ConfirmarLote()
+  {
+   for(int k = 0; k < ArraySize(g_pendIdx); k++)
+     {
+      int i = g_pendIdx[k];
+      if(i >= ArraySize(g_ultimoMsc))
+         continue;
+      g_ultimoMsc[i] = g_pendMsc[k]; g_ultimoBid[i] = g_pendBid[k]; g_ultimoAsk[i] = g_pendAsk[k]; g_ultimoLast[i] = g_pendLast[k];
+     }
+   ArrayResize(g_pendIdx, 0);
   }
 
 string Texto(const string v)

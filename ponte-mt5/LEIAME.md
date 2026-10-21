@@ -22,7 +22,7 @@ O robô `WTA_Ponte.mq5` roda dentro do MetaTrader 5 logado na sua conta da corre
 4. **Libere o endereço**: *Ferramentas → Opções → Expert Advisors* → marque *Permitir WebRequest para as URLs listadas* e adicione `https://opcoes.wtatech.com.br`.
    - Use o endereço público com https: o MT5 só faz WebRequest nas portas padrão (80/443), então não dá para chamar `http://api:3001` direto.
 5. **Ligue o robô**: arraste `WTA_Ponte` para qualquer gráfico (por exemplo PETR4, M1). Na aba *Entradas*, cole a **Chave**. Mantenha *Algo Trading* ligado (o botão precisa estar verde para o robô rodar; ele continua sem enviar ordens).
-6. Confira a aba *Experts* do MT5: deve aparecer `WTA Ponte 1.0.0 iniciada`. No sistema, a ponte passa a "conectada" em poucos segundos.
+6. Confira a aba *Experts* do MT5: deve aparecer `WTA Ponte 1.1.0 iniciada`. No sistema, a ponte passa a "conectada" em poucos segundos.
 
 ## Parâmetros
 
