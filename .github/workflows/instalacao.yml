@@ -182,7 +182,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           docker run --rm "${{ steps.nome.outputs.imagem }}:teste" node -e "console.log('${{ matrix.imagem }}', process.arch)" | tee r.txt
-          grep -q "${{ matrix.arq }}" r.txt
+          grep -q "${{ matrix.arq == 'amd64' && 'x64' || 'arm64' }}" r.txt   # o Node chama amd64 de x64
           echo "::notice title=Imagem ${{ matrix.imagem }}::$(cat r.txt)"
       - name: Guardar o resumo (main)
         if: github.event_name != 'pull_request'
