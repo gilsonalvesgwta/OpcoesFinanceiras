@@ -136,16 +136,26 @@ jobs:
           tail -c 3800 falha.txt | tr '\n' ' ' | sed 's/^/::error title=Stack::/'; echo
 
   # Imagens para os dois tipos de processador: Intel/AMD (amd64) e ARM (arm64, como as
-  # VPS da Oracle Cloud). No pedido de mesclagem: monta a ARM e confere que ela liga.
-  # No main, depois que a instalação de teste passou: publica as duas.
-  publicar:
-    name: Imagens amd64 e arm64
+  # VPS da Oracle Cloud). Cada uma é montada numa máquina nativa (sem emulação, que era
+  # lenta demais para a interface). No pedido de mesclagem: monta e confere que liga.
+  # No main, depois que a instalação de teste passou: publica e junta as duas.
+  imagem:
+    name: Imagem ${{ matrix.imagem }} (${{ matrix.arq }})
     needs: stack
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    runs-on: ${{ matrix.maquina }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        imagem: [api, web]
+        arq: [amd64, arm64]
+        include:
+          - arq: amd64
+            maquina: ubuntu-24.04
+          - arq: arm64
+            maquina: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         if: github.event_name != 'pull_request'
@@ -153,48 +163,73 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Etiqueta curta da versão
-        id: versao
-        run: echo "curta=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
-      - name: Imagem da api
+      - name: Nome da imagem
+        id: nome
+        run: echo "imagem=ghcr.io/gilsonalvesgwta/opcoesfinanceiras-${{ matrix.imagem }}" >> "$GITHUB_OUTPUT"
+      - name: Montar (e publicar por resumo no main)
+        id: montar
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/api/Dockerfile
-          platforms: ${{ github.event_name == 'pull_request' && 'linux/arm64' || 'linux/amd64,linux/arm64' }}
-          push: ${{ github.event_name != 'pull_request' }}
+          file: apps/${{ matrix.imagem }}/Dockerfile
+          platforms: linux/${{ matrix.arq }}
           load: ${{ github.event_name == 'pull_request' }}
-          tags: ${{ github.event_name == 'pull_request' && format('{0}:teste-arm', env.IMAGEM_API) || format('{0}:main,{0}:{1}', env.IMAGEM_API, steps.versao.outputs.curta) }}
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,mode=max,scope=api
-      - name: Imagem da interface
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: apps/web/Dockerfile
-          platforms: ${{ github.event_name == 'pull_request' && 'linux/arm64' || 'linux/amd64,linux/arm64' }}
-          push: ${{ github.event_name != 'pull_request' }}
-          load: ${{ github.event_name == 'pull_request' }}
-          tags: ${{ github.event_name == 'pull_request' && format('{0}:teste-arm', env.IMAGEM_WEB) || format('{0}:main,{0}:{1}', env.IMAGEM_WEB, steps.versao.outputs.curta) }}
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
-      - name: A imagem ARM liga? (pedido de mesclagem)
+          tags: ${{ steps.nome.outputs.imagem }}${{ github.event_name == 'pull_request' && ':teste' || '' }}
+          outputs: ${{ github.event_name != 'pull_request' && 'type=image,push-by-digest=true,name-canonical=true,push=true' || '' }}
+          cache-from: type=gha,scope=${{ matrix.imagem }}-${{ matrix.arq }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.imagem }}-${{ matrix.arq }}
+      - name: A imagem liga? (pedido de mesclagem)
         if: github.event_name == 'pull_request'
         run: |
-          docker run --rm --platform linux/arm64 "$IMAGEM_API:teste-arm" node -e "require('pg'); console.log('api', process.arch)" | tee r.txt
-          docker run --rm --platform linux/arm64 "$IMAGEM_WEB:teste-arm" node -e "console.log('web', process.arch)" | tee -a r.txt
-          grep -q 'api arm64' r.txt && grep -q 'web arm64' r.txt
-          echo "::notice title=ARM::$(tr '\n' ' ' < r.txt)"
-      - name: As imagens servem para ARM e podem ser baixadas sem login? (main)
+          docker run --rm "${{ steps.nome.outputs.imagem }}:teste" node -e "console.log('${{ matrix.imagem }}', process.arch)" | tee r.txt
+          grep -q "${{ matrix.arq == 'amd64' && 'x64' || 'arm64' }}" r.txt   # o Node chama amd64 de x64
+          echo "::notice title=Imagem ${{ matrix.imagem }}::$(cat r.txt)"
+      - name: Guardar o resumo (main)
         if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p resumos
+          echo "${{ steps.montar.outputs.digest }}" > "resumos/${{ matrix.imagem }}-${{ matrix.arq }}"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: resumo-${{ matrix.imagem }}-${{ matrix.arq }}
+          path: resumos/*
+          retention-days: 1
+
+  publicar:
+    name: Publicar imagens (amd64 e arm64)
+    needs: imagem
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: resumo-*
+          path: resumos
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Juntar as duas arquiteturas nas etiquetas main e da versão
+        run: |
+          curta="${GITHUB_SHA::12}"
+          for img in api web; do
+            base="ghcr.io/gilsonalvesgwta/opcoesfinanceiras-$img"
+            docker buildx imagetools create -t "$base:main" -t "$base:$curta" \
+              "$base@$(cat resumos/$img-amd64)" "$base@$(cat resumos/$img-arm64)"
+          done
+      - name: As imagens servem para ARM e podem ser baixadas sem login?
         run: |
           docker logout ghcr.io > /dev/null 2>&1 || true
           r=""
-          for img in "$IMAGEM_API" "$IMAGEM_WEB"; do
-            plat=$(docker buildx imagetools inspect "$img:main" --format '{{range .Manifest.Manifests}}{{.Platform.Architecture}} {{end}}' 2>/dev/null || true)
+          for img in api web; do
+            base="ghcr.io/gilsonalvesgwta/opcoesfinanceiras-$img"
+            plat=$(docker buildx imagetools inspect "$base:main" --format '{{range .Manifest.Manifests}}{{.Platform.Architecture}} {{end}}' 2>/dev/null || true)
             [[ "$plat" == *amd64* && "$plat" == *arm64* ]] || { echo "::error title=Imagens::$img sem as duas arquiteturas ($plat)"; exit 1; }
-            r="$r ${img##*/}: pública ($plat)"
+            r="$r opcoesfinanceiras-$img: pública ($plat)"
           done
-          docker run --rm --platform linux/arm64 "$IMAGEM_API:main" node -e "require('pg'); console.log('api arm64 ok')"
-          docker run --rm --platform linux/arm64 "$IMAGEM_WEB:main" node -e "console.log('web arm64 ok')"
           echo "::notice title=Publicado::$r"
