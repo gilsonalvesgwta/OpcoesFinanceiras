@@ -11,8 +11,8 @@ import { MensagemDeErro } from './Acesso.tsx';
 import { useConsultaPeriodica } from './Consulta.tsx';
 import { Icone } from './Icone.tsx';
 
-// Versão atual de ponte-mt5/WTA_Ponte.mq5 (1.1.0: reenvia o que falhou e manda em lotes).
-const VERSAO_DO_ROBO = '1.1.0';
+// Versão atual de ponte-mt5/WTA_Ponte.mq5 (1.2.0: reenvia o que falhou, manda em lotes e informa a lista no Experts).
+const VERSAO_DO_ROBO = '1.2.0';
 
 const ENDERECO = 'https://opcoes.wtatech.com.br';
 
