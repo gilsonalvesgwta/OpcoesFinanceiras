@@ -11,6 +11,9 @@ import { MensagemDeErro } from './Acesso.tsx';
 import { useConsultaPeriodica } from './Consulta.tsx';
 import { Icone } from './Icone.tsx';
 
+// Versão atual de ponte-mt5/WTA_Ponte.mq5 (1.1.0: reenvia o que falhou e manda em lotes).
+const VERSAO_DO_ROBO = '1.1.0';
+
 const ENDERECO = 'https://opcoes.wtatech.com.br';
 
 const PASSOS = [
@@ -100,7 +103,7 @@ export function PonteMt5() {
               const detalhe = p.revogadaEm
                 ? `Revogada em ${formatarData(p.revogadaEm)}.`
                 : p.ultimoContatoEm
-                  ? `Último sinal ${haQuanto(p.ultimoContatoEm, agora)}.${p.versao ? ` Robô versão ${p.versao}.` : ''} Criada em ${formatarData(p.criadaEm ?? '')}.`
+                  ? `Último sinal ${haQuanto(p.ultimoContatoEm, agora)}.${p.versao ? ` Robô versão ${p.versao}.${p.versao < VERSAO_DO_ROBO ? ` Há uma versão nova (${VERSAO_DO_ROBO}): baixe o robô de novo e troque o arquivo no MT5.` : ''}` : ''} Criada em ${formatarData(p.criadaEm ?? '')}.`
                   : 'Cole a chave no robô para ligar.';
               return (
                 <div key={p.id} className="ponte">
