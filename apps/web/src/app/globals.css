@@ -345,3 +345,11 @@ p { margin: 0; }
 .tabela-cadeia tr.no-dinheiro { outline: 2px solid var(--latao); outline-offset: -2px; }
 .codigo-serie { font-weight: 600; }
 details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+
+/* Simulador de opções */
+.botao-cv { min-width: 28px; min-height: 28px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--linha); background: var(--painel2); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.botao-cv:hover { border-color: var(--latao); }
+.botao-c { color: var(--alta); }
+.botao-v { color: var(--baixa); }
+.tabela input, .tabela select { min-height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--borda-campo); background: var(--bg); color: var(--texto); font: inherit; text-align: right; }
+input[type='range'] { width: 100%; accent-color: var(--latao); min-height: 32px; }

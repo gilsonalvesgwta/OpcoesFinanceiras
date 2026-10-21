@@ -51,6 +51,8 @@ const MENSAGENS: Record<string, string> = {
   so_opcao_rola: 'Só pernas de opção podem ser roladas aqui.',
   sem_fechamento: 'Ainda não há fechamento da B3 para este ativo.',
   rolagem_de_outra_estrategia: 'Essa operação é de outra estratégia.',
+  limite_de_simulacoes: 'Você chegou ao limite de 200 simulações guardadas. Exclua alguma para guardar outra.',
+  simulacao_encerrada: 'Esta carteira simulada está encerrada. Reabra para operar.',
   entrada_invalida: 'Confira os campos preenchidos.',
   erro_interno: 'O sistema não conseguiu concluir agora. Tente de novo em instantes.',
   sem_conexao: 'Sem conexão com o servidor. Confira a internet e tente de novo.',

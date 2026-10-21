@@ -110,3 +110,10 @@ Calculadas pelo worker depois de cada arquivo da B3 (`calcularDoFechamento` em `
 - Risco: opção vendida com o ativo a até X% do strike (padrão 2%) ou já dentro do dinheiro; no máximo um por pregão.
 - Calls sem cobertura: um aviso por quantidade descoberta.
 - O worker roda entre 08:00 e 21:00 (Brasília), lê as posições por `app.posicoes_para_avisos()` e grava por `app.registrar_evento_posicao()` (idempotente pela chave). Sugestões de rolagem só com o consentimento do usuário, com os critérios guardados por ele, em ordem de vencimento e strike, sem recomendação.
+
+## Simulador (`simulador.ts`)
+
+- Pernas com preço de entrada e volatilidade própria (implícita do fechamento ou digitada). Em qualquer data: perna viva por Black-Scholes com os pregões que faltam até o SEU vencimento; vencida, valor intrínseco. Por isso calendários e diagonais funcionam sem aproximação especial.
+- Curvas: hoje, data escolhida e primeiro vencimento, na mesma faixa (±25% do ativo, alargada para os strikes). Máximos e mínimos são DENTRO da faixa desenhada.
+- Gregas somadas (delta em ações, gamma, theta em R$ por pregão, vega em R$ por ponto de vol). Opção viva sem volatilidade: resultado null e o código que faltou, nunca zero.
+- O cálculo roda no navegador (mesmo pacote do domínio, testado no CI), para os controles de data e volatilidade responderem na hora.
