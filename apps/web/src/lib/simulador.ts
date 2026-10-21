@@ -2,13 +2,14 @@
 // datas (hoje, data escolhida, primeiro vencimento) e escala do gráfico com várias curvas.
 
 import {
-  diasDePregaoEntre, taxaContinua, type AvaliacaoDaSimulacao, type ConfiguracaoDoCalendario, type PernaSimulada, type PontoDaCurva,
+  blackScholes, diasDePregaoEntre, premioDoFechamento, taxaContinua, volatilidadeImplicita,
+  type AvaliacaoDaSimulacao, type ConfiguracaoDoCalendario, type PernaSimulada, type PontoDaCurva,
 } from '@wta/domain';
 
 export type CotacaoResumida = { ultimo: number | null; bid: number | null; ask: number | null; qualidade: string; provedor: string; instanteDaFonte: string | null } | null;
 export type SerieDaCadeia = { codigo: string; tipo: 'call' | 'put'; strike: number; negocios: number | null; vol: number | null; delta: number | null; cotacao: CotacaoResumida };
 export type CadeiaDoSimulador = {
-  agora: string; hoje: string; dia: string;
+  agora: string; hoje: string; dia: string; mercadoAberto?: boolean;
   ativo: { codigo: string; cotacao: CotacaoResumida };
   vencimentos: string[]; vencimento: string | null; series: SerieDaCadeia[];
   selic: { dia: string; valor: number } | null;
@@ -138,4 +139,30 @@ export function execucoesParaApi(pernas: readonly PernaNaTela[]) {
     ...(p.tipo !== 'ativo' ? { strike: p.strike as number, vencimento: p.vencimento as string } : {}),
     ...(p.vol !== null && p.vol > 0 && p.vol < 5 ? { vol: p.vol } : {}),
   }));
+}
+
+// ---------- Volatilidade e delta ao vivo ----------
+// Com preço em tempo real da ponte MT5 (série e ativo), recalcula a volatilidade implícita
+// e o delta na hora, pelo meio do livro (spread até 50%) ou pelo último negócio. Sem isso,
+// fica a do fechamento da B3, e a tela diz qual é qual.
+export type VolDaSerie = { vol: number | null; delta: number | null; origem: 'ao_vivo' | 'fechamento' };
+
+export function volDaSerie(s: SerieDaCadeia, spot: CotacaoResumida, vencimento: string, hoje: string, cfg: ConfiguracaoDoCalendario | null, selicPct: number | null): VolDaSerie {
+  const doFechamento: VolDaSerie = { vol: s.vol, delta: s.delta, origem: 'fechamento' };
+  const c = s.cotacao;
+  const s0 = spot?.provedor === 'mt5' && spot.qualidade === 'tempo_real' ? (spot.ultimo ?? (spot.bid && spot.ask ? (spot.bid + spot.ask) / 2 : null)) : null;
+  if (!cfg || selicPct === null || !c || c.provedor !== 'mt5' || c.qualidade !== 'tempo_real' || !s0) return doFechamento;
+  const dias = diasDePregaoEntre(hoje, vencimento, cfg);
+  if (dias <= 0) return doFechamento;
+  const premio = premioDoFechamento(c.bid, c.ask, c.ultimo);
+  if (!premio) return doFechamento;
+  const base = { tipo: s.tipo, s: s0 / 100, k: s.strike / 100, t: dias / 252, r: taxaContinua(selicPct / 100) };
+  const iv = volatilidadeImplicita(premio.valor / 100, base);
+  if (!iv.ok) return doFechamento;
+  return { vol: iv.sigma, delta: blackScholes({ ...base, sigma: iv.sigma }).delta, origem: 'ao_vivo' };
+}
+
+// Quanto tempo esperar até a próxima consulta: pregão = 2 s; fora dele, 60 s.
+export function intervaloDeAtualizacao(mercadoAberto: boolean | undefined): number {
+  return mercadoAberto ? 2_000 : 60_000;
 }

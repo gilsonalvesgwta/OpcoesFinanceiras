@@ -92,6 +92,21 @@ describe('simulador de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : 
     assert.equal((await pedir('ana', 'GET', '/api/simulador/cadeia?ativo=NADA3')).status, 404);
   });
 
+  test('abrir a cadeia pede ao robô do MT5 as séries perto do preço (tempo real na tela)', async () => {
+    const r = await pedir('ana', 'GET', '/api/simulador/cadeia?ativo=SIMU3');
+    assert.equal(typeof r.corpo.mercadoAberto, 'boolean');
+    const obs = (await dono.query("select o.codigo from observados_ponte o join users u on u.id = o.user_id where u.email = $1 and o.ate > now() order by 1", [`ana.sim.${sufixo}@exemplo.test`])).rows.map((x) => x.codigo);
+    assert.deepEqual(obs, ['SIMU3', 'SIMUK400', 'SIMUK420', 'SIMUL400']);
+    const k = await pedir('ana', 'POST', '/api/ponte', { nome: 'Teste simulador' });
+    assert.equal(k.status, 201);
+    const robo = await app.inject({ method: 'GET', url: '/api/ponte/simbolos', headers: { authorization: `Bearer ${k.corpo.chave}` }, remoteAddress: '198.51.100.40' });
+    const simbolos = robo.json().simbolos as string[];
+    for (const c of obs) assert.ok(simbolos.includes(c), `o robô recebe ${c}`);
+    // Do outro usuário, nada.
+    const deBeto = (await dono.query("select count(*)::int as n from observados_ponte o join users u on u.id = o.user_id where u.email = $1", [`beto.sim.${sufixo}@exemplo.test`])).rows[0].n;
+    assert.equal(deBeto, 0);
+  });
+
   let simId = '';
 
   test('guarda a montagem como carteira simulada e acompanha pelo preço real', async () => {
