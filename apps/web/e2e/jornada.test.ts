@@ -19,7 +19,7 @@ async function foto(page: Page, nome: string) {
 async function semViolacoes(page: Page, onde: string) {
   const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   const resumo = r.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(', ')})`);
-  expect(resumo, `acessibilidade em ${onde}`).toEqual([]);
+  expect(resumo, `acessibilidade em ${onde}: ${resumo.join(" | ")}`).toEqual([]);
 }
 
 async function entrar(page: Page, email: string, senha: string) {
