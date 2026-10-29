@@ -11,7 +11,7 @@ export type SerieDaCadeia = { codigo: string; tipo: 'call' | 'put'; strike: numb
 export type CadeiaDoSimulador = {
   agora: string; hoje: string; dia: string; mercadoAberto?: boolean;
   ativo: { codigo: string; cotacao: CotacaoResumida };
-  vencimentos: string[]; vencimento: string | null; series: SerieDaCadeia[];
+  vencimentos: string[]; vencimento: string | null; series: SerieDaCadeia[]; tipos?: Record<string, string>;
   selic: { dia: string; valor: number } | null;
 };
 export type CalendarioDaApi = {
@@ -165,4 +165,49 @@ export function volDaSerie(s: SerieDaCadeia, spot: CotacaoResumida, vencimento: 
 // Quanto tempo esperar até a próxima consulta: pregão = 2 s; fora dele, 60 s.
 export function intervaloDeAtualizacao(mercadoAberto: boolean | undefined): number {
   return mercadoAberto ? 2_000 : 60_000;
+}
+
+// ---------- Vencimentos mensais e semanais ----------
+// A api diz o tipo de cada vencimento: "mensal" ou "W1".."W5" (sufixo do código na B3).
+export function rotuloDoVencimento(tipo: string | undefined): { texto: string; mensal: boolean } {
+  if (!tipo || tipo === 'mensal') return { texto: 'Mensal', mensal: true };
+  return { texto: `Semanal ${tipo}`, mensal: false };
+}
+
+// Preço do ativo para destacar o strike "no dinheiro": o mais novo que houver (MT5, brapi),
+// pelo último negócio ou, sem ele, pelo meio do livro.
+export function precoDoAtivo(c: CotacaoResumida): number | null {
+  if (!c) return null;
+  if (c.ultimo !== null && c.ultimo > 0) return c.ultimo;
+  if (c.bid !== null && c.ask !== null && c.bid > 0 && c.ask > 0) return Math.round((c.bid + c.ask) / 2);
+  return c.bid ?? c.ask ?? null;
+}
+
+// Pedido vindo de outra tela (Cadeia de opções): "CODIGO:compra" ou "CODIGO:venda".
+export function lerPedidoDeMontagem(v: string | null): { codigo: string; lado: 'compra' | 'venda' } | null {
+  const m = /^([A-Z0-9]{4,16}):(compra|venda)$/.exec((v ?? '').toUpperCase().replace(/:(COMPRA|VENDA)$/, (x) => x.toLowerCase()));
+  return m ? { codigo: m[1] as string, lado: m[2] as 'compra' | 'venda' } : null;
+}
+
+// Valor de uma perna em reais (centavos): compra é débito (negativo), venda é crédito.
+export function valorDaPernaNaMontagem(p: { lado: 'compra' | 'venda'; quantidade: number; preco: number }): number {
+  return (p.lado === 'compra' ? -1 : 1) * p.quantidade * p.preco;
+}
+
+export function totaisDaMontagem(pernas: readonly { lado: 'compra' | 'venda'; quantidade: number; preco: number }[]) {
+  let comprado = 0;
+  let vendido = 0;
+  for (const p of pernas) {
+    if (p.lado === 'compra') comprado += p.quantidade * p.preco; else vendido += p.quantidade * p.preco;
+  }
+  return { comprado, vendido, saldo: vendido - comprado };
+}
+
+// "2,03", "1.234,50" ou "2.03" -> centavos; vazio ou inválido -> null.
+export function lerReais(texto: string): number | null {
+  const t = texto.trim().replace(/\s|R\$/g, '');
+  if (!t) return null;
+  const normal = t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t;
+  const n = Number(normal);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
 }

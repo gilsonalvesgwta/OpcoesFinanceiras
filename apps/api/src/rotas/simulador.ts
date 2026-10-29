@@ -7,7 +7,8 @@ import { montarCarteira, resumoDeResultado, situacaoDoMercado, ErroDeValor, type
 import { ErroHttp, type Dependencias, type Sessao } from '../app.ts';
 import { emTransacao, type Cliente } from '../banco.ts';
 import type { CacheDoCalendario } from '../calendario.ts';
-import { cotacoesDoUsuario, paraCotacao, type CotacaoDeSaida } from '../cotacoes.ts';
+import { cotacoesDoUsuario, paraCotacao } from '../cotacoes.ts';
+import { observarCadeia, resumoDaCotacao, tiposDosVencimentos } from '../cadeia-ao-vivo.ts';
 
 const UUID = { type: 'string', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' } as const;
 const CODIGO = { type: 'string', pattern: '^[A-Za-z0-9]{4,12}$' } as const;
@@ -102,33 +103,8 @@ export async function rotasDoSimulador(app: FastifyInstance, dep: Dependencias, 
          where ativo_objeto = $1 and visto_ultimo >= $2 and vencimento >= $3 order by v`, [ativo, base, situacaoDoMercado(agora, cfg).dia],
       )).rows.map((l) => l.v as string);
       const vencimento = q.vencimento && vencimentos.includes(q.vencimento) ? q.vencimento : vencimentos[0] ?? null;
-      // Pede ao robô do MT5 (se houver) as séries dos 3 vencimentos mais próximos e as do
-      // vencimento escolhido, perto do preço, por 15 minutos. Renova no máximo uma vez por
-      // minuto POR ATIVO E VENCIMENTO (a tela consulta a cada 2 s; trocar de ativo ou de
-      // vencimento pede as séries novas na hora).
-      const renovar = (await c.query(
-        `select coalesce((select ate from observados_ponte where codigo = $1), '-infinity') < now() + interval '14 minutes'
-             or ($2::date is not null and not exists (
-                  select 1 from observados_ponte o join series_opcoes s on s.codigo = o.codigo
-                  where s.ativo_objeto = $1 and s.vencimento = $2::date and o.ate >= now() + interval '14 minutes')) as r`,
-        [ativo, vencimento],
-      )).rows[0]?.r;
-      if (renovar && vencimentos.length) {
-        await c.query(
-          `insert into observados_ponte (user_id, codigo, ate)
-           select $1, codigo, now() + interval '15 minutes' from (
-             select $2::text as codigo
-             union
-             (select s.codigo from series_opcoes s join fechamentos a on a.codigo = $2 and a.dia = $3
-              where s.ativo_objeto = $2 and s.vencimento = any($4::date[]) and s.visto_ultimo >= $3
-                and s.strike between a.ultimo * 0.75 and a.ultimo * 1.25
-              order by s.vencimento <> $5::date, s.vencimento, abs(s.strike - a.ultimo) limit 300)
-           ) x
-           on conflict (user_id, codigo) do update set ate = excluded.ate`,
-          [s.usuarioId, ativo, base, [...new Set([vencimento, ...vencimentos.slice(0, 3)].filter(Boolean))], vencimento],
-        );
-        await c.query('delete from observados_ponte where ate < now()');
-      }
+      await observarCadeia(c, s.usuarioId, ativo, base, vencimento, vencimentos);
+      const tipos = await tiposDosVencimentos(c, ativo, base, vencimentos);
       const linhas = vencimento ? (await c.query(
         `select s.codigo, s.tipo, s.strike, f.negocios, k.vol_implicita, k.delta
          from series_opcoes s
@@ -139,11 +115,11 @@ export async function rotasDoSimulador(app: FastifyInstance, dep: Dependencias, 
       )).rows : [];
       const cotacoes = new Map((await cotacoesDoUsuario(c, [ativo, ...linhas.map((l) => l.codigo as string)], agora, cfg)).map((x) => [x.codigo, x]));
       const selic = (await c.query("select to_char(dia, 'YYYY-MM-DD') as dia, valor::float8 as valor from taxas_juros where serie = 'selic' order by dia desc limit 1")).rows[0] ?? null;
-      const resumo = (x: CotacaoDeSaida | undefined) => (x ? { ultimo: x.ultimo, bid: x.bid, ask: x.ask, qualidade: x.qualidade, provedor: x.provedor, instanteDaFonte: x.instanteDaFonte } : null);
+      const resumo = resumoDaCotacao;
       return {
         agora: agora.toISOString(), hoje: situacaoDoMercado(agora, cfg).dia, dia: base, mercadoAberto: situacaoDoMercado(agora, cfg).aberto,
         ativo: { codigo: ativo, cotacao: resumo(cotacoes.get(ativo)) },
-        vencimentos, vencimento,
+        vencimentos, vencimento, tipos,
         series: linhas.map((l) => ({
           codigo: l.codigo, tipo: l.tipo, strike: Number(l.strike), negocios: num(l.negocios),
           vol: l.vol_implicita === null ? null : Number(l.vol_implicita), delta: l.delta === null ? null : Number(l.delta),

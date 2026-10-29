@@ -6,21 +6,22 @@
 // preço real e fazer ajustes e rolagens simulados. Tudo é estimativa do modelo; nada
 // envia ordem e nada se mistura com as posições reais.
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  caixaDaMontagem, curvaDaSimulacao, equilibriosDaCurva, extremosDaCurva, faixaDaSimulacao, gregasDaSimulacao, resultadoDaSimulacao,
+  curvaDaSimulacao, equilibriosDaCurva, extremosDaCurva, faixaDaSimulacao, gregasDaSimulacao, resultadoDaSimulacao,
   vencimentosDaSimulacao, type ConfiguracaoDoCalendario, type PontoDaCurva,
 } from '@wta/domain';
 import { Cabecalho } from '../../../componentes/Casca.tsx';
 import { MensagemDeErro } from '../../../componentes/Acesso.tsx';
 import { Icone } from '../../../componentes/Icone.tsx';
+import { SeloDoPreco } from '../../../componentes/SeloDoPreco.tsx';
 import { chamar, ErroDaApi, type Favorito } from '../../../lib/api.ts';
 import { formatarData, formatarReais } from '../../../lib/formatos.ts';
 import { quandoCurto } from '../../../lib/mercado.ts';
-import { QUALIDADE } from '../../../lib/posicoes.ts';
 import {
   adicionarPerna, avaliacaoNaData, configDoCalendario, diasEntre, escalaDoGrafico, execucoesParaApi, novoId, pernaDaSerie, pernaDoAtivo,
-  intervaloDeAtualizacao, pernaQueEncerra, precoDeMercado, resultadoEmPreco, somarDias, volDaSerie,
+  intervaloDeAtualizacao, lerPedidoDeMontagem, lerReais, pernaQueEncerra, precoDeMercado, precoDoAtivo, resultadoEmPreco, rotuloDoVencimento, somarDias,
+  totaisDaMontagem, valorDaPernaNaMontagem, volDaSerie,
   type CadeiaDoSimulador, type CalendarioDaApi, type CotacaoResumida, type PernaNaTela, type SerieDaCadeia,
 } from '../../../lib/simulador.ts';
 
@@ -37,12 +38,6 @@ type DetalheDaCarteira = ResumoDaCarteira & {
   abertos: { codigo: string; tipo: 'call' | 'put' | 'ativo'; strike: number | null; vencimento: string | null; quantidade: number; precoMedio: number; vol: number | null; cotacao: CotacaoResumida }[];
 };
 
-function SeloDoPreco({ c }: { c: CotacaoResumida }) {
-  if (!c) return <span className="selo selo-neutro" style={{ fontSize: 12 }}>sem preço</span>;
-  const s = c.provedor === 'brapi' ? { texto: 'brapi (~30 min)', classe: 'selo-periodica' } : QUALIDADE[c.qualidade] ?? { texto: c.qualidade, classe: 'selo-neutro' };
-  return <span className={`selo ${s.classe}`} style={{ fontSize: 12 }} title={c.instanteDaFonte ? `Preço de ${quandoCurto(c.instanteDaFonte)}` : undefined}>{s.texto}</span>;
-}
-
 // ---------- Cadeia com botões C e V ----------
 
 function Cadeia({ cadeia, spot, faixa, cfg, aoMontar }: { cadeia: CadeiaDoSimulador; spot: number | null; faixa: 'perto' | 'todas'; cfg: ConfiguracaoDoCalendario | null; aoMontar: (s: SerieDaCadeia, lado: 'compra' | 'venda') => void }) {
@@ -56,10 +51,11 @@ function Cadeia({ cadeia, spot, faixa, cfg, aoMontar }: { cadeia: CadeiaDoSimula
   }
   const strikes = [...porStrike.keys()].sort((a, b) => a - b);
   const atm = spot ? strikes.reduce((m, k) => (Math.abs(k - spot) < Math.abs(m - spot) ? k : m), strikes[0] ?? 0) : null;
-  const botoes = (s: SerieDaCadeia | undefined) => s && (
-    <span style={{ display: 'inline-flex', gap: 4 }}>
+  const botoes = (s: SerieDaCadeia | undefined, lado: 'call' | 'put') => s && (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexDirection: lado === 'call' ? 'row' : 'row-reverse' }}>
       <button type="button" className="botao-cv botao-c" onClick={() => aoMontar(s, 'compra')} aria-label={`Comprar ${s.codigo}`} title={`Comprar ${s.codigo}`}>C</button>
       <button type="button" className="botao-cv botao-v" onClick={() => aoMontar(s, 'venda')} aria-label={`Vender ${s.codigo}`} title={`Vender ${s.codigo}`}>V</button>
+      <span className="codigo-serie" style={{ fontSize: 12 }}>{s.codigo}</span>
     </span>
   );
   const celulas = (s: SerieDaCadeia | undefined, lado: 'call' | 'put') => {
@@ -67,14 +63,17 @@ function Cadeia({ cadeia, spot, faixa, cfg, aoMontar }: { cadeia: CadeiaDoSimula
     const vd = s && cadeia.vencimento ? volDaSerie(s, cadeia.ativo.cotacao, cadeia.vencimento, cadeia.hoje, cfg, cadeia.selic?.valor ?? null) : null;
     const corPreco = c?.provedor === 'mt5' && c.qualidade === 'tempo_real' ? { color: 'var(--vivo)' } : undefined;
     const corCalc = vd?.origem === 'ao_vivo' ? { color: 'var(--vivo)' } : undefined;
+    const dentro = s && spot ? (lado === 'call' ? s.strike < spot : s.strike > spot) : false;
+    const cl = `numero${dentro ? ' dentro' : ''}`;
     const v = [
-      <td key="bid" className="numero" style={corPreco}>{c?.bid ? reais(c.bid) : '—'}</td>,
-      <td key="ask" className="numero" style={corPreco}>{c?.ask ? reais(c.ask) : '—'}</td>,
-      <td key="ult" className="numero" style={corPreco}>{c?.ultimo ? reais(c.ultimo) : '—'}</td>,
-      <td key="vol" className="numero" style={corCalc}>{s ? pct(vd?.vol ?? null) : ''}</td>,
-      <td key="delta" className="numero" style={corCalc}>{vd?.delta === null || vd?.delta === undefined ? (s ? '—' : '') : vd.delta.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td>,
+      <td key="bid" className={cl} style={corPreco}>{c?.bid ? reais(c.bid) : '—'}</td>,
+      <td key="ask" className={cl} style={corPreco}>{c?.ask ? reais(c.ask) : '—'}</td>,
+      <td key="ult" className={cl} style={corPreco}>{c?.ultimo ? reais(c.ultimo) : '—'}</td>,
+      <td key="vol" className={cl} style={corCalc}>{s ? pct(vd?.vol ?? null) : ''}</td>,
+      <td key="delta" className={cl} style={corCalc}>{vd?.delta === null || vd?.delta === undefined ? (s ? '—' : '') : vd.delta.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td>,
     ];
-    return lado === 'call' ? [<td key="cv">{botoes(s)}</td>, ...v] : [...[...v].reverse(), <td key="cv">{botoes(s)}</td>];
+    const cv = <td key="cv" className={dentro ? 'dentro' : undefined} style={{ whiteSpace: 'nowrap' }}>{botoes(s, lado)}</td>;
+    return lado === 'call' ? [cv, ...v] : [...[...v].reverse(), cv];
   };
   if (!strikes.length) return <p className="secao-vazia">Nenhuma série neste vencimento{faixa === 'perto' ? ' perto do preço do ativo' : ''}.</p>;
   return (
@@ -83,11 +82,11 @@ function Cadeia({ cadeia, spot, faixa, cfg, aoMontar }: { cadeia: CadeiaDoSimula
         <thead>
           <tr><th scope="col" colSpan={6} className="lado">Calls</th><th scope="col" className="coluna-strike">Strike</th><th scope="col" colSpan={6} className="lado">Puts</th></tr>
           <tr>
-            <th scope="col"><span className="so-leitor">Montar call</span></th>
+            <th scope="col">Código</th>
             <th scope="col" className="numero">Compra</th><th scope="col" className="numero">Venda</th><th scope="col" className="numero">Último</th><th scope="col" className="numero">Vol</th><th scope="col" className="numero">Δ</th>
             <th scope="col" className="coluna-strike"><span className="so-leitor">Strike</span></th>
             <th scope="col" className="numero">Δ</th><th scope="col" className="numero">Vol</th><th scope="col" className="numero">Último</th><th scope="col" className="numero">Venda</th><th scope="col" className="numero">Compra</th>
-            <th scope="col"><span className="so-leitor">Montar put</span></th>
+            <th scope="col" style={{ textAlign: 'right' }}>Código</th>
           </tr>
         </thead>
         <tbody>
@@ -165,6 +164,9 @@ export default function PaginaSimulador() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
+  const [boleta, setBoleta] = useState({ ticker: '', preco: '' });
+  const pedidoAtual = useRef(0);
+  const montagemPedida = useRef<{ codigo: string; lado: 'compra' | 'venda' } | null>(null);
 
   const carregarCarteiras = useCallback(async () => {
     const r = await chamar<{ simulacoes: ResumoDaCarteira[] }>('GET', '/api/simulacoes');
@@ -173,13 +175,16 @@ export default function PaginaSimulador() {
 
   const carregarCadeia = useCallback(async (codigo: string, vencimento?: string, silencioso = false) => {
     if (!silencioso) setErro(null);
+    // Só vale a resposta do pedido mais recente (uma antiga que chega depois é ignorada).
+    const meu = ++pedidoAtual.current;
     try {
       const r = await chamar<CadeiaDoSimulador>('GET', `/api/simulador/cadeia?ativo=${encodeURIComponent(codigo)}${vencimento ? `&vencimento=${vencimento}` : ''}`);
+      if (meu !== pedidoAtual.current) return;
       setCadeia(r);
       setAtualizadoEm(new Date());
       if (!silencioso) { setAtivo(r.ativo.codigo); setEntradaAtivo(r.ativo.codigo); }
     } catch (x) {
-      if (silencioso) return; // falha momentânea na atualização automática: tenta de novo no próximo ciclo
+      if (silencioso || meu !== pedidoAtual.current) return; // falha momentânea na atualização automática: tenta de novo no próximo ciclo
       setErro(x instanceof ErroDaApi && x.codigo === 'sem_fechamento' ? `Sem dados da B3 para ${codigo}. Confira o código da ação (ex.: PETR4).` : x instanceof Error ? x.message : 'Não foi possível carregar a cadeia.');
     }
   }, []);
@@ -190,8 +195,11 @@ export default function PaginaSimulador() {
     chamar<{ favoritos: Favorito[] }>('GET', '/api/favoritos').then((r) => {
       const lista = r.favoritos.map((f) => f.codigo).filter((c) => /^[A-Z]{4}\d{1,2}$/.test(c));
       setFavoritos(lista);
-      const pedido = new URLSearchParams(window.location.search).get('ativo')?.toUpperCase();
-      void carregarCadeia(pedido || lista[0] || 'PETR4');
+      // Vindo da Cadeia de opções: ?ativo=BOVA11&vencimento=2026-11-19&montar=BOVAK190:compra
+      const url = new URLSearchParams(window.location.search);
+      const pedido = url.get('ativo')?.toUpperCase();
+      montagemPedida.current = lerPedidoDeMontagem(url.get('montar'));
+      void carregarCadeia(pedido || lista[0] || 'PETR4', url.get('vencimento') || undefined);
     }).catch(() => void carregarCadeia('PETR4'));
   }, [carregarCadeia, carregarCarteiras]);
 
@@ -211,7 +219,7 @@ export default function PaginaSimulador() {
     return () => clearInterval(t);
   }, [codigoAtual, vencimentoAtual, aberto, carregarCadeia]);
 
-  const spot = cadeia?.ativo.cotacao ? (cadeia.ativo.cotacao.ultimo ?? cadeia.ativo.cotacao.bid) : null;
+  const spot = precoDoAtivo(cadeia?.ativo.cotacao ?? null);
   const selic = cadeia?.selic?.valor ?? null;
   const hoje = cadeia?.hoje ?? null;
   const vencs = useMemo(() => vencimentosDaSimulacao(pernas), [pernas]);
@@ -247,9 +255,60 @@ export default function PaginaSimulador() {
     const vd = volDaSerie(s, cadeia.ativo.cotacao, cadeia.vencimento, cadeia.hoje, cfg, cadeia.selic?.valor ?? null);
     setPernas((ps) => adicionarPerna(ps, { ...pernaDaSerie(s, cadeia.vencimento as string, lado, quantidade), vol: vd.vol }));
   };
+
+  // Pedido vindo da Cadeia de opções: monta a série assim que a cadeia (com o calendário) chega.
+  useEffect(() => {
+    const pedido = montagemPedida.current;
+    if (!pedido || !cadeia || !cfg) return;
+    montagemPedida.current = null;
+    const s = cadeia.series.find((x) => x.codigo === pedido.codigo);
+    if (s) {
+      montar(s, pedido.lado);
+      setAviso(`${pedido.lado === 'compra' ? 'Compra' : 'Venda'} de ${quantidade.toLocaleString('pt-BR')} ${s.codigo} incluída na montagem.`);
+    } else {
+      setBoleta({ ticker: pedido.codigo, preco: '' });
+      void lancarPelaBoleta(pedido.lado, pedido.codigo);
+    }
+  }, [cadeia, cfg]);
+
+  // Boleta: digita o código, a quantidade e (se quiser) o preço; Comprar ou Vender.
+  // Série desta cadeia: preço do livro (C paga o ask, V recebe o bid). Outra série ou o
+  // ativo: cadastro da B3 e a cotação mais nova que houver.
+  const tickerDaBoleta = boleta.ticker.trim().toUpperCase();
+  const serieDaBoleta = cadeia?.series.find((x) => x.codigo === tickerDaBoleta) ?? null;
+  const cotacaoDaBoleta = serieDaBoleta?.cotacao ?? (cadeia && tickerDaBoleta === cadeia.ativo.codigo ? cadeia.ativo.cotacao : null);
+  async function lancarPelaBoleta(lado: 'compra' | 'venda', codigoPedido?: string) {
+    const codigo = (codigoPedido ?? tickerDaBoleta).trim().toUpperCase();
+    if (!/^[A-Z0-9]{4,16}$/.test(codigo)) return setErro('Digite o código (ticker), por exemplo BOVAK190 ou PETR4.');
+    setErro(null);
+    const precoDigitado = lerReais(boleta.preco);
+    let nova: PernaNaTela;
+    const s = cadeia?.series.find((x) => x.codigo === codigo);
+    if (s && cadeia?.vencimento) {
+      const vd = volDaSerie(s, cadeia.ativo.cotacao, cadeia.vencimento, cadeia.hoje, cfg, cadeia.selic?.valor ?? null);
+      nova = { ...pernaDaSerie(s, cadeia.vencimento, lado, quantidade), vol: vd.vol };
+    } else if (cadeia && codigo === cadeia.ativo.codigo) {
+      nova = pernaDoAtivo(codigo, cadeia.ativo.cotacao, lado, quantidade);
+    } else {
+      try {
+        const r = await chamar<{ codigo: string; tipo: 'call' | 'put' | 'ativo'; strike: number | null; vencimento: string | null; ativoObjeto: string | null; cotacao: CotacaoResumida }>('GET', `/api/posicoes/serie/${codigo}`);
+        if (cadeia && r.ativoObjeto && r.ativoObjeto !== cadeia.ativo.codigo) {
+          return setErro(`${codigo} é opção de ${r.ativoObjeto}. Carregue ${r.ativoObjeto} no campo Ativo para montar com ela.`);
+        }
+        nova = r.tipo === 'ativo'
+          ? pernaDoAtivo(codigo, r.cotacao, lado, quantidade)
+          : { id: novoId(), codigo, tipo: r.tipo, strike: r.strike as number, vencimento: r.vencimento as string, lado, quantidade, preco: precoDeMercado(r.cotacao, lado)?.preco ?? 0, vol: null };
+      } catch (x) {
+        return setErro(x instanceof ErroDaApi && x.codigo === 'serie_desconhecida' ? `Não achei ${codigo} no cadastro da B3. Confira o código.` : x instanceof Error ? x.message : 'Não foi possível buscar o código.');
+      }
+    }
+    if (precoDigitado !== null) nova = { ...nova, preco: precoDigitado };
+    setPernas((ps) => adicionarPerna(ps, nova));
+    setAviso(`${lado === 'compra' ? 'Compra' : 'Venda'} de ${quantidade.toLocaleString('pt-BR')} ${codigo} a ${nova.preco ? reais(nova.preco) : '— (digite o preço na montagem)'} incluída.`);
+  }
+
   const mudar = (id: string, x: Partial<PernaNaTela>) => setPernas((ps) => ps.map((p) => (p.id === id ? { ...p, ...x } : p)));
   const novas = pernas.filter((p) => !p.base);
-  const caixa = caixaDaMontagem(novas);
   const valorConsulta = (() => { const n = Number(precoConsulta.replace(',', '.')); return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : spot; })();
 
   async function guardar(e: FormEvent<HTMLFormElement>) {
@@ -356,19 +415,25 @@ export default function PaginaSimulador() {
         </div>
         {cadeia && cadeia.vencimentos.length > 0 && (
           <div className="atalhos" role="group" aria-label="Vencimentos">
-            {cadeia.vencimentos.map((v) => (
-              <button key={v} type="button" className={`botao botao-pequeno ${v === cadeia.vencimento ? 'botao-contorno' : ''}`} aria-pressed={v === cadeia.vencimento}
-                onClick={() => void carregarCadeia(cadeia.ativo.codigo, v)}>
-                {formatarData(v)}{hoje ? ` (${diasEntre(hoje, v)}d)` : ''}
-              </button>
-            ))}
+            {cadeia.vencimentos.map((v) => {
+              const r = rotuloDoVencimento(cadeia.tipos?.[v]);
+              return (
+                <button key={v} type="button" title={r.texto} aria-pressed={v === cadeia.vencimento}
+                  className={`botao botao-pequeno ${v === cadeia.vencimento ? 'botao-principal' : r.mensal ? 'botao-contorno' : ''}`}
+                  onClick={() => void carregarCadeia(cadeia.ativo.codigo, v)}>
+                  {r.mensal
+                    ? <strong>{formatarData(v).slice(0, 5)} · Mensal{hoje ? ` (${diasEntre(hoje, v)}d)` : ''}</strong>
+                    : <>{formatarData(v).slice(0, 5)} · {r.texto.replace('Semanal ', '')}{hoje ? ` (${diasEntre(hoje, v)}d)` : ''}</>}
+                </button>
+              );
+            })}
           </div>
         )}
       </section>
 
       <section className="secao" aria-labelledby="cadeia-titulo">
           <div className="secao-topo">
-            <h2 id="cadeia-titulo">Cadeia {cadeia?.vencimento ? `· vence ${formatarData(cadeia.vencimento)}` : ''}</h2>
+            <h2 id="cadeia-titulo">Cadeia {cadeia?.vencimento ? `· vence ${formatarData(cadeia.vencimento)} · ${rotuloDoVencimento(cadeia.tipos?.[cadeia.vencimento]).texto}` : ''}</h2>
             <div className="form-em-linha">
               <label className="rotulo-em-linha" htmlFor="sim-qtd">Quantidade
                 <input id="sim-qtd" inputMode="numeric" value={quantidadePadrao} onChange={(e) => setQuantidadePadrao(e.target.value)} style={{ width: 90, minHeight: 40, padding: '0 8px', borderRadius: 8, border: '1px solid var(--borda-campo)', background: 'var(--bg)', color: 'var(--texto)', font: 'inherit' }} />
@@ -397,17 +462,52 @@ export default function PaginaSimulador() {
           )}
       </section>
 
+      <section className="secao" aria-labelledby="boleta-titulo" style={{ gap: 10 }}>
+        <h2 id="boleta-titulo">Boleta</h2>
+        <form className="boleta" noValidate onSubmit={(e) => { e.preventDefault(); void lancarPelaBoleta('compra'); }}>
+          <div className="campo" style={{ flex: '0 1 180px' }}>
+            <label htmlFor="boleta-ticker">Código (ticker)</label>
+            <input id="boleta-ticker" value={boleta.ticker} maxLength={16} list="boleta-codigos" autoCapitalize="characters" placeholder="Ex.: BOVAK190"
+              onChange={(e) => setBoleta((b) => ({ ...b, ticker: e.target.value.toUpperCase() }))} />
+            <datalist id="boleta-codigos">
+              {cadeia && <option value={cadeia.ativo.codigo} />}
+              {cadeia?.series.map((x) => <option key={x.codigo} value={x.codigo}>{`${x.tipo === 'call' ? 'Call' : 'Put'} ${reais(x.strike)}`}</option>)}
+            </datalist>
+          </div>
+          <div className="campo" style={{ flex: '0 1 120px' }}>
+            <label htmlFor="boleta-qtd">Quantidade</label>
+            <input id="boleta-qtd" inputMode="numeric" value={quantidadePadrao} onChange={(e) => setQuantidadePadrao(e.target.value)} />
+          </div>
+          <div className="campo" style={{ flex: '0 1 140px' }}>
+            <label htmlFor="boleta-preco">Preço (R$)</label>
+            <input id="boleta-preco" inputMode="decimal" value={boleta.preco} placeholder="do livro" onChange={(e) => setBoleta((b) => ({ ...b, preco: e.target.value }))} />
+          </div>
+          <button type="button" className="botao botao-comprar" onClick={() => void lancarPelaBoleta('compra')}>Comprar</button>
+          <button type="button" className="botao botao-vender" onClick={() => void lancarPelaBoleta('venda')}>Vender</button>
+          {tickerDaBoleta && (
+            <span className="linha-lista-apoio" style={{ fontSize: 13, alignSelf: 'center' }} aria-live="polite">
+              {cotacaoDaBoleta
+                ? <>{tickerDaBoleta}: compra {cotacaoDaBoleta.bid ? reais(cotacaoDaBoleta.bid) : '—'} · venda {cotacaoDaBoleta.ask ? reais(cotacaoDaBoleta.ask) : '—'} · último {cotacaoDaBoleta.ultimo ? reais(cotacaoDaBoleta.ultimo) : '—'} <SeloDoPreco c={cotacaoDaBoleta} /></>
+                : serieDaBoleta === null && cadeia ? 'Código fora desta cadeia: busco no cadastro da B3 ao lançar.' : null}
+            </span>
+          )}
+        </form>
+        <p className="linha-lista-apoio" style={{ margin: 0, fontSize: 13 }}>
+          Sem preço digitado, Comprar usa a melhor oferta de venda (ask) e Vender a melhor de compra (bid); sem oferta, o último negócio. Tudo é simulação: nada vai para a corretora.
+        </p>
+      </section>
+
       <div className="grade-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 520px), 1fr))' }}>
           <section className="secao" aria-labelledby="pernas-titulo">
             <div className="secao-topo">
               <h2 id="pernas-titulo">Montagem</h2>
               {novas.length > 0 && <button type="button" className="botao-texto" onClick={() => setPernas((ps) => ps.filter((p) => p.base))}>Limpar o que é novo</button>}
             </div>
-            {pernas.length === 0 ? <p className="secao-vazia">Clique em C ou V na cadeia para montar.</p> : (
+            {pernas.length === 0 ? <p className="secao-vazia">Clique em C ou V na cadeia, ou use a boleta acima.</p> : (
               <div className="tabela-caixa" tabIndex={0} role="region" aria-label="Pernas da montagem" style={{ margin: '0 -24px' }}>
                 <table className="tabela">
                   <thead>
-                    <tr><th scope="col">Perna</th><th scope="col">Operação</th><th scope="col" className="numero">Qtd.</th><th scope="col" className="numero">Preço</th><th scope="col" className="numero">Vol</th><th scope="col"><span className="so-leitor">Ações</span></th></tr>
+                    <tr><th scope="col">Perna</th><th scope="col">Operação</th><th scope="col" className="numero">Qtd.</th><th scope="col" className="numero">Preço</th><th scope="col" className="numero">Vol</th><th scope="col" className="numero">Valor</th><th scope="col"><span className="so-leitor">Ações</span></th></tr>
                   </thead>
                   <tbody>
                     {pernas.map((p) => (
@@ -429,6 +529,9 @@ export default function PaginaSimulador() {
                         <td className="numero">
                           {p.tipo === 'ativo' ? '—' : <input aria-label={`Volatilidade de ${p.codigo} em %`} type="number" min={1} max={300} step={0.5} value={p.vol === null ? '' : Math.round(p.vol * 1000) / 10} placeholder="?" onChange={(e) => { const n = Number(e.target.value); mudar(p.id, { vol: e.target.value === '' || !(n > 0) ? null : n / 100 }); }} style={{ width: 72 }} />}
                         </td>
+                        <td className={`numero ${classeDoValor(p.base ? 0 : valorDaPernaNaMontagem(p))}`} style={{ whiteSpace: 'nowrap' }}>
+                          {p.base ? '—' : `${valorDaPernaNaMontagem(p) > 0 ? '+' : ''}${formatarReais(valorDaPernaNaMontagem(p))}`}
+                        </td>
                         <td style={{ whiteSpace: 'nowrap' }}>
                           {p.base
                             ? <button type="button" className="botao botao-pequeno" onClick={() => encerrar(p)}>Encerrar</button>
@@ -437,14 +540,20 @@ export default function PaginaSimulador() {
                       </tr>
                     ))}
                   </tbody>
+                  {novas.length > 0 && (() => {
+                    const t = totaisDaMontagem(novas);
+                    return (
+                      <tfoot className="tabela-totais">
+                        <tr>
+                          <th scope="row" colSpan={5}>{carteira ? 'Total do ajuste' : 'Total da operação'}<span className="sub">comprado {formatarReais(t.comprado)} · vendido {formatarReais(t.vendido)} · sem custos; crédito não é lucro</span></th>
+                          <td className={`numero ${classeDoValor(t.saldo)}`} style={{ whiteSpace: 'nowrap' }}>{t.saldo > 0 ? '+' : ''}{formatarReais(t.saldo)}</td>
+                          <td style={{ fontSize: 13 }}>{t.saldo > 0 ? 'crédito' : t.saldo < 0 ? 'débito' : ''}</td>
+                        </tr>
+                      </tfoot>
+                    );
+                  })()}
                 </table>
               </div>
-            )}
-            {novas.length > 0 && (
-              <p style={{ margin: 0 }}>
-                {carteira ? 'Caixa do ajuste' : 'Caixa da montagem'}: <strong className={classeDoValor(caixa)}>{caixa > 0 ? `crédito de ${formatarReais(caixa)}` : caixa < 0 ? `débito de ${formatarReais(-caixa)}` : 'zero'}</strong>
-                <span className="linha-lista-apoio" style={{ fontSize: 13 }}> (sem custos; crédito não é lucro)</span>
-              </p>
             )}
             {pernas.some((p) => p.tipo !== 'ativo' && p.vol === null) && (
               <p className="aviso-tracejado">Série sem volatilidade calculada: digite uma (em %) para estimar antes do vencimento. Sem ela, só o vencimento é calculado.</p>

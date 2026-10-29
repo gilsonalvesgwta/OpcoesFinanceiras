@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { resultadoDaSimulacao } from '@wta/domain';
 import {
   adicionarPerna, avaliacaoNaData, configDoCalendario, diasEntre, escalaDoGrafico, execucoesParaApi, pernaDaSerie, pernaDoAtivo, pernaQueEncerra,
-  precoDeMercado, resultadoEmPreco, somarDias, type SerieDaCadeia,
+  lerPedidoDeMontagem, precoDeMercado, precoDoAtivo, resultadoEmPreco, rotuloDoVencimento, somarDias, totaisDaMontagem, valorDaPernaNaMontagem, type SerieDaCadeia,
 } from './simulador.ts';
 
 const cot = (bid: number | null, ask: number | null, ultimo: number | null) => ({ bid, ask, ultimo, qualidade: 'historico', provedor: 'b3-cotahist', instanteDaFonte: null });
@@ -80,4 +80,27 @@ test('vol e delta ao vivo só com tempo real do MT5; senão, do fechamento', asy
   assert.equal(volDaSerie(s, cot(3899, 3901, 3900), '2026-11-23', '2026-10-21', cfg, 14.9).origem, 'fechamento', 'ativo sem MT5: fechamento');
   assert.equal(intervaloDeAtualizacao(true), 2000);
   assert.equal(intervaloDeAtualizacao(false), 60000);
+});
+
+test('vencimento mensal ou semanal, preço do ativo, pedido da cadeia e totais', () => {
+  assert.deepEqual(rotuloDoVencimento('mensal'), { texto: 'Mensal', mensal: true });
+  assert.deepEqual(rotuloDoVencimento('W3'), { texto: 'Semanal W3', mensal: false });
+  assert.equal(precoDoAtivo({ ultimo: null, bid: 16600, ask: 16604, qualidade: 'tempo_real', provedor: 'mt5', instanteDaFonte: null }), 16602);
+  assert.equal(precoDoAtivo(null), null);
+  assert.deepEqual(lerPedidoDeMontagem('BOVAK190:compra'), { codigo: 'BOVAK190', lado: 'compra' });
+  assert.deepEqual(lerPedidoDeMontagem('bovaj154w5:venda'), { codigo: 'BOVAJ154W5', lado: 'venda' });
+  assert.equal(lerPedidoDeMontagem('x:y'), null);
+  const t = totaisDaMontagem([{ lado: 'compra', quantidade: 100, preco: 203 }, { lado: 'venda', quantidade: 200, preco: 111 }]);
+  assert.deepEqual(t, { comprado: 20300, vendido: 22200, saldo: 1900 });
+  assert.equal(valorDaPernaNaMontagem({ lado: 'compra', quantidade: 100, preco: 203 }), -20300);
+});
+
+test('preço digitado na boleta', async () => {
+  const { lerReais } = await import('./simulador.ts');
+  assert.equal(lerReais('2,03'), 203);
+  assert.equal(lerReais('2.03'), 203);
+  assert.equal(lerReais('1.234,50'), 123450);
+  assert.equal(lerReais('R$ 0,45'), 45);
+  assert.equal(lerReais(''), null);
+  assert.equal(lerReais('abc'), null);
 });

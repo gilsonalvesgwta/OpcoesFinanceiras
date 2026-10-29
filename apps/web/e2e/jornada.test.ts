@@ -287,7 +287,8 @@ test.describe.serial('jornada', () => {
     await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Cadeia de opções' }).first().click();
     await expect(page.getByRole('heading', { name: 'Cadeia de opções', level: 1 })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'ITUB4: fechamento de 16/10' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'ITUB4 agora' })).toBeVisible();
+    await expect(page.getByText('Fechamento de 16/10')).toBeVisible();
     await expect(page.getByLabel('Vencimento', { exact: true })).toContainText('23/11/2026');
     const linha36 = page.getByRole('row', { name: /36,00/ });
     await expect(linha36).toContainText('ITUBK360');
@@ -298,12 +299,16 @@ test.describe.serial('jornada', () => {
     await expect(page.getByRole('row', { name: /38,00/ })).toContainText('ITUBK380');
     await page.getByText('Mostrar gama, theta e vega').click();
     await expect(page.getByRole('columnheader', { name: 'Theta' }).first()).toBeVisible();
-    await page.getByText('Só séries com negócio no dia').click();
+    await page.getByText('Só séries com negócio no fechamento').click();
     await expect(page.getByText('ITUBW360')).toHaveCount(0);
     await page.getByText('Premissas do cálculo').click();
     await expect(page.getByText('Modelo Black-Scholes-Merton', { exact: false })).toBeVisible();
     await semViolacoes(page, 'cadeia');
     await foto(page, 'cadeia');
+    // C leva a série para o Simulador, já na montagem.
+    await page.getByRole('link', { name: 'Comprar ITUBK360 no Simulador' }).click();
+    await expect(page).toHaveURL(/\/simulador\?.*montar=ITUBK360/);
+    await expect(page.getByText(/Compra de 100 ITUBK360 incluída/)).toBeVisible();
   });
 
   test('posições: venda coberta com a série vinda do cadastro, resultado e gráfico', async ({ page }) => {
@@ -365,11 +370,16 @@ test.describe.serial('jornada', () => {
     await page.getByRole('button', { name: 'Comprar ITUBK360' }).click();
     await page.getByRole('button', { name: 'Vender ITUBK380' }).click();
     // Compra pelo ask (0,69) e venda pelo bid (0,16): débito de 53,00 em 100 de cada.
-    await expect(page.getByText(/débito de R\$\s53,00/)).toBeVisible();
+    await expect(page.getByRole('row', { name: /Total da operação/ })).toContainText('53,00');
+    await expect(page.getByRole('row', { name: /Total da operação/ })).toContainText('débito');
     await expect(page.getByRole('img', { name: /Resultado estimado da montagem em ITUB4/ })).toBeVisible();
-    await page.getByRole('button', { name: /18\/12\/2026/ }).click();
+    await page.getByRole('button', { name: /18\/12/ }).click();
     await page.getByRole('button', { name: 'Vender ITUBL380' }).click();
     await expect(page.getByText(/Vencimentos diferentes: no primeiro vencimento/)).toBeVisible();
+    // Boleta: código, quantidade e Comprar.
+    await page.getByLabel('Código (ticker)').fill('ITUB4');
+    await page.getByRole('button', { name: 'Comprar', exact: true }).click();
+    await expect(page.getByText(/Compra de 100 ITUB4 a/)).toBeVisible();
     await semViolacoes(page, 'simulador');
     await foto(page, 'simulador');
     await page.getByLabel('Guardar como carteira simulada').fill('Trava teste');
