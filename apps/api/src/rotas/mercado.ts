@@ -6,6 +6,8 @@ import { ErroHttp, ipDe, type Dependencias, type Sessao } from '../app.ts';
 import { emTransacao, violacaoDeUnicidade } from '../banco.ts';
 import { auditar } from '../auditoria.ts';
 import type { CacheDoCalendario } from '../calendario.ts';
+import { cotacoesDoUsuario } from '../cotacoes.ts';
+import { observarCadeia, resumoDaCotacao, tiposDosVencimentos } from '../cadeia-ao-vivo.ts';
 
 const DIA = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' } as const;
 const HORA = { type: 'string', pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' } as const;
@@ -95,6 +97,8 @@ export async function rotasDeMercado(app: FastifyInstance, dep: Dependencias, ca
     const s = req.sessao as Sessao;
     const q = req.query as { ativo: string; vencimento?: string };
     const ativo = q.ativo.toUpperCase();
+    const agora = (dep.relogio ?? (() => new Date()))();
+    const cfg = await calendario.obter();
     return emTransacao(pool, s.usuarioId, async (c) => {
       const base = (await c.query(
         "select to_char(dia, 'YYYY-MM-DD') as dia, ultimo from fechamentos where codigo = $1 and tipo_mercado = 10 order by dia desc limit 1", [ativo],
@@ -106,6 +110,9 @@ export async function rotasDeMercado(app: FastifyInstance, dep: Dependencias, ca
          where ativo_objeto = $1 and visto_primeiro <= $2 and visto_ultimo >= $2 and vencimento >= $2 order by v`, [ativo, dia],
       )).rows.map((l) => l.v as string);
       const vencimento = q.vencimento ?? vencimentos[0] ?? null;
+      // Ao vivo: pede as séries ao robô do MT5 e mescla as cotações (MT5 > brapi > fechamento).
+      await observarCadeia(c, s.usuarioId, ativo, dia, vencimento, vencimentos);
+      const tipos = await tiposDosVencimentos(c, ativo, dia, vencimentos);
       const series = vencimento ? (await c.query(
         `select s.codigo, s.tipo, s.strike, f.ultimo, f.melhor_compra, f.melhor_venda, f.negocios, f.quantidade,
                 k.vol_implicita, k.preco_teorico, k.delta, k.gamma, k.theta, k.vega, k.rho, k.premio, k.origem_premio, k.dias_uteis, k.selic, k.motivo
@@ -115,11 +122,14 @@ export async function rotasDeMercado(app: FastifyInstance, dep: Dependencias, ca
          where s.ativo_objeto = $1 and s.vencimento = $3 and s.visto_primeiro <= $2 and s.visto_ultimo >= $2
          order by s.strike, s.tipo`, [ativo, dia, vencimento],
       )).rows : [];
+      const vivas = new Map((await cotacoesDoUsuario(c, [ativo, ...series.map((l) => l.codigo as string)], agora, cfg)).map((x) => [x.codigo, x]));
+      const mercado = situacaoDoMercado(agora, cfg);
       return {
-        ativo: { codigo: ativo, ultimo: num(base.ultimo), dia },
-        vencimentos, vencimento,
+        agora: agora.toISOString(), hoje: mercado.dia, mercadoAberto: mercado.aberto,
+        ativo: { codigo: ativo, ultimo: num(base.ultimo), dia, cotacao: resumoDaCotacao(vivas.get(ativo)) },
+        vencimentos, vencimento, tipos,
         series: series.map((l) => ({
-          codigo: l.codigo, tipo: l.tipo, strike: num(l.strike),
+          codigo: l.codigo, tipo: l.tipo, strike: num(l.strike), cotacao: resumoDaCotacao(vivas.get(l.codigo)),
           ultimo: num(l.ultimo), bid: num(l.melhor_compra), ask: num(l.melhor_venda), negocios: l.negocios, quantidade: num(l.quantidade),
           calculo: l.motivo === null && l.vol_implicita !== null
             ? {

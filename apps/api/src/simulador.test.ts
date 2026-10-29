@@ -10,6 +10,13 @@ import { criarPool } from './banco.ts';
 import type { Config } from './config.ts';
 import { CorreioDeTeste } from './correio.ts';
 import { gerarHashDeSenha } from './seguranca.ts';
+import { tipoDoVencimento } from './cadeia-ao-vivo.ts';
+
+test('tipo do vencimento pelo código da B3', () => {
+  assert.equal(tipoDoVencimento(['BOVAK190', 'BOVAW190']), 'mensal');
+  assert.equal(tipoDoVencimento(['BOVAJ154W5', 'BOVAV154W5']), 'W5');
+  assert.equal(tipoDoVencimento(['PETRK380W3']), 'W3');
+});
 
 const URL_APP = process.env.DATABASE_URL;
 const URL_DONO = process.env.DATABASE_URL_DONO;

@@ -351,6 +351,14 @@ details > summary { cursor: pointer; min-height: 44px; display: flex; align-item
 .botao-cv:hover { border-color: var(--latao); }
 .botao-c { color: var(--alta); }
 .botao-v { color: var(--baixa); }
+a.botao-cv { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.boleta { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; }
+.boleta .campo input { min-height: 44px; }
+.botao-comprar { background: var(--alta); color: var(--bg); border-color: var(--alta); font-weight: 700; }
+.botao-vender { background: var(--baixa); color: var(--bg); border-color: var(--baixa); font-weight: 700; }
+.botao-comprar:hover, .botao-vender:hover { color: var(--bg); border-color: var(--texto); }
+.vencimento-mensal { font-weight: 700; }
+.tabela-totais td, .tabela-totais th { font-weight: 700; border-top: 2px solid var(--linha); }
 .tabela input, .tabela select { min-height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--borda-campo); background: var(--bg); color: var(--texto); font: inherit; text-align: right; }
 input[type='range'] { width: 100%; accent-color: var(--latao); min-height: 32px; }
 .tabela-cadeia-caixa { max-height: 70vh; overflow-y: auto; }

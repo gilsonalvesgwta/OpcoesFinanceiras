@@ -1,17 +1,23 @@
 // Cadeia de opções na tela: calls e puts lado a lado por strike, faixa de strikes em
 // torno do preço, linha "no dinheiro" e textos dos cálculos (sempre como cálculo).
 
+import type { CotacaoResumida } from './simulador.ts';
+
 export type Calculo =
   | { volImplicita: number; precoTeorico: number; delta: number; gamma: number; theta: number; vega: number; rho: number; premio: number; origemPremio: 'meio_do_livro' | 'ultimo_negocio'; diasUteis: number; selic: number }
   | { motivo: string };
 
+// ultimo/bid/ask: do fechamento da B3. cotacao: a mais nova que houver (MT5 em tempo real,
+// brapi ou o próprio fechamento), para a tela "ao vivo".
 export type Serie = {
   codigo: string; tipo: 'call' | 'put'; strike: number; ultimo: number | null; bid: number | null; ask: number | null;
-  negocios: number; quantidade: number | null; calculo: Calculo;
+  negocios: number; quantidade: number | null; calculo: Calculo; cotacao?: CotacaoResumida;
 };
 
 export type Cadeia = {
-  ativo: { codigo: string; ultimo: number | null; dia: string };
+  agora?: string; hoje?: string; mercadoAberto?: boolean;
+  ativo: { codigo: string; ultimo: number | null; dia: string; cotacao?: CotacaoResumida };
+  tipos?: Record<string, string>;
   vencimentos: string[];
   vencimento: string | null;
   series: Serie[];

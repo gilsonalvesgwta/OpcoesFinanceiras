@@ -218,6 +218,9 @@ describe('coleta gratuita e rotas de mercado', { skip: pular ? 'sem as três URL
     const put = r.corpo.series.find((x: { codigo: string }) => x.codigo === 'PETRW360');
     assert.deepEqual([put.ultimo, put.bid, put.ask, put.calculo], [null, null, null, { motivo: 'sem_premio' }], 'sem preço: nada de zero');
     assert.ok(r.corpo.premissas.some((p: string) => p.includes('Black-Scholes')));
+    assert.deepEqual(r.corpo.tipos, { '2026-11-20': 'mensal' });
+    assert.equal(typeof r.corpo.mercadoAberto, 'boolean');
+    assert.equal(call.cotacao.provedor, 'b3-cotahist', 'sem MT5: cotação do fechamento, dita como tal');
     assert.equal((await pedir('ana', 'GET', '/api/mercado/cadeia?ativo=XXXX3')).corpo.erro, 'sem_fechamento');
     const o = await pedir('ana', 'GET', '/api/mercado/objetos');
     assert.deepEqual([o.corpo.dia, o.corpo.objetos[0]?.codigo, o.corpo.objetos[0]?.series], ['2026-10-16', 'PETR4', 2]);
