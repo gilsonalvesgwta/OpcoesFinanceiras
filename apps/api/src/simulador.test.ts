@@ -36,6 +36,7 @@ describe('simulador de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : 
     convite: { validade: '7 days' }, recuperacao: { validade: '30 minutes' }, superadmin: null,
   };
   const sessoes: Record<string, { cookie: string; csrf: string }> = {};
+  let chaveDaAna = '';
 
   async function pedir(quem: string, metodo: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, payload?: unknown) {
     const s = sessoes[quem];
@@ -109,6 +110,7 @@ describe('simulador de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : 
     assert.deepEqual(obs, ['SIMU3', 'SIMUK400', 'SIMUK420', 'SIMUL400']);
     const k = await pedir('ana', 'POST', '/api/ponte', { nome: 'Teste simulador' });
     assert.equal(k.status, 201);
+    chaveDaAna = k.corpo.chave;
     const robo = await app.inject({ method: 'GET', url: '/api/ponte/simbolos', headers: { authorization: `Bearer ${k.corpo.chave}` }, remoteAddress: '198.51.100.40' });
     const simbolos = robo.json().simbolos as string[];
     for (const c of obs) assert.ok(simbolos.includes(c), `o robô recebe ${c}`);
@@ -119,6 +121,28 @@ describe('simulador de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : 
     // Do outro usuário, nada.
     const deBeto = (await dono.query("select count(*)::int as n from observados_ponte o join users u on u.id = o.user_id where u.email = $1", [`beto.sim.${sufixo}@exemplo.test`])).rows[0].n;
     assert.equal(deBeto, 0);
+  });
+
+  test('painel do dia: preço do MT5, variação, abertura/máxima/mínima, 52 semanas e gráfico', async () => {
+    const instante = agora.getTime() - 1000;
+    const r = await app.inject({
+      method: 'POST', url: '/api/ponte/dados', headers: { authorization: `Bearer ${chaveDaAna}` }, remoteAddress: '198.51.100.41',
+      payload: { versao: '1.4.0', cotacoes: [{ codigo: 'SIMU3', ultimo: 39.2, bid: 39.19, ask: 39.21, fechamento_anterior: 39.5, volume: 1000, instante, lote: 100, abertura: 39.6, maxima: 39.8, minima: 39.1 }] },
+    });
+    assert.equal(r.statusCode, 200, r.body);
+    const p = await pedir('ana', 'GET', '/api/simulador/painel?ativo=simu3');
+    assert.equal(p.status, 200, JSON.stringify(p.corpo));
+    const c = p.corpo;
+    assert.deepEqual([c.cotacao.provedor, c.cotacao.ultimo, c.fechamentoAnterior, c.abertura, c.maxima, c.minima, c.origemDoDia], ['mt5', 3920, 3950, 3960, 3980, 3910, 'mt5']);
+    assert.equal(c.pontos.length, 1, 'um minuto de gráfico');
+    assert.equal(c.pontos[0].p, 3920);
+    assert.ok(c.max52 >= 3980 && c.min52 <= 3910);
+    const mes = await pedir('ana', 'GET', '/api/simulador/painel?ativo=SIMU3&periodo=1M');
+    assert.deepEqual(mes.corpo.pontos.map((x: { p: number }) => x.p), [3950], 'fechamentos da B3 antes de hoje');
+    // Outro usuário (sem ponte): fechamento da B3, sem o gráfico da Ana.
+    const b = await pedir('beto', 'GET', '/api/simulador/painel?ativo=SIMU3');
+    assert.equal(b.corpo.cotacao.provedor, 'b3-cotahist');
+    assert.equal(b.corpo.pontos.length, 0);
   });
 
   let simId = '';

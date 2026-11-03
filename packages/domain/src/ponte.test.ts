@@ -31,7 +31,7 @@ test('lote válido: centavos, ISO, conta e versão', () => {
   const l = ler({ versao: '1.0.0', conta: { login: 123456, servidor: 'GenialInvestimentos-PRD', corretora: 'Genial' }, cotacoes: [cot()] });
   assert.deepEqual(l.conta, { login: '123456', servidor: 'GenialInvestimentos-PRD', corretora: 'Genial' });
   assert.deepEqual(l.cotacoes, [{
-    codigo: 'PETR4', ultimo: 3812, bid: 3811, ask: 3813, fechamento_anterior: 3790, volume: 1500, instante: new Date(ms - 2000).toISOString(), lote: null,
+    codigo: 'PETR4', ultimo: 3812, bid: 3811, ask: 3813, fechamento_anterior: 3790, volume: 1500, instante: new Date(ms - 2000).toISOString(), lote: null, abertura: null, maxima: null, minima: null,
   }]);
   assert.equal(l.posicoes, null);
   assert.deepEqual(l.avisos, []);
@@ -42,6 +42,11 @@ test('lote do MT5: 1 ou 100; inválido descarta o item', () => {
   assert.equal(ler({ cotacoes: [cot({ lote: 100 })] }).cotacoes[0]?.lote, 100);
   const r = ler({ cotacoes: [cot({ lote: 0.5 })] });
   assert.deepEqual([r.cotacoes.length, r.avisos], [0, ['lote_invalido']]);
+});
+
+test('abertura, máxima e mínima do dia (robô 1.4.0)', () => {
+  const c = ler({ cotacoes: [cot({ abertura: 163, maxima: 163.89, minima: 162.81 })] }).cotacoes[0];
+  assert.deepEqual([c?.abertura, c?.maxima, c?.minima], [16300, 16389, 16281]);
 });
 
 test('livro vazio do MT5 (bid/ask 0) não vira preço zero', () => {

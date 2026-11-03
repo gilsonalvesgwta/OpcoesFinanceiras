@@ -33,9 +33,10 @@ const ADMINISTRACAO: Item[] = [
 
 function Marca({ href = '/' }: { href?: string }) {
   return (
-    <Link href={href} className="marca" aria-label="WTA Options Intelligence, ir para o painel">
+    <Link href={href} className="marca" aria-label="WTA Options Intelligence, por Gilson Alves. Ir para o painel">
       <span className="marca-sigla">WTA</span>
       <span className="marca-nome">Options Intelligence</span>
+      <span className="marca-autor">por Gilson Alves</span>
     </Link>
   );
 }
@@ -104,6 +105,7 @@ export function Casca({ children }: { children: ReactNode }) {
             <span className="menu-pe-nome" style={{ display: 'block' }}>{sessao.usuario.nome || sessao.usuario.email}</span>
             <span className="menu-pe-papel">{PAPEIS[sessao.usuario.papel]}</span>
           </div>
+          <p className="assinatura">Estruturado e desenvolvido por <strong>Gilson Alves</strong></p>
           <div className="menu-pe-acoes">
             <Link href="/preferencias" className="botao-texto" aria-current={atual('/preferencias') ? 'page' : undefined}>Preferências</Link>
             <button type="button" className="botao-texto" onClick={() => void sair()}>Sair</button>

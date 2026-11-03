@@ -13,6 +13,7 @@ export function MolduraDeAcesso({ children }: { children: ReactNode }) {
         <div className="marca" style={{ padding: 0 }}>
           <span className="marca-sigla" style={{ fontSize: 26 }}>WTA</span>
           <span className="marca-nome" style={{ fontSize: 15 }}>Options Intelligence</span>
+          <span className="marca-autor" style={{ fontSize: 14 }}>por Gilson Alves</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
           <p className="acesso-frase">Suas opções da B3, com a idade de cada dado à vista.</p>
@@ -26,7 +27,10 @@ export function MolduraDeAcesso({ children }: { children: ReactNode }) {
             Alertas no Telegram, posições de várias pernas e comparação de rolagens. Você executa as ordens na sua corretora; aqui você analisa e registra.
           </p>
         </div>
-        <span className="acesso-rodape">Análise e organização de informações. Não é recomendação de investimento.</span>
+        <span className="acesso-rodape">
+          <strong className="assinatura-forte">Sistema estruturado e desenvolvido por Gilson Alves.</strong>{' '}
+          Análise e organização de informações. Não é recomendação de investimento.
+        </span>
       </section>
       <main className="acesso-principal">{children}</main>
     </div>

@@ -15,6 +15,7 @@ import { Cabecalho } from '../../../componentes/Casca.tsx';
 import { MensagemDeErro } from '../../../componentes/Acesso.tsx';
 import { Icone } from '../../../componentes/Icone.tsx';
 import { SeloDoPreco } from '../../../componentes/SeloDoPreco.tsx';
+import { PainelDoAtivo } from '../../../componentes/PainelDoAtivo.tsx';
 import { chamar, ErroDaApi, type Favorito } from '../../../lib/api.ts';
 import { formatarData, formatarReais } from '../../../lib/formatos.ts';
 import { quandoCurto } from '../../../lib/mercado.ts';
@@ -482,9 +483,9 @@ export default function PaginaSimulador() {
 
       <section className="secao" aria-labelledby="ativo-titulo" style={{ gap: 12 }}>
         <h2 id="ativo-titulo" className="so-leitor">Ativo e vencimento</h2>
-        <div className="form-em-linha">
-          <div className="form-em-linha" style={{ alignItems: 'flex-end' }}>
-            <div className="campo" style={{ flex: '0 1 220px' }}>
+        <div className="form-em-linha" style={{ alignItems: 'flex-start', gap: '16px 32px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: '0 1 240px', minWidth: 200 }}>
+            <div className="campo">
               <label htmlFor="sim-ativo">Ativo</label>
               <select id="sim-ativo" value={ativo} onChange={(e) => { if (e.target.value) void carregarCadeia(e.target.value); }}>
                 {ativo && !favoritos.includes(ativo) && !objetos.includes(ativo) && <option value={ativo}>{ativo}</option>}
@@ -499,18 +500,14 @@ export default function PaginaSimulador() {
               </select>
             </div>
             {ativo && (
-              <button type="button" className="botao botao-pequeno" aria-pressed={favoritos.includes(ativo)} onClick={() => void alternarFavorito(ativo)}
+              <button type="button" className="botao botao-pequeno" style={{ alignSelf: 'flex-start' }} aria-pressed={favoritos.includes(ativo)} onClick={() => void alternarFavorito(ativo)}
                 title={favoritos.includes(ativo) ? 'Tirar dos favoritos' : 'Pôr nos favoritos (aparece no topo da lista)'}>
                 {favoritos.includes(ativo) ? '★ Favorito' : '☆ Favoritar'}
               </button>
             )}
+            <span className="linha-lista-apoio" style={{ fontSize: 13 }}>Selic {selic ? `${selic.toLocaleString('pt-BR')}% ao ano` : 'indisponível (juros zero no cálculo)'}</span>
           </div>
-          {cadeia && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginLeft: 8 }}>
-              <span style={{ fontSize: 22, fontWeight: 700 }}>{cadeia.ativo.codigo} {spot ? reais(spot) : '—'}</span>
-              <span><SeloDoPreco c={cadeia.ativo.cotacao} /> <span className="linha-lista-apoio" style={{ fontSize: 13 }}>Selic {selic ? `${selic.toLocaleString('pt-BR')}%` : 'indisponível (juros zero no cálculo)'}</span></span>
-            </div>
-          )}
+          {cadeia && <PainelDoAtivo ativo={cadeia.ativo.codigo} aoVivo={cadeia.ativo.cotacao} />}
         </div>
         {cadeia && cadeia.vencimentos.length > 0 && (
           <div className="atalhos" role="group" aria-label="Vencimentos">

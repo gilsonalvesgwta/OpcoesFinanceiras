@@ -13,6 +13,7 @@ export type CotacaoDeSaida = {
   ultimo: number | null; bid: number | null; ask: number | null; fechamentoAnterior: number | null; volume: number | null;
   instanteDaFonte: string | null; instanteDeRecebimento: string | null; sinalDaPonteEm: string | null; qualidade: string;
   lote?: number | null; // passo de quantidade informado pelo MT5 (só na cotação da ponte)
+  abertura?: number | null; maxima?: number | null; minima?: number | null; // dia de hoje no MT5 (robô 1.4.0+)
 };
 
 const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString() : null);
@@ -23,7 +24,7 @@ export async function cotacoesDoUsuario(c: Cliente, codigos: string[], agora: Da
   const mercado = situacaoDoMercado(agora, cfg);
   const r = await c.query(
     `select q.codigo, q.ultimo, q.bid, q.ask, q.fechamento_anterior, q.volume, q.instante_fonte, q.recebido_em,
-            q.lote, p.ultimo_contato_em, p.revogada_em
+            q.lote, q.abertura, q.maxima, q.minima, p.ultimo_contato_em, p.revogada_em
      from cotacoes_ponte q join pontes_mt5 p on p.id = q.ponte_id
      where q.codigo = any($1::text[])`, [codigos],
   );
@@ -35,6 +36,7 @@ export async function cotacoesDoUsuario(c: Cliente, codigos: string[], agora: Da
     sinalDaPonteEm: iso(l.ultimo_contato_em),
     qualidade: l.revogada_em ? 'desconectado' : qualidadeDaPonte(iso(l.ultimo_contato_em), agora, mercado.aberto),
     lote: l.lote === null || l.lote === undefined ? null : Number(l.lote),
+    abertura: num(l.abertura), maxima: num(l.maxima), minima: num(l.minima),
   }]));
   // MT5 no ar (pulso recente) durante o pregão: a brapi (com ~30 min de atraso) não entra
   // em nada. Ela só serve fora do pregão ou com o MT5 desligado; o que o MT5 não cobre

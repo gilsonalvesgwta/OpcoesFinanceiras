@@ -391,3 +391,24 @@ tr.linha-perna-v-call th:first-child { box-shadow: inset 4px 0 0 var(--baixa); }
 tr.linha-perna-c-put th:first-child { box-shadow: inset 4px 0 0 var(--periodica); }
 tr.linha-perna-v-put th:first-child { box-shadow: inset 4px 0 0 var(--atencao); }
 .botao-cv:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Assinatura do autor: em todas as telas. */
+.marca-autor { font-size: 12px; font-weight: 600; color: var(--latao); letter-spacing: 0.2px; }
+.assinatura { margin: 0; font-size: 12px; color: var(--apoio); }
+.assinatura strong { color: var(--latao); }
+.assinatura-forte { color: var(--latao); }
+/* Painel do dia do ativo (Simulador). */
+.painel-ativo { flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.painel-ativo-topo { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.painel-ativo-preco { font-size: 34px; font-weight: 700; line-height: 1.1; }
+.painel-ativo-moeda { font-size: 14px; font-weight: 500; color: var(--apoio); }
+.painel-ativo-variacao { padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 15px; }
+.painel-ativo-variacao.alta { color: var(--alta); background: color-mix(in srgb, var(--alta) 14%, var(--painel)); }
+.painel-ativo-variacao.baixa { color: var(--baixa); background: color-mix(in srgb, var(--baixa) 14%, var(--painel)); }
+.botao-periodo { min-height: 36px; min-width: 44px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--apoio); font: inherit; font-weight: 600; cursor: pointer; }
+.botao-periodo.atual { color: var(--latao); border-bottom-color: var(--latao); }
+.botao-periodo:hover { color: var(--texto); }
+.painel-ativo-grafico { max-height: 220px; }
+.painel-ativo-numeros { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 4px 16px; margin: 0; }
+.painel-ativo-numeros div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--linha); padding: 4px 0; }
+.painel-ativo-numeros dt { color: var(--apoio); font-size: 13px; }
+.painel-ativo-numeros dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
