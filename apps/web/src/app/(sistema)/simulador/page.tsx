@@ -6,7 +6,7 @@
 // preço real e fazer ajustes e rolagens simulados. Tudo é estimativa do modelo; nada
 // envia ordem e nada se mistura com as posições reais.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import {
   curvaDaSimulacao, equilibriosDaCurva, extremosDaCurva, faixaDaSimulacao, gregasDaSimulacao, resultadoDaSimulacao,
   vencimentosDaSimulacao, type ConfiguracaoDoCalendario, type PontoDaCurva,
@@ -20,7 +20,7 @@ import { formatarData, formatarReais } from '../../../lib/formatos.ts';
 import { quandoCurto } from '../../../lib/mercado.ts';
 import {
   adicionarPerna, avaliacaoNaData, configDoCalendario, diasEntre, escalaDoGrafico, execucoesParaApi, novoId, pernaDaSerie, pernaDoAtivo,
-  intervaloDeAtualizacao, lerPedidoDeMontagem, lerReais, pernaQueEncerra, precoDeMercado, precoDoAtivo, resultadoEmPreco, rotuloDoVencimento, somarDias,
+  classeDaPerna, intervaloDeAtualizacao, lerPedidoDeMontagem, lerReais, moverPerna, serieVizinha, pernaQueEncerra, precoDeMercado, precoDoAtivo, resultadoEmPreco, rotuloDoVencimento, somarDias,
   totaisDaMontagem, valorDaPernaNaMontagem, volDaSerie,
   type CadeiaDoSimulador, type CalendarioDaApi, type CotacaoResumida, type PernaNaTela, type SerieDaCadeia,
 } from '../../../lib/simulador.ts';
@@ -40,7 +40,20 @@ type DetalheDaCarteira = ResumoDaCarteira & {
 
 // ---------- Cadeia com botões C e V ----------
 
-function Cadeia({ cadeia, spot, faixa, cfg, aoMontar }: { cadeia: CadeiaDoSimulador; spot: number | null; faixa: 'perto' | 'todas'; cfg: ConfiguracaoDoCalendario | null; aoMontar: (s: SerieDaCadeia, lado: 'compra' | 'venda') => void }) {
+type PropsDaCadeia = {
+  cadeia: CadeiaDoSimulador; spot: number | null; faixa: 'perto' | 'todas'; cfg: ConfiguracaoDoCalendario | null;
+  pernas: readonly PernaNaTela[]; selecionada: string | null;
+  aoMontar: (s: SerieDaCadeia, lado: 'compra' | 'venda') => void;
+  aoSelecionar: (codigo: string) => void;
+  aoMover: (pernaId: string, destino: SerieDaCadeia) => void;
+};
+
+// Cadeia como no Profit: clicar na linha (lado call ou put) seleciona a série; C e V
+// montam. As pernas montadas ficam marcadas com a cor da operação e podem ser ARRASTADAS
+// para outro strike do mesmo lado: a perna troca de série e a montagem se recalcula.
+function Cadeia({ cadeia, spot, faixa, cfg, pernas, selecionada, aoMontar, aoSelecionar, aoMover }: PropsDaCadeia) {
+  const [arrastando, setArrastando] = useState<{ id: string; tipo: 'call' | 'put' } | null>(null);
+  const [sobre, setSobre] = useState<string | null>(null);
   const porStrike = new Map<number, { call?: SerieDaCadeia; put?: SerieDaCadeia }>();
   for (const s of cadeia.series) {
     if (faixa === 'perto' && spot && Math.abs(s.strike - spot) / spot > 0.2) continue;
@@ -49,13 +62,28 @@ function Cadeia({ cadeia, spot, faixa, cfg, aoMontar }: { cadeia: CadeiaDoSimula
     if (!atual || (s.negocios ?? 0) > (atual.negocios ?? 0)) l[s.tipo] = s;
     porStrike.set(s.strike, l);
   }
+  // Séries que já estão na montagem (só as novas; a posição da carteira não se arrasta).
+  for (const p of pernas) {
+    if (p.base || p.tipo === 'ativo' || p.vencimento !== cadeia.vencimento) continue;
+    const s = cadeia.series.find((x) => x.codigo === p.codigo);
+    if (!s) continue;
+    const l = porStrike.get(s.strike) ?? {};
+    l[s.tipo] = s;
+    porStrike.set(s.strike, l);
+  }
   const strikes = [...porStrike.keys()].sort((a, b) => a - b);
   const atm = spot ? strikes.reduce((m, k) => (Math.abs(k - spot) < Math.abs(m - spot) ? k : m), strikes[0] ?? 0) : null;
+  const pernasDa = (codigo: string) => pernas.filter((p) => !p.base && p.codigo === codigo && p.vencimento === cadeia.vencimento);
   const botoes = (s: SerieDaCadeia | undefined, lado: 'call' | 'put') => s && (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexDirection: lado === 'call' ? 'row' : 'row-reverse' }}>
-      <button type="button" className="botao-cv botao-c" onClick={() => aoMontar(s, 'compra')} aria-label={`Comprar ${s.codigo}`} title={`Comprar ${s.codigo}`}>C</button>
-      <button type="button" className="botao-cv botao-v" onClick={() => aoMontar(s, 'venda')} aria-label={`Vender ${s.codigo}`} title={`Vender ${s.codigo}`}>V</button>
+      <button type="button" className="botao-cv botao-c" onClick={(e) => { e.stopPropagation(); aoSelecionar(s.codigo); aoMontar(s, 'compra'); }} aria-label={`Comprar ${s.codigo}`} title={`Comprar ${s.codigo}`}>C</button>
+      <button type="button" className="botao-cv botao-v" onClick={(e) => { e.stopPropagation(); aoSelecionar(s.codigo); aoMontar(s, 'venda'); }} aria-label={`Vender ${s.codigo}`} title={`Vender ${s.codigo}`}>V</button>
       <span className="codigo-serie" style={{ fontSize: 12 }}>{s.codigo}</span>
+      {pernasDa(s.codigo).map((p) => (
+        <span key={p.id} className={`etiqueta-perna ${classeDaPerna(p.lado, s.tipo)}`} title="Arraste para outro strike">
+          {p.lado === 'compra' ? 'C' : 'V'} {p.quantidade.toLocaleString('pt-BR')}
+        </span>
+      ))}
     </span>
   );
   const celulas = (s: SerieDaCadeia | undefined, lado: 'call' | 'put') => {
@@ -64,15 +92,36 @@ function Cadeia({ cadeia, spot, faixa, cfg, aoMontar }: { cadeia: CadeiaDoSimula
     const corPreco = c?.provedor === 'mt5' && c.qualidade === 'tempo_real' ? { color: 'var(--vivo)' } : undefined;
     const corCalc = vd?.origem === 'ao_vivo' ? { color: 'var(--vivo)' } : undefined;
     const dentro = s && spot ? (lado === 'call' ? s.strike < spot : s.strike > spot) : false;
-    const cl = `numero${dentro ? ' dentro' : ''}`;
+    const minhas = s ? pernasDa(s.codigo) : [];
+    const perna = minhas[0];
+    const alvo = s && arrastando && arrastando.tipo === lado && !minhas.some((p) => p.id === arrastando.id);
+    const marca = [
+      dentro ? 'dentro' : '',
+      perna ? classeDaPerna(perna.lado, lado) : '',
+      s && selecionada === s.codigo ? 'cel-selecionada' : '',
+      alvo && sobre === s?.codigo ? 'cel-alvo' : '',
+      s ? 'cel-clicavel' : '',
+    ].filter(Boolean).join(' ');
+    const eventos = s ? {
+      onClick: () => aoSelecionar(s.codigo),
+      ...(perna ? {
+        draggable: true,
+        onDragStart: (e: DragEvent<HTMLTableCellElement>) => { e.dataTransfer.setData('text/plain', perna.id); e.dataTransfer.effectAllowed = 'move'; setArrastando({ id: perna.id, tipo: lado }); },
+        onDragEnd: () => { setArrastando(null); setSobre(null); },
+      } : {}),
+      ...(alvo ? {
+        onDragOver: (e: DragEvent<HTMLTableCellElement>) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (sobre !== s.codigo) setSobre(s.codigo); },
+        onDrop: (e: DragEvent<HTMLTableCellElement>) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain') || arrastando?.id; setArrastando(null); setSobre(null); if (id) { aoMover(id, s); aoSelecionar(s.codigo); } },
+      } : {}),
+    } : {};
     const v = [
-      <td key="bid" className={cl} style={corPreco}>{c?.bid ? reais(c.bid) : '—'}</td>,
-      <td key="ask" className={cl} style={corPreco}>{c?.ask ? reais(c.ask) : '—'}</td>,
-      <td key="ult" className={cl} style={corPreco}>{c?.ultimo ? reais(c.ultimo) : '—'}</td>,
-      <td key="vol" className={cl} style={corCalc}>{s ? pct(vd?.vol ?? null) : ''}</td>,
-      <td key="delta" className={cl} style={corCalc}>{vd?.delta === null || vd?.delta === undefined ? (s ? '—' : '') : vd.delta.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td>,
+      <td key="bid" className={`numero ${marca}`} style={corPreco} {...eventos}>{c?.bid ? reais(c.bid) : '—'}</td>,
+      <td key="ask" className={`numero ${marca}`} style={corPreco} {...eventos}>{c?.ask ? reais(c.ask) : '—'}</td>,
+      <td key="ult" className={`numero ${marca}`} style={corPreco} {...eventos}>{c?.ultimo ? reais(c.ultimo) : '—'}</td>,
+      <td key="vol" className={`numero ${marca}`} style={corCalc} {...eventos}>{s ? pct(vd?.vol ?? null) : ''}</td>,
+      <td key="delta" className={`numero ${marca}`} style={corCalc} {...eventos}>{vd?.delta === null || vd?.delta === undefined ? (s ? '—' : '') : vd.delta.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td>,
     ];
-    const cv = <td key="cv" className={dentro ? 'dentro' : undefined} style={{ whiteSpace: 'nowrap' }}>{botoes(s, lado)}</td>;
+    const cv = <td key="cv" className={marca || undefined} style={{ whiteSpace: 'nowrap' }} {...eventos}>{botoes(s, lado)}</td>;
     return lado === 'call' ? [cv, ...v] : [...[...v].reverse(), cv];
   };
   if (!strikes.length) return <p className="secao-vazia">Nenhuma série neste vencimento{faixa === 'perto' ? ' perto do preço do ativo' : ''}.</p>;
@@ -149,7 +198,7 @@ export default function PaginaSimulador() {
   const [cfg, setCfg] = useState<ConfiguracaoDoCalendario | null>(null);
   const [favoritos, setFavoritos] = useState<string[]>([]);
   const [ativo, setAtivo] = useState('');
-  const [entradaAtivo, setEntradaAtivo] = useState('');
+  const [objetos, setObjetos] = useState<string[]>([]);
   const [cadeia, setCadeia] = useState<CadeiaDoSimulador | null>(null);
   const [faixa, setFaixa] = useState<'perto' | 'todas'>('perto');
   const [pernas, setPernas] = useState<PernaNaTela[]>([]);
@@ -165,6 +214,7 @@ export default function PaginaSimulador() {
   const [ocupado, setOcupado] = useState(false);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [boleta, setBoleta] = useState({ ticker: '', preco: '' });
+  const [selecionada, setSelecionada] = useState<string | null>(null);
   const pedidoAtual = useRef(0);
   const montagemPedida = useRef<{ codigo: string; lado: 'compra' | 'venda' } | null>(null);
 
@@ -182,7 +232,7 @@ export default function PaginaSimulador() {
       if (meu !== pedidoAtual.current) return;
       setCadeia(r);
       setAtualizadoEm(new Date());
-      if (!silencioso) { setAtivo(r.ativo.codigo); setEntradaAtivo(r.ativo.codigo); }
+      if (!silencioso) { setAtivo(r.ativo.codigo); setSelecionada(null); }
     } catch (x) {
       if (silencioso || meu !== pedidoAtual.current) return; // falha momentânea na atualização automática: tenta de novo no próximo ciclo
       setErro(x instanceof ErroDaApi && x.codigo === 'sem_fechamento' ? `Sem dados da B3 para ${codigo}. Confira o código da ação (ex.: PETR4).` : x instanceof Error ? x.message : 'Não foi possível carregar a cadeia.');
@@ -192,6 +242,8 @@ export default function PaginaSimulador() {
   useEffect(() => {
     chamar<CalendarioDaApi>('GET', '/api/calendario').then((c) => setCfg(configDoCalendario(c))).catch((e: Error) => setErro(e.message));
     carregarCarteiras().catch(() => undefined);
+    // Ativos com opções no último arquivo da B3 (para a lista de escolha).
+    chamar<{ objetos: { codigo: string }[] }>('GET', '/api/mercado/objetos').then((r) => setObjetos(r.objetos.map((o) => o.codigo).sort())).catch(() => undefined);
     chamar<{ favoritos: Favorito[] }>('GET', '/api/favoritos').then((r) => {
       const lista = r.favoritos.map((f) => f.codigo).filter((c) => /^[A-Z]{4}\d{1,2}$/.test(c));
       setFavoritos(lista);
@@ -307,6 +359,39 @@ export default function PaginaSimulador() {
     setAviso(`${lado === 'compra' ? 'Compra' : 'Venda'} de ${quantidade.toLocaleString('pt-BR')} ${codigo} a ${nova.preco ? reais(nova.preco) : '— (digite o preço na montagem)'} incluída.`);
   }
 
+  // Favoritos: no topo da lista de ativos (e acompanhados pelo robô do MT5).
+  async function alternarFavorito(codigo: string) {
+    setErro(null);
+    try {
+      if (favoritos.includes(codigo)) {
+        await chamar('DELETE', `/api/favoritos/${codigo}`);
+        setFavoritos((f) => f.filter((x) => x !== codigo));
+      } else {
+        await chamar('POST', '/api/favoritos', { codigo });
+        setFavoritos((f) => [...f, codigo]);
+      }
+    } catch (x) {
+      setErro(x instanceof Error ? x.message : 'Não foi possível mudar os favoritos agora.');
+    }
+  }
+
+  // Arrastar na cadeia (ou ▲▼ na montagem): a perna troca de série e fica com o preço do livro.
+  function moverPara(pernaId: string, destino: SerieDaCadeia) {
+    if (!cadeia?.vencimento) return;
+    const p = pernas.find((x) => x.id === pernaId);
+    if (!p || p.base || p.tipo !== destino.tipo || p.codigo === destino.codigo) return;
+    const vd = volDaSerie(destino, cadeia.ativo.cotacao, cadeia.vencimento, cadeia.hoje, cfg, cadeia.selic?.valor ?? null);
+    const nova = moverPerna(p, destino, cadeia.vencimento, vd.vol);
+    setPernas((ps) => ps.map((x) => (x.id === pernaId ? nova : x)));
+    setSelecionada(destino.codigo);
+    setAviso(`${p.lado === 'compra' ? 'Compra' : 'Venda'} movida de ${p.codigo} para ${destino.codigo}${nova.preco ? ` a ${reais(nova.preco)}` : ' (sem oferta: digite o preço)'}.`);
+  }
+  function moverUmStrike(p: PernaNaTela, passo: 1 | -1) {
+    if (!cadeia) return;
+    const destino = serieVizinha(cadeia.series, p, passo);
+    if (destino) moverPara(p.id, destino);
+  }
+
   const mudar = (id: string, x: Partial<PernaNaTela>) => setPernas((ps) => ps.map((p) => (p.id === id ? { ...p, ...x } : p)));
   const novas = pernas.filter((p) => !p.base);
   const valorConsulta = (() => { const n = Number(precoConsulta.replace(',', '.')); return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : spot; })();
@@ -398,14 +483,28 @@ export default function PaginaSimulador() {
       <section className="secao" aria-labelledby="ativo-titulo" style={{ gap: 12 }}>
         <h2 id="ativo-titulo" className="so-leitor">Ativo e vencimento</h2>
         <div className="form-em-linha">
-          <form className="form-em-linha" noValidate onSubmit={(e) => { e.preventDefault(); if (entradaAtivo.trim()) void carregarCadeia(entradaAtivo.trim().toUpperCase()); }}>
-            <div className="campo" style={{ flex: '0 1 160px' }}>
+          <div className="form-em-linha" style={{ alignItems: 'flex-end' }}>
+            <div className="campo" style={{ flex: '0 1 220px' }}>
               <label htmlFor="sim-ativo">Ativo</label>
-              <input id="sim-ativo" value={entradaAtivo} maxLength={12} list="sim-favoritos" autoCapitalize="characters" onChange={(e) => setEntradaAtivo(e.target.value.toUpperCase())} />
-              <datalist id="sim-favoritos">{favoritos.map((f) => <option key={f} value={f} />)}</datalist>
+              <select id="sim-ativo" value={ativo} onChange={(e) => { if (e.target.value) void carregarCadeia(e.target.value); }}>
+                {ativo && !favoritos.includes(ativo) && !objetos.includes(ativo) && <option value={ativo}>{ativo}</option>}
+                {favoritos.length > 0 && (
+                  <optgroup label="Favoritos">
+                    {favoritos.map((f) => <option key={`f${f}`} value={f}>★ {f}</option>)}
+                  </optgroup>
+                )}
+                <optgroup label="Todos com opções na B3">
+                  {objetos.filter((o) => !favoritos.includes(o)).map((o) => <option key={o} value={o}>{o}</option>)}
+                </optgroup>
+              </select>
             </div>
-            <button type="submit" className="botao" title="Troca o ativo. Os preços se atualizam sozinhos.">Carregar</button>
-          </form>
+            {ativo && (
+              <button type="button" className="botao botao-pequeno" aria-pressed={favoritos.includes(ativo)} onClick={() => void alternarFavorito(ativo)}
+                title={favoritos.includes(ativo) ? 'Tirar dos favoritos' : 'Pôr nos favoritos (aparece no topo da lista)'}>
+                {favoritos.includes(ativo) ? '★ Favorito' : '☆ Favoritar'}
+              </button>
+            )}
+          </div>
           {cadeia && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginLeft: 8 }}>
               <span style={{ fontSize: 22, fontWeight: 700 }}>{cadeia.ativo.codigo} {spot ? reais(spot) : '—'}</span>
@@ -446,7 +545,7 @@ export default function PaginaSimulador() {
             </div>
           </div>
           {!cadeia && !erro && <p className="secao-vazia" role="status">Carregando…</p>}
-          {cadeia && <Cadeia cadeia={cadeia} spot={spot} faixa={faixa} cfg={cfg} aoMontar={montar} />}
+          {cadeia && <Cadeia cadeia={cadeia} spot={spot} faixa={faixa} cfg={cfg} pernas={pernas} selecionada={selecionada} aoMontar={montar} aoSelecionar={setSelecionada} aoMover={moverPara} />}
           {cadeia && (
             <p className="linha-lista-apoio" style={{ margin: 0, fontSize: 13 }}>
               {(() => {
@@ -456,7 +555,8 @@ export default function PaginaSimulador() {
                   : <>Preços do fechamento da B3 de {formatarData(cadeia.dia)}; Vol e Δ do fechamento.{cadeia.mercadoAberto ? ' Com o MetaTrader 5 aberto e o robô ligado, as séries passam a tempo real em até 1 minuto.' : ''} </>;
               })()}
               {atualizadoEm && <>Atualiza sozinho a cada {cadeia.mercadoAberto ? '2 segundos' : 'minuto'} (última às {atualizadoEm.toLocaleTimeString('pt-BR')}). </>}
-              C compra pelo preço de venda (ask); V vende pelo preço de compra (bid).
+              C compra pelo preço de venda (ask); V vende pelo preço de compra (bid). Clique numa linha para selecioná-la; arraste uma perna marcada para outro strike (ou use ▲▼ na montagem).
+              {' '}<span className="etiqueta-perna perna-c-call">C call</span> <span className="etiqueta-perna perna-v-call">V call</span> <span className="etiqueta-perna perna-c-put">C put</span> <span className="etiqueta-perna perna-v-put">V put</span>
               {' '}<button type="button" className="botao-texto" style={{ minHeight: 0 }} onClick={() => setPernas((ps) => adicionarPerna(ps, pernaDoAtivo(cadeia.ativo.codigo, cadeia.ativo.cotacao, 'compra', quantidade)))}>+ comprar {cadeia.ativo.codigo}</button>
             </p>
           )}
@@ -511,7 +611,7 @@ export default function PaginaSimulador() {
                   </thead>
                   <tbody>
                     {pernas.map((p) => (
-                      <tr key={p.id} style={p.base ? { background: 'var(--painel2)' } : undefined}>
+                      <tr key={p.id} style={p.base ? { background: 'var(--painel2)' } : undefined} className={!p.base && p.tipo !== 'ativo' ? `linha-${classeDaPerna(p.lado, p.tipo)}` : undefined}>
                         <th scope="row">{p.codigo}<span className="sub">{p.tipo === 'ativo' ? 'Ação' : `${p.tipo === 'call' ? 'Call' : 'Put'} ${reais(p.strike as number)} · ${formatarData(p.vencimento as string)}`}{p.base ? ' · posição da carteira' : ''}</span></th>
                         <td>
                           {p.base ? <span className={p.lado === 'venda' ? 'resultado-baixa' : ''} style={{ fontWeight: 600 }}>{p.lado === 'compra' ? 'Comprado' : 'Vendido'}</span> : (
@@ -533,6 +633,12 @@ export default function PaginaSimulador() {
                           {p.base ? '—' : `${valorDaPernaNaMontagem(p) > 0 ? '+' : ''}${formatarReais(valorDaPernaNaMontagem(p))}`}
                         </td>
                         <td style={{ whiteSpace: 'nowrap' }}>
+                          {!p.base && p.tipo !== 'ativo' && cadeia?.vencimento === p.vencimento && (
+                            <>
+                              <button type="button" className="botao-cv" onClick={() => moverUmStrike(p, -1)} disabled={!cadeia || !serieVizinha(cadeia.series, p, -1)} aria-label={`Mover ${p.codigo} para o strike abaixo`} title="Strike abaixo">▼</button>{' '}
+                              <button type="button" className="botao-cv" onClick={() => moverUmStrike(p, 1)} disabled={!cadeia || !serieVizinha(cadeia.series, p, 1)} aria-label={`Mover ${p.codigo} para o strike acima`} title="Strike acima">▲</button>{' '}
+                            </>
+                          )}
                           {p.base
                             ? <button type="button" className="botao botao-pequeno" onClick={() => encerrar(p)}>Encerrar</button>
                             : <button type="button" className="botao-texto botao-perigo" onClick={() => setPernas((ps) => ps.filter((x) => x.id !== p.id))} aria-label={`Tirar ${p.codigo}`}><Icone nome="lixeira" tamanho={18} /></button>}

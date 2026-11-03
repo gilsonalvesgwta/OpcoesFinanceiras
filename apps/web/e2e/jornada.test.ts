@@ -365,14 +365,25 @@ test.describe.serial('jornada', () => {
   test('simulador: monta pela cadeia, vencimentos diferentes e carteira simulada', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Simulador' }).first().click();
-    await page.getByLabel('Ativo', { exact: true }).fill('ITUB4');
-    await page.getByRole('button', { name: 'Carregar' }).click();
+    // Lista de ativos: escolher carrega sozinho (sem botão Carregar); favoritar põe no topo.
+    await page.getByLabel('Ativo', { exact: true }).selectOption('ITUB4');
+    await expect(page.getByRole('heading', { name: /Cadeia · vence 23\/11\/2026/ })).toBeVisible();
+    await page.getByRole('button', { name: '☆ Favoritar' }).click();
+    await expect(page.getByRole('button', { name: '★ Favorito' })).toBeVisible();
     await page.getByRole('button', { name: 'Comprar ITUBK360' }).click();
     await page.getByRole('button', { name: 'Vender ITUBK380' }).click();
     // Compra pelo ask (0,69) e venda pelo bid (0,16): débito de 53,00 em 100 de cada.
     await expect(page.getByRole('row', { name: /Total da operação/ })).toContainText('53,00');
     await expect(page.getByRole('row', { name: /Total da operação/ })).toContainText('débito');
     await expect(page.getByRole('img', { name: /Resultado estimado da montagem em ITUB4/ })).toBeVisible();
+    // Arrastar a perna marcada para outro strike troca a série; ▲ volta.
+    const cadeia = page.getByRole('region', { name: 'Cadeia de opções para montar' });
+    await cadeia.locator('td[draggable="true"]').filter({ hasText: 'ITUBK360' }).first()
+      .dragTo(cadeia.getByRole('row', { name: /34,00/ }).locator('td').nth(1));
+    await expect(page.getByText(/Compra movida de ITUBK360 para ITUBK340/)).toBeVisible();
+    await page.getByRole('button', { name: 'Mover ITUBK340 para o strike acima' }).click();
+    await expect(page.getByText(/Compra movida de ITUBK340 para ITUBK360/)).toBeVisible();
+    await expect(page.getByRole('row', { name: /Total da operação/ })).toContainText('53,00');
     await page.getByRole('button', { name: /18\/12/ }).click();
     await page.getByRole('button', { name: 'Vender ITUBL380' }).click();
     await expect(page.getByText(/Vencimentos diferentes: no primeiro vencimento/)).toBeVisible();

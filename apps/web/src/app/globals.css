@@ -371,3 +371,23 @@ input[type='range'] { width: 100%; accent-color: var(--latao); min-height: 32px;
   .tabela-cadeia th[scope='col']:last-child, .tabela-cadeia td:last-child { padding-right: 12px; }
   .tabela-cadeia .botao-cv { min-width: 26px; padding: 0 4px; }
 }
+/* Simulador: seleção e pernas na cadeia (como no Profit).
+   Compra de call verde, venda de call vermelha, compra de put azul, venda de put laranja. */
+.tabela-cadeia td.cel-clicavel { cursor: pointer; }
+.tabela-cadeia td.perna-c-call { background: color-mix(in srgb, var(--alta) 16%, var(--painel)); }
+.tabela-cadeia td.perna-v-call { background: color-mix(in srgb, var(--baixa) 16%, var(--painel)); }
+.tabela-cadeia td.perna-c-put { background: color-mix(in srgb, var(--periodica) 16%, var(--painel)); }
+.tabela-cadeia td.perna-v-put { background: color-mix(in srgb, var(--atencao) 16%, var(--painel)); }
+.tabela-cadeia td[draggable='true'] { cursor: grab; }
+.tabela-cadeia td.cel-selecionada { box-shadow: inset 0 2px 0 var(--vivo), inset 0 -2px 0 var(--vivo); }
+.tabela-cadeia td.cel-alvo { outline: 2px dashed var(--latao); outline-offset: -2px; }
+.etiqueta-perna { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 11px; font-weight: 700; color: var(--bg); white-space: nowrap; }
+.etiqueta-perna.perna-c-call { background: var(--alta); }
+.etiqueta-perna.perna-v-call { background: var(--baixa); }
+.etiqueta-perna.perna-c-put { background: var(--periodica); }
+.etiqueta-perna.perna-v-put { background: var(--atencao); }
+tr.linha-perna-c-call th:first-child { box-shadow: inset 4px 0 0 var(--alta); }
+tr.linha-perna-v-call th:first-child { box-shadow: inset 4px 0 0 var(--baixa); }
+tr.linha-perna-c-put th:first-child { box-shadow: inset 4px 0 0 var(--periodica); }
+tr.linha-perna-v-put th:first-child { box-shadow: inset 4px 0 0 var(--atencao); }
+.botao-cv:disabled { opacity: 0.4; cursor: not-allowed; }
