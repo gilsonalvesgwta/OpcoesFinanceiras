@@ -91,6 +91,9 @@ function Cadeia({ cadeia, spot, faixa, cfg, pernas, selecionada, aoMontar, aoSel
     const c = s?.cotacao;
     const vd = s && cadeia.vencimento ? volDaSerie(s, cadeia.ativo.cotacao, cadeia.vencimento, cadeia.hoje, cfg, cadeia.selic?.valor ?? null) : null;
     const corPreco = c?.provedor === 'mt5' && c.qualidade === 'tempo_real' ? { color: 'var(--vivo)' } : undefined;
+    // Pregão aberto e a série sem preço do MT5: o número é do fechamento, e a tela diz isso.
+    const doFechamento = Boolean(cadeia.mercadoAberto && c && c.provedor !== 'mt5');
+    const dicaPreco = doFechamento ? `Fechamento da B3 de ${formatarData(cadeia.dia)}: não é preço de agora` : undefined;
     const corCalc = vd?.origem === 'ao_vivo' ? { color: 'var(--vivo)' } : undefined;
     const dentro = s && spot ? (lado === 'call' ? s.strike < spot : s.strike > spot) : false;
     const minhas = s ? pernasDa(s.codigo) : [];
@@ -116,9 +119,9 @@ function Cadeia({ cadeia, spot, faixa, cfg, pernas, selecionada, aoMontar, aoSel
       } : {}),
     } : {};
     const v = [
-      <td key="bid" className={`numero ${marca}`} style={corPreco} {...eventos}>{c?.bid ? reais(c.bid) : '—'}</td>,
-      <td key="ask" className={`numero ${marca}`} style={corPreco} {...eventos}>{c?.ask ? reais(c.ask) : '—'}</td>,
-      <td key="ult" className={`numero ${marca}`} style={corPreco} {...eventos}>{c?.ultimo ? reais(c.ultimo) : '—'}</td>,
+      <td key="bid" className={`numero ${marca}${doFechamento ? ' preco-fechamento' : ''}`} style={corPreco} title={dicaPreco} {...eventos}>{c?.bid ? reais(c.bid) : '—'}</td>,
+      <td key="ask" className={`numero ${marca}${doFechamento ? ' preco-fechamento' : ''}`} style={corPreco} title={dicaPreco} {...eventos}>{c?.ask ? reais(c.ask) : '—'}</td>,
+      <td key="ult" className={`numero ${marca}${doFechamento ? ' preco-fechamento' : ''}`} style={corPreco} title={dicaPreco} {...eventos}>{c?.ultimo ? reais(c.ultimo) : '—'}</td>,
       <td key="vol" className={`numero ${marca}`} style={corCalc} {...eventos}>{s ? pct(vd?.vol ?? null) : ''}</td>,
       <td key="delta" className={`numero ${marca}`} style={corCalc} {...eventos}>{vd?.delta === null || vd?.delta === undefined ? (s ? '—' : '') : vd.delta.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td>,
     ];
@@ -544,13 +547,24 @@ export default function PaginaSimulador() {
             </div>
           </div>
           {!cadeia && !erro && <p className="secao-vazia" role="status">Carregando…</p>}
+          {cadeia && cadeia.mercadoAberto && cadeia.series.length > 0 && !cadeia.series.some((x) => x.cotacao?.provedor === 'mt5') && (
+            <div className="alerta" role="note">
+              <Icone nome="aviso" tamanho={18} />
+              <span>
+                {rotuloDoVencimento(cadeia.vencimento ? cadeia.tipos?.[cadeia.vencimento] : undefined).mensal
+                  ? 'Nenhuma série deste vencimento chegou do MetaTrader 5 ainda (com o robô ligado, chegam em até 1 minuto). '
+                  : 'As opções semanais não existem no MetaTrader 5 da Genial, então não têm preço ao vivo. '}
+                Os preços abaixo, em cinza e itálico, são do <strong>fechamento da B3 de {formatarData(cadeia.dia)}</strong>, não de agora.
+              </span>
+            </div>
+          )}
           {cadeia && <Cadeia cadeia={cadeia} spot={spot} faixa={faixa} cfg={cfg} pernas={pernas} selecionada={selecionada} aoMontar={montar} aoSelecionar={setSelecionada} aoMover={moverPara} />}
           {cadeia && (
             <p className="linha-lista-apoio" style={{ margin: 0, fontSize: 13 }}>
               {(() => {
                 const vivas = cadeia.series.filter((x) => x.cotacao?.provedor === 'mt5' && x.cotacao.qualidade === 'tempo_real').length;
                 return vivas
-                  ? <><span style={{ color: 'var(--vivo)', fontWeight: 600 }}>Em destaque: tempo real pelo MetaTrader 5</span> ({vivas} de {cadeia.series.length} séries; Vol e Δ recalculados na hora). Nas demais, fechamento da B3 de {formatarData(cadeia.dia)}. </>
+                  ? <><span style={{ color: 'var(--vivo)', fontWeight: 600 }}>Em destaque: tempo real pelo MetaTrader 5</span> ({vivas} de {cadeia.series.length} séries; Vol e Δ recalculados na hora). Nas demais (em cinza e itálico), fechamento da B3 de {formatarData(cadeia.dia)}: não é preço de agora. </>
                   : <>Preços do fechamento da B3 de {formatarData(cadeia.dia)}; Vol e Δ do fechamento.{cadeia.mercadoAberto ? ' Com o MetaTrader 5 aberto e o robô ligado, as séries passam a tempo real em até 1 minuto.' : ''} </>;
               })()}
               {atualizadoEm && <>Atualiza sozinho a cada {cadeia.mercadoAberto ? 'segundo' : 'minuto'} (última às {atualizadoEm.toLocaleTimeString('pt-BR')}). </>}

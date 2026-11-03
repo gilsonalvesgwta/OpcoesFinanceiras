@@ -412,3 +412,4 @@ tr.linha-perna-v-put th:first-child { box-shadow: inset 4px 0 0 var(--atencao); 
 .painel-ativo-numeros div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--linha); padding: 4px 0; }
 .painel-ativo-numeros dt { color: var(--apoio); font-size: 13px; }
 .painel-ativo-numeros dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tabela-cadeia td.preco-fechamento { color: var(--apoio); font-style: italic; }
