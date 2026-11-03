@@ -31,7 +31,7 @@ export function extremosComAgora(maxima: number | null, minima: number | null, p
 export function escalaDoPainel(
   pontos: readonly { t: string; p: number }[], periodo: Periodo, hoje: string,
   sessao: { abertura: string; fechamento: string } | null, referencia: number | null,
-  largura = 640, altura = 190, m = { e: 8, d: 64, t: 12, b: 24 },
+  largura = 760, altura = 260, m = { e: 8, d: 64, t: 12, b: 26 },
 ) {
   if (!pontos.length) return null;
   const ts = pontos.map((x) => Date.parse(x.t));
@@ -45,17 +45,23 @@ export function escalaDoPainel(
   if (t1 <= t0) t1 = t0 + 60_000;
   const valores = pontos.map((x) => x.p);
   if (periodo === '1D' && referencia !== null) valores.push(referencia);
-  let v0 = Math.min(...valores);
-  let v1 = Math.max(...valores);
-  if (v1 === v0) { v0 -= 1; v1 += 1; }
-  const folga = (v1 - v0) * 0.08;
-  v0 -= folga; v1 += folga;
+  // Eixo em valores redondos (ex.: 162,00 · 162,50 · 163,00), com folga só até a marca seguinte.
+  const marcas = marcasDeValor(Math.min(...valores), Math.max(...valores));
+  const v0 = marcas[0] as number;
+  const v1 = marcas[marcas.length - 1] as number;
   const x = (t: number) => m.e + ((t - t0) / (t1 - t0)) * (largura - m.e - m.d);
   const y = (v: number) => m.t + ((v1 - v) / (v1 - v0)) * (altura - m.t - m.b);
   const caminho = pontos.map((q, i) => `${i ? 'L' : 'M'}${x(Date.parse(q.t)).toFixed(1)},${y(q.p).toFixed(1)}`).join(' ');
   const ultimo = pontos[pontos.length - 1] as { t: string; p: number };
   const area = `${caminho} L${x(Date.parse(ultimo.t)).toFixed(1)},${(altura - m.b).toFixed(1)} L${x(ts[0] as number).toFixed(1)},${(altura - m.b).toFixed(1)} Z`;
-  return { largura, altura, m, t0, t1, v0, v1, x, y, caminho, area, ultimo };
+  // Ponto mais perto de uma posição x (para o mouse).
+  const pontoEm = (px: number) => {
+    let melhor = pontos[0] as { t: string; p: number };
+    let d = Infinity;
+    for (const q of pontos) { const dx = Math.abs(x(Date.parse(q.t)) - px); if (dx < d) { d = dx; melhor = q; } }
+    return melhor;
+  };
+  return { largura, altura, m, t0, t1, v0, v1, x, y, caminho, area, ultimo, marcas, pontoEm };
 }
 
 // Marcas do eixo de tempo: horas cheias pares no 1D; senão, começo, meio e fim.
@@ -71,4 +77,18 @@ export function marcasDeTempo(t0: number, t1: number, periodo: Periodo): { t: nu
     return r;
   }
   return [t0, (t0 + t1) / 2, t1].map((t) => ({ t, rotulo: data(t) }));
+}
+
+// Marcas "redondas" do eixo de preço (em centavos): passos de 1, 2, 2,5 ou 5 × 10^n,
+// de 4 a 7 marcas cobrindo o intervalo.
+export function marcasDeValor(min: number, max: number): number[] {
+  if (!(max > min)) { min -= 50; max += 50; }
+  const bruto = (max - min) / 5;
+  const pot = 10 ** Math.floor(Math.log10(bruto));
+  const passo = ([1, 2, 2.5, 5, 10].map((k) => k * pot).find((p) => p >= bruto) ?? 10 * pot);
+  const ini = Math.floor(min / passo) * passo;
+  const fim = Math.ceil(max / passo) * passo;
+  const r: number[] = [];
+  for (let v = ini; v <= fim + passo / 1000; v += passo) r.push(Math.round(v * 100) / 100);
+  return r;
 }

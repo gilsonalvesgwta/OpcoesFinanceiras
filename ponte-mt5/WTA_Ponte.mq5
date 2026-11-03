@@ -23,7 +23,7 @@ input string Chave           = "";                               // Chave da pon
 input int    IntervaloMs     = 1000;                             // Intervalo entre envios de cotações (ms)
 input bool   EnviarPosicoes  = true;                             // Enviar posições abertas da conta
 
-#define VERSAO            "1.4.0"
+#define VERSAO            "1.5.0"
 #define TEMPO_LIMITE_MS   10000
 #define LOTE_MAX          150   // cotações por envio; o resto vai nos próximos ciclos
 #define PULSO_MS          5000
@@ -42,6 +42,13 @@ int      g_ultimoPedidos = -1, g_ultimoAcompanhados = -1; // para avisar só qua
 int      g_pendIdx[];           // itens do lote em envio: só contam como enviados depois do 200
 long     g_pendMsc[];
 double   g_pendBid[], g_pendAsk[], g_pendLast[];
+// Gráfico do dia: minutos já fechados (barras M1) de ações e ETFs, enviados aos poucos.
+string   g_barCod[];          // código
+datetime g_barDesde[];        // abertura da última barra M1 confirmada pelo servidor
+string   g_pendBarCod[];
+datetime g_pendBarAte[];
+#define BARRAS_POR_ENVIO  2       // ativos com barras em cada envio
+#define DIAS_DE_BARRAS    6       // na primeira vez: até 6 dias corridos (aba 5D)
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -92,13 +99,16 @@ void OnTimer()
      }
 
    string cotacoes = MontarCotacoes();
+   string barras = MontarBarras();
    bool pulso = (agora >= g_proxPulso);
    bool posicoes = EnviarPosicoes && (agora >= g_proxPosicoes);
-   if(cotacoes == "" && !pulso && !posicoes)
+   if(cotacoes == "" && barras == "" && !pulso && !posicoes)
       return;
 
    string corpo = "{\"versao\":\"" + VERSAO + "\",\"conta\":" + MontarConta() +
                   ",\"cotacoes\":[" + cotacoes + "]";
+   if(barras != "")
+      corpo += ",\"barras\":[" + barras + "]";
    if(posicoes)
       corpo += ",\"posicoes\":[" + MontarPosicoes() + "]";
    corpo += "}";
@@ -108,6 +118,7 @@ void OnTimer()
    if(status == 200)
      {
       ConfirmarLote();
+      ConfirmarBarras();
       g_falhasSeguidas = 0;
       g_proxPulso = agora + PULSO_MS;
       if(posicoes)
@@ -331,6 +342,96 @@ string MontarCotacoes()
      }
    g_cursor = i;
    return(s);
+  }
+
+// Ação ou ETF (4 letras + 1 ou 2 dígitos, ex.: PETR4, BOVA11); opções ficam de fora.
+bool EhAcao(const string c)
+  {
+   int n = StringLen(c);
+   if(n < 5 || n > 6)
+      return(false);
+   for(int i = 0; i < n; i++)
+     {
+      ushort ch = StringGetCharacter(c, i);
+      if(i < 4 && (ch < 'A' || ch > 'Z'))
+         return(false);
+      if(i >= 4 && (ch < '0' || ch > '9'))
+         return(false);
+     }
+   return(true);
+  }
+
+int IndiceDaBarra(const string c)
+  {
+   for(int i = 0; i < ArraySize(g_barCod); i++)
+      if(g_barCod[i] == c)
+         return(i);
+   return(-1);
+  }
+
+// Minutos fechados (barras M1) ainda não enviados: na primeira vez, os últimos dias;
+// depois, só os novos. Fica pendente até o servidor confirmar.
+string MontarBarras()
+  {
+   string s = "";
+   ArrayResize(g_pendBarCod, 0);
+   ArrayResize(g_pendBarAte, 0);
+   long desloc = DeslocamentoMs();
+   int feitos = 0;
+   for(int i = 0; i < ArraySize(g_ativos) && feitos < BARRAS_POR_ENVIO; i++)
+     {
+      string c = g_ativos[i];
+      if(!EhAcao(c))
+         continue;
+      datetime atual = iTime(c, PERIOD_M1, 0);
+      if(atual == 0)
+         continue;
+      int k = IndiceDaBarra(c);
+      datetime desde = (k >= 0) ? g_barDesde[k] : 0;
+      datetime ultimaFechada = atual - 60;
+      if(desde >= ultimaFechada)
+         continue;
+      datetime de = (desde > 0) ? desde + 60 : atual - DIAS_DE_BARRAS * 86400;
+      MqlRates r[];
+      int n = CopyRates(c, PERIOD_M1, de, ultimaFechada, r);
+      if(n <= 0)
+         continue; // histórico ainda carregando: tenta no próximo ciclo
+      int ini = MathMax(0, n - 3000);
+      int dig = (int)SymbolInfoInteger(c, SYMBOL_DIGITS);
+      string pts = "";
+      for(int j = ini; j < n; j++)
+        {
+         if(r[j].close <= 0.0)
+            continue;
+         pts += (pts == "" ? "" : ",") + "[" + IntegerToString((long)r[j].time * 1000 - desloc) + "," + DoubleToString(r[j].close, dig) + "]";
+        }
+      int m = ArraySize(g_pendBarCod);
+      ArrayResize(g_pendBarCod, m + 1);
+      ArrayResize(g_pendBarAte, m + 1);
+      g_pendBarCod[m] = c;
+      g_pendBarAte[m] = r[n - 1].time;
+      if(pts != "")
+         s += (s == "" ? "" : ",") + "{\"codigo\":\"" + c + "\",\"pontos\":[" + pts + "]}";
+      feitos++;
+     }
+   return(s);
+  }
+
+void ConfirmarBarras()
+  {
+   for(int m = 0; m < ArraySize(g_pendBarCod); m++)
+     {
+      int k = IndiceDaBarra(g_pendBarCod[m]);
+      if(k < 0)
+        {
+         k = ArraySize(g_barCod);
+         ArrayResize(g_barCod, k + 1);
+         ArrayResize(g_barDesde, k + 1);
+         g_barCod[k] = g_pendBarCod[m];
+        }
+      g_barDesde[k] = g_pendBarAte[m];
+     }
+   ArrayResize(g_pendBarCod, 0);
   }
 
 void ConfirmarLote()

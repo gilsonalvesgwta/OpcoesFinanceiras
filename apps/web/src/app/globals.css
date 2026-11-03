@@ -407,7 +407,7 @@ tr.linha-perna-v-put th:first-child { box-shadow: inset 4px 0 0 var(--atencao); 
 .botao-periodo { min-height: 36px; min-width: 44px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--apoio); font: inherit; font-weight: 600; cursor: pointer; }
 .botao-periodo.atual { color: var(--latao); border-bottom-color: var(--latao); }
 .botao-periodo:hover { color: var(--texto); }
-.painel-ativo-grafico { max-height: 220px; }
+.painel-ativo-grafico { max-height: 300px; touch-action: pan-y; cursor: crosshair; }
 .painel-ativo-numeros { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 4px 16px; margin: 0; }
 .painel-ativo-numeros div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--linha); padding: 4px 0; }
 .painel-ativo-numeros dt { color: var(--apoio); font-size: 13px; }

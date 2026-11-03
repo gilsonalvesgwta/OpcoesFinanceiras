@@ -16,6 +16,8 @@ begin
   perform teste.confere((select count(*) from intradia_ponte where codigo = 'PNLA11') = 1, 'um ponto por minuto');
   perform teste.confere((select preco from intradia_ponte where codigo = 'PNLA11') = 16250, 'fica o último preço do minuto');
   perform teste.confere((select count(*) from intradia_ponte where codigo = 'PNLAK157') = 0, 'opção não entra no gráfico');
+  perform teste.confere(app.receber_barras_da_ponte(v_hash, '[{"codigo":"PNLA11","minuto":"2026-11-03T13:00:20Z","preco":16300},{"codigo":"PNLA11","minuto":"2026-11-03T13:01:00Z","preco":16310},{"codigo":"PNLAK157","minuto":"2026-11-03T13:01:00Z","preco":5}]'::jsonb) = 2, 'barras do dia: duas de ação, opção fora');
+  perform teste.confere((select count(*) from intradia_ponte where codigo = 'PNLA11') = 3, 'minutos desde a abertura');
 end $$;
 set role wtaopt_app;
 select teste.entrar('b1@exemplo.test');

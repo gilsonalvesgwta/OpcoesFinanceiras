@@ -165,6 +165,12 @@ export async function rotasDaPonte(app: FastifyInstance, dep: Dependencias, cale
         [hash, ipDe(req), lote.versao, JSON.stringify(lote.conta), JSON.stringify(lote.cotacoes), lote.posicoes === null ? null : JSON.stringify(lote.posicoes)],
       ));
       const l = r.rows[0];
+      // Minutos do dia (gráfico): só depois que a chave foi aceita acima.
+      let minutos = 0;
+      if (lote.barras.length) {
+        const pontos = lote.barras.flatMap((b) => b.pontos.map((x) => ({ codigo: b.codigo, minuto: x.minuto, preco: x.preco })));
+        minutos = Number((await emTransacao(pool, null, (c) => c.query('select app.receber_barras_da_ponte($1, $2) as n', [hash, JSON.stringify(pontos)]))).rows[0]?.n ?? 0);
+      }
       // Alertas do dono: a ponte acabou de dar sinal, então a qualidade é a do pulso agora.
       let alertas = { avaliadas: 0, disparos: 0 };
       if (lote.cotacoes.length > 0) {
@@ -178,7 +184,7 @@ export async function rotasDaPonte(app: FastifyInstance, dep: Dependencias, cale
           req.log.error({ err: e }, 'falha ao avaliar alertas da ponte'); // não derruba o recebimento das cotações
         }
       }
-      return { gravadas: l.gravadas, ignoradas: l.ignoradas, posicoes: l.posicoes, descartadas: lote.avisos.length, avisos: [...new Set(lote.avisos)], alertas: alertas.disparos };
+      return { gravadas: l.gravadas, ignoradas: l.ignoradas, posicoes: l.posicoes, minutos, descartadas: lote.avisos.length, avisos: [...new Set(lote.avisos)], alertas: alertas.disparos };
     } catch (e) {
       // A chave pode ter sido revogada entre a conferência e a gravação.
       if (erroDoBanco(e) === 'ponte_invalida') throw new ErroHttp(401, 'chave_da_ponte_invalida');
