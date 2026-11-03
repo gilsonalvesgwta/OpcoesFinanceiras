@@ -20,10 +20,10 @@
 
 input string UrlBase         = "https://opcoes.wtatech.com.br"; // Endereço do sistema (https, porta padrão)
 input string Chave           = "";                               // Chave da ponte (criada em Preferências)
-input int    IntervaloMs     = 1500;                             // Intervalo entre envios de cotações (ms)
+input int    IntervaloMs     = 1000;                             // Intervalo entre envios de cotações (ms)
 input bool   EnviarPosicoes  = true;                             // Enviar posições abertas da conta
 
-#define VERSAO            "1.2.0"
+#define VERSAO            "1.3.0"
 #define TEMPO_LIMITE_MS   10000
 #define LOTE_MAX          150   // cotações por envio; o resto vai nos próximos ciclos
 #define PULSO_MS          5000
@@ -292,12 +292,14 @@ string MontarCotacoes()
          continue; // nada mudou
       int dig = (int)SymbolInfoInteger(g_ativos[i], SYMBOL_DIGITS);
       double volume = SymbolInfoDouble(g_ativos[i], SYMBOL_SESSION_VOLUME);
+      long lote = (long)MathRound(SymbolInfoDouble(g_ativos[i], SYMBOL_VOLUME_STEP)); // passo de quantidade (1 ou 100 na B3)
       string item = "{\"codigo\":\"" + g_ativos[i] + "\"" +
                     ",\"ultimo\":" + Preco(t.last, dig) +
                     ",\"bid\":" + Preco(t.bid, dig) +
                     ",\"ask\":" + Preco(t.ask, dig) +
                     ",\"fechamento_anterior\":" + Preco(FechamentoAnterior(g_ativos[i]), dig) +
                     ",\"volume\":" + (volume > 0 ? IntegerToString((long)volume) : "null") +
+                    ",\"lote\":" + (lote >= 1 ? IntegerToString(lote) : "null") +
                     ",\"instante\":" + IntegerToString(t.time_msc - desloc) + "}";
       s += (s == "" ? "" : ",") + item;
       ArrayResize(g_pendIdx, n + 1); ArrayResize(g_pendMsc, n + 1);

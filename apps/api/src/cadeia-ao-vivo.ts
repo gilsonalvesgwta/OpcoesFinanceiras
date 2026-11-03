@@ -6,10 +6,10 @@
 import type { Cliente } from './banco.ts';
 import type { CotacaoDeSaida } from './cotacoes.ts';
 
-export type CotacaoResumida = { ultimo: number | null; bid: number | null; ask: number | null; qualidade: string; provedor: string; instanteDaFonte: string | null } | null;
+export type CotacaoResumida = { ultimo: number | null; bid: number | null; ask: number | null; qualidade: string; provedor: string; instanteDaFonte: string | null; lote: number | null } | null;
 
 export const resumoDaCotacao = (x: CotacaoDeSaida | undefined): CotacaoResumida =>
-  (x ? { ultimo: x.ultimo, bid: x.bid, ask: x.ask, qualidade: x.qualidade, provedor: x.provedor, instanteDaFonte: x.instanteDaFonte } : null);
+  (x ? { ultimo: x.ultimo, bid: x.bid, ask: x.ask, qualidade: x.qualidade, provedor: x.provedor, instanteDaFonte: x.instanteDaFonte, lote: x.lote ?? null } : null);
 
 // Pede ao robô do MT5 (se houver) o ativo e as séries dos 3 vencimentos mais próximos e as
 // do vencimento escolhido (estas primeiro), perto do preço, por 15 minutos. Renova no

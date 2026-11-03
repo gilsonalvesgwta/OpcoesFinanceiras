@@ -1,6 +1,7 @@
 // Cotações dos códigos pedidos, do jeito que as telas mostram: a da ponte com o
 // MetaTrader 5 do usuário (qualidade pelo pulso da ponte) e, para o que a ponte não
-// cobre ou quando ela caiu, o último fechamento oficial da B3 (histórico).
+// cobre ou quando ela caiu, a brapi (só com o MT5 fora do ar ou fora do pregão) ou o
+// último fechamento oficial da B3 (histórico).
 // Roda dentro da transação do usuário (RLS): só alcança a ponte dele.
 
 import { qualidadeDaPonte, sessaoDoDia, situacaoDoMercado, type ConfiguracaoDoCalendario, type Cotacao } from '@wta/domain';
@@ -11,6 +12,7 @@ export type CotacaoDeSaida = {
   codigo: string; provedor: string;
   ultimo: number | null; bid: number | null; ask: number | null; fechamentoAnterior: number | null; volume: number | null;
   instanteDaFonte: string | null; instanteDeRecebimento: string | null; sinalDaPonteEm: string | null; qualidade: string;
+  lote?: number | null; // passo de quantidade informado pelo MT5 (só na cotação da ponte)
 };
 
 const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString() : null);
@@ -21,7 +23,7 @@ export async function cotacoesDoUsuario(c: Cliente, codigos: string[], agora: Da
   const mercado = situacaoDoMercado(agora, cfg);
   const r = await c.query(
     `select q.codigo, q.ultimo, q.bid, q.ask, q.fechamento_anterior, q.volume, q.instante_fonte, q.recebido_em,
-            p.ultimo_contato_em, p.revogada_em
+            q.lote, p.ultimo_contato_em, p.revogada_em
      from cotacoes_ponte q join pontes_mt5 p on p.id = q.ponte_id
      where q.codigo = any($1::text[])`, [codigos],
   );
@@ -32,9 +34,16 @@ export async function cotacoesDoUsuario(c: Cliente, codigos: string[], agora: Da
     instanteDaFonte: iso(l.instante_fonte), instanteDeRecebimento: iso(l.recebido_em),
     sinalDaPonteEm: iso(l.ultimo_contato_em),
     qualidade: l.revogada_em ? 'desconectado' : qualidadeDaPonte(iso(l.ultimo_contato_em), agora, mercado.aberto),
+    lote: l.lote === null || l.lote === undefined ? null : Number(l.lote),
   }]));
+  // MT5 no ar (pulso recente) durante o pregão: a brapi (com ~30 min de atraso) não entra
+  // em nada. Ela só serve fora do pregão ou com o MT5 desligado; o que o MT5 não cobre
+  // fica com o fechamento oficial da B3, sempre indicado como tal.
+  const ponteNoAr = mercado.aberto && (await c.query(
+    'select ultimo_contato_em from pontes_mt5 where revogada_em is null order by ultimo_contato_em desc nulls last limit 1',
+  )).rows.some((l) => qualidadeDaPonte(iso(l.ultimo_contato_em), agora, true) !== 'desconectado');
   const daB3 = new Map((await cotacoesDaB3(c, codigos, cfg)).map((q) => [q.codigo, q]));
-  const daBrapi = new Map((await cotacoesDaBrapi(c, codigos, agora, mercado.aberto)).map((q) => [q.codigo, q]));
+  const daBrapi = new Map(ponteNoAr ? [] : (await cotacoesDaBrapi(c, codigos, agora, mercado.aberto)).map((q) => [q.codigo, q]));
   return [...new Set(codigos)].sort().flatMap((codigo): CotacaoDeSaida[] => {
     const p = daPonte.get(codigo);
     const b3 = daB3.get(codigo);

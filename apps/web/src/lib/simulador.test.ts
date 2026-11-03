@@ -78,7 +78,7 @@ test('vol e delta ao vivo só com tempo real do MT5; senão, do fechamento', asy
   assert.ok(Math.abs((r.vol as number) - 0.35) < 0.01, String(r.vol));
   assert.deepEqual(volDaSerie(serie, vivo(3899, 3901), '2026-11-23', '2026-10-21', cfg, 14.9), { vol: 0.3, delta: 0.4, origem: 'fechamento' }, 'série sem MT5: fechamento');
   assert.equal(volDaSerie(s, cot(3899, 3901, 3900), '2026-11-23', '2026-10-21', cfg, 14.9).origem, 'fechamento', 'ativo sem MT5: fechamento');
-  assert.equal(intervaloDeAtualizacao(true), 2000);
+  assert.equal(intervaloDeAtualizacao(true), 1000);
   assert.equal(intervaloDeAtualizacao(false), 60000);
 });
 
@@ -117,4 +117,14 @@ test('mover perna para outro strike e strike vizinho', async () => {
   assert.equal(serieVizinha(series, p, -1), null);
   assert.equal(serieVizinha(series, { tipo: 'put', strike: 1689 }, 1), null);
   assert.equal(classeDaPerna('venda', 'call'), 'perna-v-call');
+});
+
+test('lote: o do MT5; sem ele, 1 nas opções de BOVA11 e 100 no resto', async () => {
+  const { loteDe, pernaDaSerie } = await import('./simulador.ts');
+  assert.equal(loteDe({ ...cot(1, 2, null), lote: 1 }, 'PETR4'), 1);
+  assert.equal(loteDe(cot(1, 2, null), 'BOVA11'), 1);
+  assert.equal(loteDe(cot(1, 2, null), 'PETR4'), 100);
+  assert.equal(loteDe(null, null), 100);
+  const s = { codigo: 'BOVAK157', tipo: 'call' as const, strike: 15700, negocios: 1, vol: 0.24, delta: 0.5, cotacao: cot(800, 808, null) };
+  assert.equal(pernaDaSerie(s, '2026-11-19', 'compra', 220, 'BOVA11').lote, 1);
 });

@@ -18,7 +18,6 @@ type Item = { href: string; nome: string; icone: NomeDoIcone; soSuper?: boolean 
 const PRINCIPAL: Item[] = [
   { href: '/', nome: 'Painel', icone: 'painel' },
   { href: '/ativos', nome: 'Ativos', icone: 'ativos' },
-  { href: '/cadeia', nome: 'Cadeia de opções', icone: 'cadeia' },
   { href: '/simulador', nome: 'Simulador', icone: 'simulador' },
   { href: '/alertas', nome: 'Alertas', icone: 'alertas' },
   { href: '/posicoes', nome: 'Posições', icone: 'posicoes' },

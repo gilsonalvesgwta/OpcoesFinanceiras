@@ -32,6 +32,7 @@ export type CotacaoDaPonte = {
   fechamento_anterior: Centavos | null;
   volume: number | null;
   instante: string; // ISO 8601 UTC: última mudança no servidor da corretora
+  lote: number | null; // passo de quantidade no MT5 (SYMBOL_VOLUME_STEP); null = robô antigo
 };
 
 export type PosicaoDaPonte = {
@@ -98,7 +99,12 @@ function lerCotacao(v: unknown, agora: Date): CotacaoDaPonte | string {
     if (typeof v.volume !== 'number' || !Number.isSafeInteger(v.volume) || v.volume < 0) return 'volume_invalido';
     volume = v.volume;
   }
-  return { codigo, ultimo, bid, ask, fechamento_anterior: fechamento, volume, instante };
+  let lote: number | null = null;
+  if (v.lote !== undefined && v.lote !== null) {
+    if (typeof v.lote !== 'number' || !Number.isSafeInteger(v.lote) || v.lote < 1 || v.lote > 1_000_000) return 'lote_invalido';
+    lote = v.lote;
+  }
+  return { codigo, ultimo, bid, ask, fechamento_anterior: fechamento, volume, instante, lote };
 }
 
 function lerPosicao(v: unknown): PosicaoDaPonte | string {
