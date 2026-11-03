@@ -217,6 +217,8 @@ export default function PaginaSimulador() {
   const [boleta, setBoleta] = useState({ ticker: '', preco: '' });
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const pedidoAtual = useRef(0);
+  // A pessoa já escolheu um ativo: a carga inicial (que espera os favoritos) não passa por cima.
+  const escolhaFeita = useRef(false);
   const montagemPedida = useRef<{ codigo: string; lado: 'compra' | 'venda' } | null>(null);
 
   const carregarCarteiras = useCallback(async () => {
@@ -252,8 +254,8 @@ export default function PaginaSimulador() {
       const url = new URLSearchParams(window.location.search);
       const pedido = url.get('ativo')?.toUpperCase();
       montagemPedida.current = lerPedidoDeMontagem(url.get('montar'));
-      void carregarCadeia(pedido || lista[0] || 'PETR4', url.get('vencimento') || undefined);
-    }).catch(() => void carregarCadeia('PETR4'));
+      if (!escolhaFeita.current) void carregarCadeia(pedido || lista[0] || 'PETR4', url.get('vencimento') || undefined);
+    }).catch(() => { if (!escolhaFeita.current) void carregarCadeia('PETR4'); });
   }, [carregarCadeia, carregarCarteiras]);
 
   // Atualização automática: a cada 1 s no pregão (preços da ponte MT5), a cada 60 s fora dele,
@@ -487,7 +489,7 @@ export default function PaginaSimulador() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: '0 1 240px', minWidth: 200 }}>
             <div className="campo">
               <label htmlFor="sim-ativo">Ativo</label>
-              <select id="sim-ativo" value={ativo} onChange={(e) => { if (e.target.value) void carregarCadeia(e.target.value); }}>
+              <select id="sim-ativo" value={ativo} onChange={(e) => { if (e.target.value) { escolhaFeita.current = true; void carregarCadeia(e.target.value); } }}>
                 {ativo && !favoritos.includes(ativo) && !objetos.includes(ativo) && <option value={ativo}>{ativo}</option>}
                 {favoritos.length > 0 && (
                   <optgroup label="Favoritos">
