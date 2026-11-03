@@ -219,7 +219,11 @@ export default function PaginaSimulador() {
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [boleta, setBoleta] = useState({ ticker: '', preco: '' });
   const [selecionada, setSelecionada] = useState<string | null>(null);
-  const pedidoAtual = useRef(0);
+  // Pedido "de verdade" (escolher ativo ou vencimento) e se ele ainda está em andamento:
+  // a atualização automática de cada segundo nunca passa por cima de uma escolha.
+  const pedidoPrincipal = useRef(0);
+  const escolhaEmAndamento = useRef(false);
+  const [trocandoPara, setTrocandoPara] = useState<string | null>(null);
   // A pessoa já escolheu um ativo: a carga inicial (que espera os favoritos) não passa por cima.
   const escolhaFeita = useRef(false);
   const montagemPedida = useRef<{ codigo: string; lado: 'compra' | 'venda' } | null>(null);
@@ -230,18 +234,28 @@ export default function PaginaSimulador() {
   }, []);
 
   const carregarCadeia = useCallback(async (codigo: string, vencimento?: string, silencioso = false) => {
-    if (!silencioso) setErro(null);
-    // Só vale a resposta do pedido mais recente (uma antiga que chega depois é ignorada).
-    const meu = ++pedidoAtual.current;
+    // Atualização automática: não roda durante uma escolha, e a resposta dela é jogada fora
+    // se nesse meio-tempo a pessoa escolheu outra coisa.
+    if (silencioso && escolhaEmAndamento.current) return;
+    const meu = silencioso ? pedidoPrincipal.current : ++pedidoPrincipal.current;
+    if (!silencioso) {
+      escolhaEmAndamento.current = true;
+      setErro(null);
+      setTrocandoPara(codigo.toUpperCase());
+      setAtivo(codigo.toUpperCase()); // a lista mostra a escolha na hora
+    }
     try {
       const r = await chamar<CadeiaDoSimulador>('GET', `/api/simulador/cadeia?ativo=${encodeURIComponent(codigo)}${vencimento ? `&vencimento=${vencimento}` : ''}`);
-      if (meu !== pedidoAtual.current) return;
+      if (meu !== pedidoPrincipal.current || (silencioso && escolhaEmAndamento.current)) return;
       setCadeia(r);
       setAtualizadoEm(new Date());
       if (!silencioso) { setAtivo(r.ativo.codigo); setSelecionada(null); }
     } catch (x) {
-      if (silencioso || meu !== pedidoAtual.current) return; // falha momentânea na atualização automática: tenta de novo no próximo ciclo
+      if (silencioso || meu !== pedidoPrincipal.current) return; // falha momentânea na atualização automática: tenta de novo no próximo ciclo
+      setCadeia(null); // não deixa a cadeia do ativo anterior na tela com outro ativo escolhido
       setErro(x instanceof ErroDaApi && x.codigo === 'sem_fechamento' ? `Sem dados da B3 para ${codigo}. Confira o código da ação (ex.: PETR4).` : x instanceof Error ? x.message : 'Não foi possível carregar a cadeia.');
+    } finally {
+      if (!silencioso && meu === pedidoPrincipal.current) { escolhaEmAndamento.current = false; setTrocandoPara(null); }
     }
   }, []);
 
@@ -512,7 +526,7 @@ export default function PaginaSimulador() {
             )}
             <span className="linha-lista-apoio" style={{ fontSize: 13 }}>Selic {selic ? `${selic.toLocaleString('pt-BR')}% ao ano` : 'indisponível (juros zero no cálculo)'}</span>
           </div>
-          {cadeia && <PainelDoAtivo ativo={cadeia.ativo.codigo} aoVivo={cadeia.ativo.cotacao} />}
+          {ativo && <PainelDoAtivo ativo={ativo} aoVivo={cadeia && cadeia.ativo.codigo === ativo ? cadeia.ativo.cotacao : null} />}
         </div>
         {cadeia && cadeia.vencimentos.length > 0 && (
           <div className="atalhos" role="group" aria-label="Vencimentos">
@@ -558,7 +572,9 @@ export default function PaginaSimulador() {
               </span>
             </div>
           )}
-          {cadeia && <Cadeia cadeia={cadeia} spot={spot} faixa={faixa} cfg={cfg} pernas={pernas} selecionada={selecionada} aoMontar={montar} aoSelecionar={setSelecionada} aoMover={moverPara} />}
+          {trocandoPara && cadeia?.ativo.codigo !== trocandoPara
+            ? <p className="secao-vazia" role="status">Carregando a cadeia de {trocandoPara}…</p>
+            : cadeia && <Cadeia cadeia={cadeia} spot={spot} faixa={faixa} cfg={cfg} pernas={pernas} selecionada={selecionada} aoMontar={montar} aoSelecionar={setSelecionada} aoMover={moverPara} />}
           {cadeia && (
             <p className="linha-lista-apoio" style={{ margin: 0, fontSize: 13 }}>
               {(() => {

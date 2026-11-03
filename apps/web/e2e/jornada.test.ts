@@ -351,6 +351,12 @@ test.describe.serial('jornada', () => {
     // Lista de ativos: escolher carrega sozinho (sem botão Carregar); favoritar põe no topo.
     await page.getByLabel('Ativo', { exact: true }).selectOption('ITUB4');
     await expect(page.getByRole('heading', { name: /Cadeia · vence 23\/11\/2026/ })).toBeVisible();
+    // Trocar de ativo duas vezes seguidas: vale a última escolha, e a atualização automática não volta atrás.
+    await page.getByLabel('Ativo', { exact: true }).selectOption('PETR4');
+    await page.getByLabel('Ativo', { exact: true }).selectOption('ITUB4');
+    await page.waitForTimeout(2500);
+    await expect(page.getByLabel('Ativo', { exact: true })).toHaveValue('ITUB4');
+    await expect(page.getByRole('heading', { name: /Cadeia · vence 23\/11\/2026/ })).toBeVisible();
     await expect(page.getByRole('group', { name: 'Painel do dia de ITUB4' })).toBeVisible();
     await expect(page.getByText('Máx. 52 sem')).toBeVisible();
     await page.getByRole('button', { name: '1M' }).click();
