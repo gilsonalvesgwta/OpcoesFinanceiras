@@ -7,8 +7,10 @@ const plex = IBM_Plex_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '
 const plexCondensada = IBM_Plex_Sans_Condensed({ subsets: ['latin'], weight: ['500', '600'], variable: '--fonte-condensada', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: { default: 'WTA Options Intelligence', template: '%s · WTA Options' },
-  description: 'Análise, monitoramento e gestão de operações com opções da B3.',
+  title: { default: 'WTA Options Intelligence · Gilson Alves', template: '%s · WTA Options · Gilson Alves' },
+  description: 'Análise, monitoramento e gestão de operações com opções da B3. Estruturado e desenvolvido por Gilson Alves.',
+  authors: [{ name: 'Gilson Alves' }],
+  creator: 'Gilson Alves',
   robots: { index: false, follow: false },
 };
 

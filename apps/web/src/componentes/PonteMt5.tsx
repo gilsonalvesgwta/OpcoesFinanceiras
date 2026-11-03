@@ -11,8 +11,8 @@ import { MensagemDeErro } from './Acesso.tsx';
 import { useConsultaPeriodica } from './Consulta.tsx';
 import { Icone } from './Icone.tsx';
 
-// Versão atual de ponte-mt5/WTA_Ponte.mq5 (1.3.0: manda o lote de negociação e envia a cada 1 s).
-const VERSAO_DO_ROBO = '1.3.0';
+// Versão atual de ponte-mt5/WTA_Ponte.mq5 (1.4.0: lote, abertura/máxima/mínima do dia e envio a cada 1 s).
+const VERSAO_DO_ROBO = '1.4.0';
 
 const ENDERECO = 'https://opcoes.wtatech.com.br';
 

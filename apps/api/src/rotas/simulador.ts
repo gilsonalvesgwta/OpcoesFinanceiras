@@ -130,6 +130,92 @@ export async function rotasDoSimulador(app: FastifyInstance, dep: Dependencias, 
     });
   });
 
+
+  // ---------- Painel do dia do ativo ----------
+  // Preço, variação contra o fechamento anterior, abertura/máxima/mínima do dia, máxima e
+  // mínima de 52 semanas e a série do gráfico do período (1D e 5D pelos minutos que a ponte
+  // MT5 mandou; 1M, 6M e 1A pelos fechamentos oficiais da B3).
+  app.get('/api/simulador/painel', {
+    config: { politica: 'autenticado' },
+    schema: { querystring: { type: 'object', additionalProperties: false, required: ['ativo'], properties: { ativo: CODIGO, periodo: { type: 'string', enum: ['1D', '5D', '1M', '6M', '1A'] } } } },
+  }, async (req) => {
+    const s = req.sessao as Sessao;
+    const q = req.query as { ativo: string; periodo?: '1D' | '5D' | '1M' | '6M' | '1A' };
+    const ativo = q.ativo.toUpperCase();
+    const periodo = q.periodo ?? '1D';
+    const agora = relogio();
+    const cfg = await calendario.obter();
+    const mercado = situacaoDoMercado(agora, cfg);
+    const hoje = mercado.dia;
+    return emTransacao(pool, s.usuarioId, async (c) => {
+      const [cot] = await cotacoesDoUsuario(c, [ativo], agora, cfg);
+      if (!cot) throw new ErroHttp(404, 'sem_cotacao');
+      const doMt5 = cot.provedor === 'mt5';
+      // Fechamento anterior: o do MT5; sem ele, o último fechamento oficial ANTES de hoje
+      // (com a cotação já sendo o fechamento da B3, o anterior a ele).
+      let fechamentoAnterior = cot.fechamentoAnterior;
+      if (doMt5 && fechamentoAnterior === null) {
+        fechamentoAnterior = num((await c.query(
+          'select ultimo from fechamentos where codigo = $1 and dia < $2::date order by dia desc limit 1', [ativo, hoje],
+        )).rows[0]?.ultimo);
+      }
+      // Minutos de hoje que a ponte mandou (servem de reserva para abertura/máx./mín.).
+      const inicioDoDia = new Date(`${hoje}T00:00:00-03:00`);
+      const minutosDeHoje = (await c.query(
+        'select minuto, preco from intradia_ponte where codigo = $1 and minuto >= $2 order by minuto', [ativo, inicioDoDia],
+      )).rows.map((l) => ({ t: new Date(l.minuto).toISOString(), p: Number(l.preco) }));
+      let abertura = cot.abertura ?? null;
+      let maxima = cot.maxima ?? null;
+      let minima = cot.minima ?? null;
+      let origemDoDia: 'mt5' | 'minutos' | 'b3' | null = abertura !== null ? 'mt5' : null;
+      if (abertura === null && doMt5 && minutosDeHoje.length) {
+        abertura = minutosDeHoje[0]?.p ?? null;
+        maxima = Math.max(...minutosDeHoje.map((x) => x.p));
+        minima = Math.min(...minutosDeHoje.map((x) => x.p));
+        origemDoDia = 'minutos';
+      }
+      if (abertura === null && !doMt5) {
+        const f = (await c.query(
+          "select abertura, maxima, minima from fechamentos where codigo = $1 and tipo_mercado = 10 order by dia desc limit 1", [ativo],
+        )).rows[0];
+        if (f) { abertura = num(f.abertura); maxima = num(f.maxima); minima = num(f.minima); origemDoDia = 'b3'; }
+      }
+      const ano = (await c.query(
+        "select max(maxima) as mx, min(minima) as mn from fechamentos where codigo = $1 and tipo_mercado = 10 and dia > $2::date - 365", [ativo, hoje],
+      )).rows[0];
+      const max52 = Math.max(...[num(ano?.mx), maxima, cot.ultimo].filter((x): x is number => x !== null));
+      const min52 = Math.min(...[num(ano?.mn), minima, cot.ultimo].filter((x): x is number => x !== null));
+      let pontos: { t: string; p: number }[] = [];
+      if (periodo === '1D') {
+        pontos = minutosDeHoje;
+      } else if (periodo === '5D') {
+        // Últimos 5 dias com minutos, em blocos de 5 minutos.
+        pontos = (await c.query(
+          `with dias as (select distinct (minuto at time zone 'America/Sao_Paulo')::date as d from intradia_ponte where codigo = $1 order by d desc limit 5)
+           select to_timestamp(floor(extract(epoch from minuto) / 300) * 300) as t, (array_agg(preco order by minuto desc))[1] as p
+           from intradia_ponte where codigo = $1 and (minuto at time zone 'America/Sao_Paulo')::date in (select d from dias)
+           group by 1 order by 1`, [ativo],
+        )).rows.map((l) => ({ t: new Date(l.t).toISOString(), p: Number(l.p) }));
+      } else {
+        const dias = periodo === '1M' ? 31 : periodo === '6M' ? 183 : 366;
+        pontos = (await c.query(
+          `select to_char(dia, 'YYYY-MM-DD') as dia, ultimo from fechamentos
+           where codigo = $1 and tipo_mercado = 10 and dia > $2::date - $3::int and dia < $2::date and ultimo is not null order by dia`,
+          [ativo, hoje, dias],
+        )).rows.map((l) => ({ t: new Date(`${l.dia}T17:00:00-03:00`).toISOString(), p: Number(l.ultimo) }));
+      }
+      const sessao = mercado.sessao;
+      return {
+        ativo, agora: agora.toISOString(), hoje, mercadoAberto: mercado.aberto, periodo,
+        sessao: sessao ? { abertura: sessao.abertura, fechamento: sessao.fechamento } : null,
+        cotacao: { ultimo: cot.ultimo, bid: cot.bid, ask: cot.ask, qualidade: cot.qualidade, provedor: cot.provedor, instanteDaFonte: cot.instanteDaFonte, volume: cot.volume },
+        fechamentoAnterior, abertura, maxima, minima, origemDoDia,
+        max52: Number.isFinite(max52) ? max52 : null, min52: Number.isFinite(min52) ? min52 : null,
+        pontos,
+      };
+    });
+  });
+
   // ---------- Carteiras simuladas ----------
 
   async function montar(c: Cliente, linhas: Record<string, any>[], agora: Date) {

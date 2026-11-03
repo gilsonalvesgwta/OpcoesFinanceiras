@@ -42,6 +42,8 @@ test.describe.serial('jornada', () => {
     await page.goto('/ativos');
     await expect(page).toHaveURL(/\/entrar\?voltar=%2Fativos/);
     await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
+    await expect(page.getByText('Sistema estruturado e desenvolvido por Gilson Alves.')).toBeVisible();
+    await expect(page).toHaveTitle(/Gilson Alves/);
     await semViolacoes(page, 'entrar');
     await foto(page, 'entrar');
   });
@@ -66,6 +68,7 @@ test.describe.serial('jornada', () => {
     await expect(page.getByRole('heading', { name: 'Painel', level: 1 })).toBeVisible();
     await expect(page.getByRole('img', { name: /Linha do pregão das 10:00 às 17:00/ })).toBeVisible();
     await expect(page.getByText('Você ainda não acompanha nenhum ativo')).toBeVisible();
+    await expect(page.getByText('Estruturado e desenvolvido por')).toBeVisible();
   });
 
   test('ativos: adicionar, recusar código inválido e ver no painel', async ({ page }) => {
@@ -348,6 +351,10 @@ test.describe.serial('jornada', () => {
     // Lista de ativos: escolher carrega sozinho (sem botão Carregar); favoritar põe no topo.
     await page.getByLabel('Ativo', { exact: true }).selectOption('ITUB4');
     await expect(page.getByRole('heading', { name: /Cadeia · vence 23\/11\/2026/ })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Painel do dia de ITUB4' })).toBeVisible();
+    await expect(page.getByText('Máx. 52 sem')).toBeVisible();
+    await page.getByRole('button', { name: '1M' }).click();
+    await expect(page.getByRole('button', { name: '1M' })).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('button', { name: '☆ Favoritar' }).click();
     await expect(page.getByRole('button', { name: '★ Favorito' })).toBeVisible();
     await page.getByRole('button', { name: 'Comprar ITUBK360' }).click();

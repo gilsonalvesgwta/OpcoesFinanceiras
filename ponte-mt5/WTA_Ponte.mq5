@@ -23,7 +23,7 @@ input string Chave           = "";                               // Chave da pon
 input int    IntervaloMs     = 1000;                             // Intervalo entre envios de cotações (ms)
 input bool   EnviarPosicoes  = true;                             // Enviar posições abertas da conta
 
-#define VERSAO            "1.3.0"
+#define VERSAO            "1.4.0"
 #define TEMPO_LIMITE_MS   10000
 #define LOTE_MAX          150   // cotações por envio; o resto vai nos próximos ciclos
 #define PULSO_MS          5000
@@ -270,6 +270,23 @@ double FechamentoAnterior(const string ativo)
 // Monta até LOTE_MAX cotações que mudaram, começando de onde o lote anterior parou.
 // Só depois que o servidor confirma (ConfirmarLote) elas contam como enviadas: se o envio
 // falhar, vão de novo no próximo ciclo, mesmo que o preço não mude mais (opção pouco negociada).
+// Abertura, máxima e mínima da barra diária de HOJE (0 se a barra de hoje ainda não existe).
+void BarraDeHoje(const string ativo, double &abertura, double &maxima, double &minima)
+  {
+   abertura = 0.0; maxima = 0.0; minima = 0.0;
+   datetime hoje = iTime(ativo, PERIOD_D1, 0);
+   if(hoje == 0)
+      return;
+   MqlDateTime d0, srv;
+   TimeToStruct(hoje, d0);
+   TimeToStruct(TimeTradeServer(), srv);
+   if(d0.year != srv.year || d0.day_of_year != srv.day_of_year)
+      return;
+   abertura = iOpen(ativo, PERIOD_D1, 0);
+   maxima = iHigh(ativo, PERIOD_D1, 0);
+   minima = iLow(ativo, PERIOD_D1, 0);
+  }
+
 string MontarCotacoes()
   {
    string s = "";
@@ -293,6 +310,8 @@ string MontarCotacoes()
       int dig = (int)SymbolInfoInteger(g_ativos[i], SYMBOL_DIGITS);
       double volume = SymbolInfoDouble(g_ativos[i], SYMBOL_SESSION_VOLUME);
       long lote = (long)MathRound(SymbolInfoDouble(g_ativos[i], SYMBOL_VOLUME_STEP)); // passo de quantidade (1 ou 100 na B3)
+      double ab, mx, mn;
+      BarraDeHoje(g_ativos[i], ab, mx, mn);
       string item = "{\"codigo\":\"" + g_ativos[i] + "\"" +
                     ",\"ultimo\":" + Preco(t.last, dig) +
                     ",\"bid\":" + Preco(t.bid, dig) +
@@ -300,6 +319,9 @@ string MontarCotacoes()
                     ",\"fechamento_anterior\":" + Preco(FechamentoAnterior(g_ativos[i]), dig) +
                     ",\"volume\":" + (volume > 0 ? IntegerToString((long)volume) : "null") +
                     ",\"lote\":" + (lote >= 1 ? IntegerToString(lote) : "null") +
+                    ",\"abertura\":" + Preco(ab, dig) +
+                    ",\"maxima\":" + Preco(mx, dig) +
+                    ",\"minima\":" + Preco(mn, dig) +
                     ",\"instante\":" + IntegerToString(t.time_msc - desloc) + "}";
       s += (s == "" ? "" : ",") + item;
       ArrayResize(g_pendIdx, n + 1); ArrayResize(g_pendMsc, n + 1);
