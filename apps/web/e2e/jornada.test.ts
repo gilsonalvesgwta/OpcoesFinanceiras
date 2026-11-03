@@ -350,7 +350,11 @@ test.describe.serial('jornada', () => {
     await page.getByRole('link', { name: 'Simulador' }).first().click();
     // Lista de ativos: escolher carrega sozinho (sem botão Carregar); favoritar põe no topo.
     await page.getByLabel('Ativo', { exact: true }).selectOption('ITUB4');
-    await expect(page.getByRole('heading', { name: /Cadeia · vence 23\/11\/2026/ })).toBeVisible();
+    try {
+      await expect(page.getByRole('heading', { name: /Cadeia · vence 23\/11\/2026/ })).toBeVisible();
+    } catch {
+      throw new Error(`DIAGNOSTICO: ${(await page.locator('body').innerText()).replace(/\s+/g, ' ').slice(0, 1500)}`);
+    }
     await expect(page.getByRole('group', { name: 'Painel do dia de ITUB4' })).toBeVisible();
     await expect(page.getByText('Máx. 52 sem')).toBeVisible();
     await page.getByRole('button', { name: '1M' }).click();
