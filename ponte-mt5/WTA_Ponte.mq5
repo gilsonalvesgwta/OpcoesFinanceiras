@@ -23,7 +23,7 @@ input string Chave           = "";                               // Chave da pon
 input int    IntervaloMs     = 1000;                             // Intervalo entre envios de cotações (ms)
 input bool   EnviarPosicoes  = true;                             // Enviar posições abertas da conta
 
-#define VERSAO            "1.5.0"
+#define VERSAO            "1.6.0"
 #define TEMPO_LIMITE_MS   10000
 #define LOTE_MAX          150   // cotações por envio; o resto vai nos próximos ciclos
 #define PULSO_MS          5000
@@ -35,6 +35,7 @@ string   g_ativos[];
 long     g_ultimoMsc[];     // time_msc da última cotação enviada, por ativo
 double   g_ultimoBid[], g_ultimoAsk[], g_ultimoLast[];
 ulong    g_proxPulso = 0, g_proxPosicoes = 0, g_proxLista = 0;
+bool     g_catalogoFeito = false;   // levantamento das opções da corretora (uma vez)
 int      g_falhasSeguidas = 0;
 ulong    g_esperarAte = 0;
 int      g_cursor = 0;
@@ -91,6 +92,12 @@ void OnTimer()
    // enviam posições, para uma lista vazia não apagar as posições guardadas.
    if(!TerminalInfoInteger(TERMINAL_CONNECTED) || AccountInfoInteger(ACCOUNT_LOGIN) <= 0)
       return;
+
+   if(!g_catalogoFeito)
+     {
+      g_catalogoFeito = true;
+      CatalogoDaCorretora();
+     }
 
    if(agora >= g_proxLista)
      {
@@ -342,6 +349,79 @@ string MontarCotacoes()
      }
    g_cursor = i;
    return(s);
+  }
+
+// Opção da B3: 4 letras do ativo + letra do mês (A–X) + números, com "E" opcional e,
+// nas semanais, "W1".."W5" no fim. Devolve 0 = não é opção, 1 = mensal, 2 = semanal.
+int TipoDeOpcao(const string c)
+  {
+   int n = StringLen(c);
+   if(n < 7 || n > 12)
+      return(0);
+   for(int i = 0; i < 4; i++)
+     {
+      ushort ch = StringGetCharacter(c, i);
+      if(ch < 'A' || ch > 'Z')
+         return(0);
+     }
+   ushort mes = StringGetCharacter(c, 4);
+   if(mes < 'A' || mes > 'X')
+      return(0);
+   ushort d = StringGetCharacter(c, 5);
+   if(d < '0' || d > '9')
+      return(0);
+   if(n >= 8 && StringGetCharacter(c, n - 2) == 'W')
+     {
+      ushort w = StringGetCharacter(c, n - 1);
+      if(w >= '1' && w <= '5')
+         return(2);
+     }
+   return(1);
+  }
+
+// Levantamento de TODAS as opções que a corretora oferece no MT5 (mensais e semanais),
+// escrito no Experts. Serve para conferir com precisão quais ativos têm semanais aqui.
+void CatalogoDaCorretora()
+  {
+   string raiz[];
+   int mensais[], semanais[];
+   int totalM = 0, totalS = 0;
+   int total = SymbolsTotal(false);
+   for(int i = 0; i < total; i++)
+     {
+      string c = SymbolName(i, false);
+      int t = TipoDeOpcao(c);
+      if(t == 0)
+         continue;
+      string r = StringSubstr(c, 0, 4);
+      int k = -1;
+      for(int j = 0; j < ArraySize(raiz); j++)
+         if(raiz[j] == r) { k = j; break; }
+      if(k < 0)
+        {
+         k = ArraySize(raiz);
+         ArrayResize(raiz, k + 1); ArrayResize(mensais, k + 1); ArrayResize(semanais, k + 1);
+         raiz[k] = r; mensais[k] = 0; semanais[k] = 0;
+        }
+      if(t == 1) { mensais[k]++; totalM++; }
+      else { semanais[k]++; totalS++; }
+     }
+   PrintFormat("WTA Ponte: catálogo da corretora: %d símbolos, %d opções mensais e %d semanais (em %d ativos)", total, totalM, totalS, ArraySize(raiz));
+   string principais[] = {"BOVA", "PETR", "VALE", "BBAS", "ITUB", "BBDC", "ABEV", "B3SA", "PRIO", "SUZB"};
+   string linha = "";
+   for(int p = 0; p < ArraySize(principais); p++)
+     {
+      int m = 0, s2 = 0;
+      for(int j = 0; j < ArraySize(raiz); j++)
+         if(raiz[j] == principais[p]) { m = mensais[j]; s2 = semanais[j]; break; }
+      linha += (linha == "" ? "" : " | ") + principais[p] + " " + IntegerToString(m) + "M/" + IntegerToString(s2) + "S";
+     }
+   Print("WTA Ponte: opções por ativo (M = mensais, S = semanais): ", linha);
+   string comSemanais = "";
+   int n = 0;
+   for(int j = 0; j < ArraySize(raiz) && n < 20; j++)
+      if(semanais[j] > 0) { comSemanais += (comSemanais == "" ? "" : ", ") + raiz[j] + " " + IntegerToString(semanais[j]); n++; }
+   Print("WTA Ponte: ativos com semanais nesta corretora: ", comSemanais == "" ? "nenhum" : comSemanais);
   }
 
 // Ação ou ETF (4 letras + 1 ou 2 dígitos, ex.: PETR4, BOVA11); opções ficam de fora.

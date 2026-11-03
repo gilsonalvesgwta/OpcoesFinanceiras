@@ -11,8 +11,8 @@ import { MensagemDeErro } from './Acesso.tsx';
 import { useConsultaPeriodica } from './Consulta.tsx';
 import { Icone } from './Icone.tsx';
 
-// Versão atual de ponte-mt5/WTA_Ponte.mq5 (1.5.0: histórico do dia minuto a minuto para o gráfico, lote, abertura/máxima/mínima e envio a cada 1 s).
-const VERSAO_DO_ROBO = '1.5.0';
+// Versão atual de ponte-mt5/WTA_Ponte.mq5 (1.6.0: catálogo de opções da corretora no Experts; histórico do dia minuto a minuto para o gráfico, lote, abertura/máxima/mínima e envio a cada 1 s).
+const VERSAO_DO_ROBO = '1.6.0';
 
 const ENDERECO = 'https://opcoes.wtatech.com.br';
 
