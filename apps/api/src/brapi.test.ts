@@ -135,6 +135,23 @@ describe('brapi de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : fals
     assert.deepEqual([q.provedor, q.qualidade, q.ultimo, q.bid, q.ask], ['brapi', 'periodica', 2025, null, null]);
   });
 
+  test('com o MT5 no ar no pregão, a brapi não entra (só o MT5 ou o fechamento oficial)', async () => {
+    const uid = (await dono.query('select id from users where email = $1', [`ana.brapi.${sufixo}@exemplo.test`])).rows[0].id;
+    const ponte = (await dono.query(
+      "insert into pontes_mt5 (user_id, nome, token_hash, ultimo_contato_em) values ($1, 'teste brapi', $2, $3) returning id",
+      [uid, Buffer.alloc(32, 7), new Date(agora.getTime() - 3000)],
+    )).rows[0].id;
+    try {
+      const r = await pedir('ana', 'GET', '/api/cotacoes');
+      const q = r.corpo.cotacoes.find((x: { codigo: string }) => x.codigo === 'BRAP3');
+      assert.notEqual(q?.provedor, 'brapi', JSON.stringify(q));
+    } finally {
+      await dono.query('delete from pontes_mt5 where id = $1', [ponte]);
+    }
+    const de = await pedir('ana', 'GET', '/api/cotacoes');
+    assert.equal(de.corpo.cotacoes.find((x: { codigo: string }) => x.codigo === 'BRAP3').provedor, 'brapi', 'MT5 fora do ar: volta a brapi');
+  });
+
   test('alerta dispara só para quem aceita dado periódico, uma vez', async () => {
     const cfg = await emTransacao(pool, null, lerCalendario);
     const r = await avaliarAlertasDaBrapi(pool, agora, cfg);

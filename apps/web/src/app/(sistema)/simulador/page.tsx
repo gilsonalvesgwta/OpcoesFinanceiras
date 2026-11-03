@@ -20,7 +20,7 @@ import { formatarData, formatarReais } from '../../../lib/formatos.ts';
 import { quandoCurto } from '../../../lib/mercado.ts';
 import {
   adicionarPerna, avaliacaoNaData, configDoCalendario, diasEntre, escalaDoGrafico, execucoesParaApi, novoId, pernaDaSerie, pernaDoAtivo,
-  classeDaPerna, intervaloDeAtualizacao, lerPedidoDeMontagem, lerReais, moverPerna, serieVizinha, pernaQueEncerra, precoDeMercado, precoDoAtivo, resultadoEmPreco, rotuloDoVencimento, somarDias,
+  classeDaPerna, intervaloDeAtualizacao, loteDe, lerPedidoDeMontagem, lerReais, moverPerna, serieVizinha, pernaQueEncerra, precoDeMercado, precoDoAtivo, resultadoEmPreco, rotuloDoVencimento, somarDias,
   totaisDaMontagem, valorDaPernaNaMontagem, volDaSerie,
   type CadeiaDoSimulador, type CalendarioDaApi, type CotacaoResumida, type PernaNaTela, type SerieDaCadeia,
 } from '../../../lib/simulador.ts';
@@ -255,7 +255,7 @@ export default function PaginaSimulador() {
     }).catch(() => void carregarCadeia('PETR4'));
   }, [carregarCadeia, carregarCarteiras]);
 
-  // Atualização automática: a cada 2 s no pregão (preços da ponte MT5), a cada 60 s fora dele,
+  // Atualização automática: a cada 1 s no pregão (preços da ponte MT5), a cada 60 s fora dele,
   // só com a aba visível. A montagem não muda; mudam os preços, Vol/Δ e o resultado de hoje.
   const codigoAtual = cadeia?.ativo.codigo;
   const vencimentoAtual = cadeia?.vencimento ?? undefined;
@@ -305,7 +305,7 @@ export default function PaginaSimulador() {
     if (!cadeia?.vencimento) return;
     setAviso(null);
     const vd = volDaSerie(s, cadeia.ativo.cotacao, cadeia.vencimento, cadeia.hoje, cfg, cadeia.selic?.valor ?? null);
-    setPernas((ps) => adicionarPerna(ps, { ...pernaDaSerie(s, cadeia.vencimento as string, lado, quantidade), vol: vd.vol }));
+    setPernas((ps) => adicionarPerna(ps, { ...pernaDaSerie(s, cadeia.vencimento as string, lado, quantidade, cadeia.ativo.codigo), vol: vd.vol }));
   };
 
   // Pedido vindo da Cadeia de opções: monta a série assim que a cadeia (com o calendário) chega.
@@ -338,7 +338,7 @@ export default function PaginaSimulador() {
     const s = cadeia?.series.find((x) => x.codigo === codigo);
     if (s && cadeia?.vencimento) {
       const vd = volDaSerie(s, cadeia.ativo.cotacao, cadeia.vencimento, cadeia.hoje, cfg, cadeia.selic?.valor ?? null);
-      nova = { ...pernaDaSerie(s, cadeia.vencimento, lado, quantidade), vol: vd.vol };
+      nova = { ...pernaDaSerie(s, cadeia.vencimento, lado, quantidade, cadeia.ativo.codigo), vol: vd.vol };
     } else if (cadeia && codigo === cadeia.ativo.codigo) {
       nova = pernaDoAtivo(codigo, cadeia.ativo.cotacao, lado, quantidade);
     } else {
@@ -349,7 +349,7 @@ export default function PaginaSimulador() {
         }
         nova = r.tipo === 'ativo'
           ? pernaDoAtivo(codigo, r.cotacao, lado, quantidade)
-          : { id: novoId(), codigo, tipo: r.tipo, strike: r.strike as number, vencimento: r.vencimento as string, lado, quantidade, preco: precoDeMercado(r.cotacao, lado)?.preco ?? 0, vol: null };
+          : { id: novoId(), codigo, tipo: r.tipo, strike: r.strike as number, vencimento: r.vencimento as string, lado, quantidade, preco: precoDeMercado(r.cotacao, lado)?.preco ?? 0, vol: null, lote: loteDe(r.cotacao, r.ativoObjeto) };
       } catch (x) {
         return setErro(x instanceof ErroDaApi && x.codigo === 'serie_desconhecida' ? `Não achei ${codigo} no cadastro da B3. Confira o código.` : x instanceof Error ? x.message : 'Não foi possível buscar o código.');
       }
@@ -554,7 +554,7 @@ export default function PaginaSimulador() {
                   ? <><span style={{ color: 'var(--vivo)', fontWeight: 600 }}>Em destaque: tempo real pelo MetaTrader 5</span> ({vivas} de {cadeia.series.length} séries; Vol e Δ recalculados na hora). Nas demais, fechamento da B3 de {formatarData(cadeia.dia)}. </>
                   : <>Preços do fechamento da B3 de {formatarData(cadeia.dia)}; Vol e Δ do fechamento.{cadeia.mercadoAberto ? ' Com o MetaTrader 5 aberto e o robô ligado, as séries passam a tempo real em até 1 minuto.' : ''} </>;
               })()}
-              {atualizadoEm && <>Atualiza sozinho a cada {cadeia.mercadoAberto ? '2 segundos' : 'minuto'} (última às {atualizadoEm.toLocaleTimeString('pt-BR')}). </>}
+              {atualizadoEm && <>Atualiza sozinho a cada {cadeia.mercadoAberto ? 'segundo' : 'minuto'} (última às {atualizadoEm.toLocaleTimeString('pt-BR')}). </>}
               C compra pelo preço de venda (ask); V vende pelo preço de compra (bid). Clique numa linha para selecioná-la; arraste uma perna marcada para outro strike (ou use ▲▼ na montagem).
               {' '}<span className="etiqueta-perna perna-c-call">C call</span> <span className="etiqueta-perna perna-v-call">V call</span> <span className="etiqueta-perna perna-c-put">C put</span> <span className="etiqueta-perna perna-v-put">V put</span>
               {' '}<button type="button" className="botao-texto" style={{ minHeight: 0 }} onClick={() => setPernas((ps) => adicionarPerna(ps, pernaDoAtivo(cadeia.ativo.codigo, cadeia.ativo.cotacao, 'compra', quantidade)))}>+ comprar {cadeia.ativo.codigo}</button>
@@ -621,7 +621,7 @@ export default function PaginaSimulador() {
                           )}
                         </td>
                         <td className="numero">
-                          {p.base ? p.quantidade.toLocaleString('pt-BR') : <input aria-label={`Quantidade de ${p.codigo}`} type="number" min={1} step={100} value={p.quantidade} onChange={(e) => mudar(p.id, { quantidade: Math.max(1, Math.floor(Number(e.target.value) || 1)) })} style={{ width: 90 }} />}
+                          {p.base ? p.quantidade.toLocaleString('pt-BR') : <input aria-label={`Quantidade de ${p.codigo}`} type="number" min={p.lote ?? 100} step={p.lote ?? 100} value={p.quantidade} title={`Lote de ${p.lote ?? 100}`} onChange={(e) => mudar(p.id, { quantidade: Math.max(1, Math.floor(Number(e.target.value) || 1)) })} style={{ width: 90 }} />}
                         </td>
                         <td className="numero">
                           {p.base ? reais(p.preco) : <input aria-label={`Preço de ${p.codigo} em reais`} type="number" min={0} step={0.01} value={(p.preco / 100).toFixed(2)} onChange={(e) => mudar(p.id, { preco: Math.max(0, Math.round(Number(e.target.value) * 100) || 0) })} style={{ width: 90 }} />}

@@ -205,25 +205,22 @@ describe('coleta gratuita e rotas de mercado', { skip: pular ? 'sem as três URL
     assert.deepEqual(f.corpo.fechamentos.map((x: { codigo: string; ultimo: number }) => [x.codigo, x.ultimo]), [['PETRK380', 93]]);
   });
 
-  test('cadeia: séries do vencimento com volatilidade implícita, gregas, motivo e premissas', async () => {
-    const r = await pedir('ana', 'GET', '/api/mercado/cadeia?ativo=petr4');
-    assert.equal(r.status, 200, JSON.stringify(r.corpo));
-    assert.deepEqual([r.corpo.ativo.codigo, r.corpo.ativo.ultimo, r.corpo.ativo.dia, r.corpo.vencimento], ['PETR4', 3847, '2026-10-16', '2026-11-20']);
-    const call = r.corpo.series.find((x: { codigo: string }) => x.codigo === 'PETRK380');
-    assert.equal(call.calculo.origemPremio, 'meio_do_livro');
-    assert.equal(call.calculo.premio, 123);
-    assert.ok(call.calculo.volImplicita > 0.05 && call.calculo.volImplicita < 2, `vol ${call.calculo.volImplicita}`);
-    assert.ok(call.calculo.delta > 0 && call.calculo.delta < 1);
-    assert.ok(call.calculo.theta < 0);
-    const put = r.corpo.series.find((x: { codigo: string }) => x.codigo === 'PETRW360');
-    assert.deepEqual([put.ultimo, put.bid, put.ask, put.calculo], [null, null, null, { motivo: 'sem_premio' }], 'sem preço: nada de zero');
-    assert.ok(r.corpo.premissas.some((p: string) => p.includes('Black-Scholes')));
-    assert.deepEqual(r.corpo.tipos, { '2026-11-20': 'mensal' });
-    assert.equal(typeof r.corpo.mercadoAberto, 'boolean');
-    assert.equal(call.cotacao.provedor, 'b3-cotahist', 'sem MT5: cotação do fechamento, dita como tal');
-    assert.equal((await pedir('ana', 'GET', '/api/mercado/cadeia?ativo=XXXX3')).corpo.erro, 'sem_fechamento');
+  test('ativos com opções no último arquivo (lista do Simulador)', async () => {
     const o = await pedir('ana', 'GET', '/api/mercado/objetos');
     assert.deepEqual([o.corpo.dia, o.corpo.objetos[0]?.codigo, o.corpo.objetos[0]?.series], ['2026-10-16', 'PETR4', 2]);
+    // Volatilidade e delta calculados do fechamento chegam à cadeia do Simulador; sem prêmio, nada.
+    // Relógio no dia dos dados (16/10), para o vencimento de 20/11 continuar valendo.
+    const app16 = await construirApp({ config, pool, correio: new CorreioDeTeste(), relogio: () => new Date('2026-10-16T17:00:00Z') });
+    const ana = cookies.ana as { cookie: string; csrf: string };
+    const r16 = await app16.inject({ method: 'GET', url: '/api/simulador/cadeia?ativo=petr4&vencimento=2026-11-20', headers: { cookie: ana.cookie, 'x-csrf-token': ana.csrf }, remoteAddress: '203.0.113.77' });
+    await app16.close();
+    const c = { status: r16.statusCode, corpo: r16.json() };
+    assert.equal(c.status, 200, JSON.stringify(c.corpo));
+    const call = c.corpo.series.find((x: { codigo: string }) => x.codigo === 'PETRK380');
+    assert.ok(call.vol > 0.05 && call.vol < 2, `vol ${call.vol}`);
+    assert.ok(call.delta > 0 && call.delta < 1);
+    assert.equal(c.corpo.series.find((x: { codigo: string }) => x.codigo === 'PETRW360').vol, null);
+    assert.deepEqual(c.corpo.tipos, { '2026-11-20': 'mensal' });
   });
 
   test('calendário: todos leem; só o superadmin altera, com auditoria', async () => {

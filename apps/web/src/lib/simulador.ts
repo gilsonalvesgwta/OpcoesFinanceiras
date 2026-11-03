@@ -6,7 +6,7 @@ import {
   type AvaliacaoDaSimulacao, type ConfiguracaoDoCalendario, type PernaSimulada, type PontoDaCurva,
 } from '@wta/domain';
 
-export type CotacaoResumida = { ultimo: number | null; bid: number | null; ask: number | null; qualidade: string; provedor: string; instanteDaFonte: string | null } | null;
+export type CotacaoResumida = { ultimo: number | null; bid: number | null; ask: number | null; qualidade: string; provedor: string; instanteDaFonte: string | null; lote?: number | null } | null;
 export type SerieDaCadeia = { codigo: string; tipo: 'call' | 'put'; strike: number; negocios: number | null; vol: number | null; delta: number | null; cotacao: CotacaoResumida };
 export type CadeiaDoSimulador = {
   agora: string; hoje: string; dia: string; mercadoAberto?: boolean;
@@ -18,7 +18,15 @@ export type CalendarioDaApi = {
   feriados: { dia: string }[]; sessoesEspeciais: { dia: string; abertura: string; fechamento: string }[]; sessaoPadrao: { abertura: string; fechamento: string };
 };
 
-export type PernaNaTela = PernaSimulada & { id: string; base?: boolean }; // base = posição atual da carteira simulada
+export type PernaNaTela = PernaSimulada & { id: string; base?: boolean; lote?: number }; // base = posição atual da carteira simulada; lote = passo da quantidade
+
+// Passo da quantidade (setas): o lote que o MT5 informa para o código; sem ele, 1 para as
+// opções de BOVA11 (a B3 permite) e 100 para o resto.
+const LOTE_SEM_MT5: Record<string, number> = { BOVA11: 1 };
+export function loteDe(c: CotacaoResumida | undefined, ativoObjeto: string | null): number {
+  if (c?.lote && c.lote >= 1) return c.lote;
+  return (ativoObjeto && LOTE_SEM_MT5[ativoObjeto]) || 100;
+}
 
 export function configDoCalendario(c: CalendarioDaApi): ConfiguracaoDoCalendario {
   return {
@@ -41,15 +49,15 @@ export function precoDeMercado(c: CotacaoResumida, lado: 'compra' | 'venda'): { 
 let sequencia = 0;
 export const novoId = () => `p${Date.now().toString(36)}${(sequencia += 1)}`;
 
-export function pernaDaSerie(s: SerieDaCadeia, vencimento: string, lado: 'compra' | 'venda', quantidade = 100): PernaNaTela {
+export function pernaDaSerie(s: SerieDaCadeia, vencimento: string, lado: 'compra' | 'venda', quantidade = 100, ativoObjeto: string | null = null): PernaNaTela {
   return {
     id: novoId(), codigo: s.codigo, tipo: s.tipo, strike: s.strike, vencimento, lado, quantidade,
-    preco: precoDeMercado(s.cotacao, lado)?.preco ?? 0, vol: s.vol,
+    preco: precoDeMercado(s.cotacao, lado)?.preco ?? 0, vol: s.vol, lote: loteDe(s.cotacao, ativoObjeto),
   };
 }
 
 export function pernaDoAtivo(codigo: string, c: CotacaoResumida, lado: 'compra' | 'venda', quantidade = 100): PernaNaTela {
-  return { id: novoId(), codigo, tipo: 'ativo', lado, quantidade, preco: precoDeMercado(c, lado)?.preco ?? 0, vol: null };
+  return { id: novoId(), codigo, tipo: 'ativo', lado, quantidade, preco: precoDeMercado(c, lado)?.preco ?? 0, vol: null, lote: c?.lote && c.lote >= 1 ? c.lote : 100 };
 }
 
 // Perna que zera outra (para rolar ou desmontar): lado contrário, mesma quantidade.
@@ -162,9 +170,9 @@ export function volDaSerie(s: SerieDaCadeia, spot: CotacaoResumida, vencimento: 
   return { vol: iv.sigma, delta: blackScholes({ ...base, sigma: iv.sigma }).delta, origem: 'ao_vivo' };
 }
 
-// Quanto tempo esperar até a próxima consulta: pregão = 2 s; fora dele, 60 s.
+// Quanto tempo esperar até a próxima consulta: pregão = 1 s (o robô manda a cada 1 s); fora dele, 60 s.
 export function intervaloDeAtualizacao(mercadoAberto: boolean | undefined): number {
-  return mercadoAberto ? 2_000 : 60_000;
+  return mercadoAberto ? 1_000 : 60_000;
 }
 
 // ---------- Vencimentos mensais e semanais ----------
@@ -215,7 +223,7 @@ export function lerReais(texto: string): number | null {
 // ---------- Mover uma perna para outro strike (arrastar na cadeia ou ▲▼) ----------
 // Mantém operação e quantidade; troca a série, o preço (do livro, pelo lado da perna) e a vol.
 export function moverPerna(p: PernaNaTela, s: SerieDaCadeia, vencimento: string, vol: number | null): PernaNaTela {
-  return { ...p, codigo: s.codigo, strike: s.strike, vencimento, preco: precoDeMercado(s.cotacao, p.lado)?.preco ?? 0, vol };
+  return { ...p, codigo: s.codigo, strike: s.strike, vencimento, preco: precoDeMercado(s.cotacao, p.lado)?.preco ?? 0, vol, ...(s.cotacao?.lote ? { lote: s.cotacao.lote } : {}) };
 }
 
 // Série do mesmo tipo no strike vizinho (passo 1 = acima, -1 = abaixo). No mesmo strike,

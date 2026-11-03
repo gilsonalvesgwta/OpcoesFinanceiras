@@ -283,32 +283,12 @@ test.describe.serial('jornada', () => {
     await expect(page.getByText('O bot do Telegram ainda não foi configurado no servidor. Quando for', { exact: false })).toBeVisible();
   });
 
-  test('cadeia de opções: fechamento com volatilidade e gregas, filtros e premissas', async ({ page }) => {
+  test('a antiga Cadeia de opções agora é o Simulador (endereço antigo redireciona)', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
-    await page.getByRole('link', { name: 'Cadeia de opções' }).first().click();
-    await expect(page.getByRole('heading', { name: 'Cadeia de opções', level: 1 })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'ITUB4 agora' })).toBeVisible();
-    await expect(page.getByText('Fechamento de 16/10')).toBeVisible();
-    await expect(page.getByLabel('Vencimento', { exact: true })).toContainText('23/11/2026');
-    const linha36 = page.getByRole('row', { name: /36,00/ });
-    await expect(linha36).toContainText('ITUBK360');
-    await expect(linha36).toContainText('24,1%');
-    await expect(linha36).toContainText('0,49');
-    await expect(page.getByLabel('Sem negócio nem oferta no fechamento: não há prêmio para calcular.').first()).toBeVisible();
-    await page.getByLabel('Strikes', { exact: true }).selectOption('todas');
-    await expect(page.getByRole('row', { name: /38,00/ })).toContainText('ITUBK380');
-    await page.getByText('Mostrar gama, theta e vega').click();
-    await expect(page.getByRole('columnheader', { name: 'Theta' }).first()).toBeVisible();
-    await page.getByText('Só séries com negócio no fechamento').click();
-    await expect(page.getByText('ITUBW360')).toHaveCount(0);
-    await page.getByText('Premissas do cálculo').click();
-    await expect(page.getByText('Modelo Black-Scholes-Merton', { exact: false })).toBeVisible();
-    await semViolacoes(page, 'cadeia');
-    await foto(page, 'cadeia');
-    // C leva a série para o Simulador, já na montagem.
-    await page.getByRole('link', { name: 'Comprar ITUBK360 no Simulador' }).click();
-    await expect(page).toHaveURL(/\/simulador\?.*montar=ITUBK360/);
-    await expect(page.getByText(/Compra de 100 ITUBK360 incluída/)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Cadeia de opções' })).toHaveCount(0);
+    await page.goto('/cadeia');
+    await expect(page).toHaveURL(/\/simulador$/);
+    await expect(page.getByRole('heading', { name: 'Simulador de opções', level: 1 })).toBeVisible();
   });
 
   test('posições: venda coberta com a série vinda do cadastro, resultado e gráfico', async ({ page }) => {
