@@ -211,3 +211,29 @@ export function lerReais(texto: string): number | null {
   const n = Number(normal);
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
 }
+
+// ---------- Mover uma perna para outro strike (arrastar na cadeia ou ▲▼) ----------
+// Mantém operação e quantidade; troca a série, o preço (do livro, pelo lado da perna) e a vol.
+export function moverPerna(p: PernaNaTela, s: SerieDaCadeia, vencimento: string, vol: number | null): PernaNaTela {
+  return { ...p, codigo: s.codigo, strike: s.strike, vencimento, preco: precoDeMercado(s.cotacao, p.lado)?.preco ?? 0, vol };
+}
+
+// Série do mesmo tipo no strike vizinho (passo 1 = acima, -1 = abaixo). No mesmo strike,
+// fica a mais negociada (como na tabela).
+export function serieVizinha(series: readonly SerieDaCadeia[], p: { tipo: string; strike?: number }, passo: 1 | -1): SerieDaCadeia | null {
+  if (p.tipo === 'ativo' || p.strike === undefined) return null;
+  const porStrike = new Map<number, SerieDaCadeia>();
+  for (const s of series) {
+    if (s.tipo !== p.tipo) continue;
+    const a = porStrike.get(s.strike);
+    if (!a || (s.negocios ?? 0) > (a.negocios ?? 0)) porStrike.set(s.strike, s);
+  }
+  const strikes = [...porStrike.keys()].sort((a, b) => a - b);
+  const alvo = passo > 0 ? strikes.find((k) => k > (p.strike as number)) : [...strikes].reverse().find((k) => k < (p.strike as number));
+  return alvo === undefined ? null : (porStrike.get(alvo) ?? null);
+}
+
+// Cor de cada perna na cadeia: compra/venda × call/put.
+export function classeDaPerna(lado: 'compra' | 'venda', tipo: 'call' | 'put'): string {
+  return `perna-${lado === 'compra' ? 'c' : 'v'}-${tipo}`;
+}

@@ -104,3 +104,17 @@ test('preço digitado na boleta', async () => {
   assert.equal(lerReais(''), null);
   assert.equal(lerReais('abc'), null);
 });
+
+test('mover perna para outro strike e strike vizinho', async () => {
+  const { moverPerna, serieVizinha, classeDaPerna } = await import('./simulador.ts');
+  const serie = (codigo: string, strike: number, tipo: 'call' | 'put', bid: number, ask: number, negocios = 1) =>
+    ({ codigo, tipo, strike, negocios, vol: 0.3, delta: 0.5, cotacao: cot(bid, ask, null) });
+  const series = [serie('BBASK168W1', 1689, 'call', 13, 29), serie('BBASK173W1', 1739, 'call', 9, 12), serie('BBASK193W1', 1939, 'call', 1, 3), serie('BBASW168W1', 1689, 'put', 48, 75)];
+  const p = { id: 'x', codigo: 'BBASK168W1', tipo: 'call' as const, strike: 1689, vencimento: '2026-11-06', lado: 'venda' as const, quantidade: 100, preco: 13, vol: 0.469 };
+  const m = moverPerna(p, series[2] as SerieDaCadeia, '2026-11-06', 0.62);
+  assert.deepEqual([m.id, m.codigo, m.strike, m.lado, m.quantidade, m.preco, m.vol], ['x', 'BBASK193W1', 1939, 'venda', 100, 1, 0.62], 'venda recebe o bid');
+  assert.equal(serieVizinha(series, p, 1)?.codigo, 'BBASK173W1');
+  assert.equal(serieVizinha(series, p, -1), null);
+  assert.equal(serieVizinha(series, { tipo: 'put', strike: 1689 }, 1), null);
+  assert.equal(classeDaPerna('venda', 'call'), 'perna-v-call');
+});
