@@ -49,6 +49,15 @@ test('abertura, máxima e mínima do dia (robô 1.4.0)', () => {
   assert.deepEqual([c?.abertura, c?.maxima, c?.minima], [16300, 16389, 16281]);
 });
 
+test('barras do dia (robô 1.5.0): só ações/ETFs, minutos em ISO e preço em centavos', () => {
+  const l = ler({ cotacoes: [], barras: [{ codigo: 'BOVA11', pontos: [[ms - 120_000, 163.0], [ms - 60_000, 162.81]] }, { codigo: 'BOVAK157', pontos: [] }] });
+  assert.equal(l.barras.length, 1);
+  assert.deepEqual(l.barras[0]?.pontos.map((p) => p.preco), [16300, 16281]);
+  assert.equal(l.barras[0]?.pontos[0]?.minuto, new Date(ms - 120_000).toISOString());
+  assert.deepEqual(l.avisos, ['barras_so_de_acoes']);
+  assert.deepEqual(ler({ barras: [{ codigo: 'BOVA11', pontos: [[ms, 0]] }] }).avisos, ['barras_invalidas']);
+});
+
 test('livro vazio do MT5 (bid/ask 0) não vira preço zero', () => {
   const [c] = ler({ cotacoes: [cot({ bid: 0, ask: 0, ultimo: 0 })] }).cotacoes;
   assert.equal(c?.bid, null);

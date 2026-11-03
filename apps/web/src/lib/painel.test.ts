@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { escalaDoPainel, extremosComAgora, marcasDeTempo, variacao } from './painel.ts';
+import { escalaDoPainel, extremosComAgora, marcasDeTempo, marcasDeValor, variacao } from './painel.ts';
 
 test('variação contra o fechamento anterior', () => {
   const v = variacao(16299, 16540);
@@ -26,4 +26,10 @@ test('escala do 1D cobre o pregão inteiro e o fechamento anterior', () => {
   assert.equal(escalaDoPainel([], '1D', '2026-11-03', null, null), null);
   const marcas = marcasDeTempo(e?.t0 as number, e?.t1 as number, '1D').map((x) => x.rotulo);
   assert.deepEqual(marcas, ['10:00', '12:00', '14:00', '16:00']);
+});
+
+test('eixo de preço em valores redondos', () => {
+  assert.deepEqual(marcasDeValor(16191, 16540), [16100, 16200, 16300, 16400, 16500, 16600]);
+  assert.deepEqual(marcasDeValor(3910, 3980), [3900, 3920, 3940, 3960, 3980]);
+  assert.ok(marcasDeValor(100, 100).length > 1);
 });

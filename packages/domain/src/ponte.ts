@@ -17,6 +17,8 @@ import type { Qualidade } from './cotacoes.ts';
 
 export const LIMITES_DA_PONTE = {
   cotacoes: 500,
+  barras: 5, // ativos com histórico de minutos por envio
+  pontosPorBarra: 3000,
   posicoes: 200,
   futuroMs: 60_000,
   passadoMs: 7 * 24 * 3600_000,
@@ -50,8 +52,29 @@ export type LoteDaPonte = {
   conta: { login: string | null; servidor: string | null; corretora: string | null };
   cotacoes: CotacaoDaPonte[];
   posicoes: PosicaoDaPonte[] | null; // null = o lote não trata de posições
+  barras: BarrasDaPonte[]; // minutos fechados (M1) de ações/ETFs, para o gráfico do dia
   avisos: string[];
 };
+
+// Histórico de minutos de um ativo: [instante em ms (UTC), preço de fechamento do minuto].
+export type BarrasDaPonte = { codigo: string; pontos: { minuto: string; preco: Centavos }[] };
+const ACAO = /^[A-Z]{4}[0-9]{1,2}$/;
+
+function lerBarras(v: unknown, agora: Date): BarrasDaPonte | string {
+  if (!objeto(v)) return 'barras_invalidas';
+  const codigo = typeof v.codigo === 'string' ? v.codigo.trim().toUpperCase() : '';
+  if (!ACAO.test(codigo)) return 'barras_so_de_acoes';
+  if (!Array.isArray(v.pontos) || v.pontos.length > LIMITES_DA_PONTE.pontosPorBarra) return 'barras_invalidas';
+  const pontos: { minuto: string; preco: Centavos }[] = [];
+  for (const x of v.pontos) {
+    if (!Array.isArray(x) || x.length !== 2) return 'barras_invalidas';
+    const minuto = instanteDaPonte(x[0], agora);
+    const preco = precoDaPonte(x[1]);
+    if (minuto === undefined || preco === undefined || preco === null) return 'barras_invalidas';
+    pontos.push({ minuto, preco });
+  }
+  return { codigo, pontos };
+}
 
 export type ResultadoDoLote = { ok: true; lote: LoteDaPonte } | { ok: false; erro: string };
 
@@ -144,6 +167,15 @@ export function lerLoteDaPonte(corpo: unknown, agora: Date): ResultadoDoLote {
     if (!atual || atual.instante <= r.instante) porCodigo.set(r.codigo, r); // repetido no lote: fica o mais recente
   }
 
+  const barras: BarrasDaPonte[] = [];
+  if (corpo.barras !== undefined && corpo.barras !== null) {
+    if (!Array.isArray(corpo.barras) || corpo.barras.length > LIMITES_DA_PONTE.barras) return { ok: false, erro: 'lote_grande_demais' };
+    for (const b of corpo.barras) {
+      const r = lerBarras(b, agora);
+      if (typeof r === 'string') avisos.push(r); else barras.push(r);
+    }
+  }
+
   let posicoes: PosicaoDaPonte[] | null = null;
   if (corpo.posicoes !== undefined && corpo.posicoes !== null) {
     if (!Array.isArray(corpo.posicoes)) return { ok: false, erro: 'posicoes_invalidas' };
@@ -170,7 +202,7 @@ export function lerLoteDaPonte(corpo: unknown, agora: Date): ResultadoDoLote {
     if (!ruim) posicoes = [...juntas.values()];
   }
 
-  return { ok: true, lote: { versao, conta, cotacoes: [...porCodigo.values()], posicoes, avisos } };
+  return { ok: true, lote: { versao, conta, cotacoes: [...porCodigo.values()], posicoes, barras, avisos } };
 }
 
 // Qualidade da cotação que veio pela ponte, a partir do último contato do robô.
