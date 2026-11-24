@@ -13,6 +13,7 @@
 #   bash vps.sh abrir    volta a abrir a tela do MT5 na porta 3001 (com senha)
 #   bash vps.sh estado   mostra se o MT5 está rodando e quanto usa de memória
 #   bash vps.sh corrigir troca para o Wine que não tem o defeito do "debugger"
+#   bash vps.sh wine     monta o MT5 com o Wine Staging (corrige o "debugger")
 #   bash vps.sh testar   abre o MetaTrader à mão e mostra o erro, se ele fechar
 #
 # Nenhuma senha fica neste arquivo: a senha da tela é pedida na hora e fica
@@ -33,7 +34,7 @@ escrever_compose() {
   cat > "$PASTA/compose.yaml" <<EOF
 services:
   mt5:
-    image: $(imagem)
+    image: $(imagem)$( [ -f "$PASTA/Dockerfile" ] && printf '\n    build: .' )
     container_name: mt5
     restart: unless-stopped
     env_file: .env
@@ -202,6 +203,45 @@ corrigir() {
   falar "Pronto. O MT5 está sendo reinstalado (de 5 a 15 minutos). A senha da tela continua a mesma."
 }
 
+wine_novo() {
+  # O Wine 10 (e o mais antigo da imagem 1.0) faz o MT5 acusar "A debugger has
+  # been found" (defeito do Wine 58043). O Wine Staging traz a correção; junto
+  # com o Windows simulado como 11, o MT5 volta a abrir.
+  [ -f "$PASTA/compose.yaml" ] || erro "o MT5 ainda não foi instalado. Rode: bash vps.sh"
+  falar "Montando o MT5 com o Wine Staging mais novo (de 5 a 10 minutos)"
+  cat > "$PASTA/Dockerfile" <<'EOF2'
+FROM gmag11/metatrader5_vnc:latest
+USER root
+RUN set -eux; . /etc/os-release; \
+    rm -f /etc/apt/sources.list.d/winehq*; \
+    apt-get update; apt-get install -y --no-install-recommends ca-certificates wget gnupg; \
+    mkdir -pm755 /etc/apt/keyrings; \
+    wget -qO /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key; \
+    wget -qNP /etc/apt/sources.list.d/ "https://dl.winehq.org/wine-builds/debian/dists/${VERSION_CODENAME}/winehq-${VERSION_CODENAME}.sources"; \
+    dpkg --add-architecture i386; apt-get update; \
+    apt-get install -y --install-recommends winehq-staging; \
+    rm -rf /var/lib/apt/lists/*; \
+    wine --version
+EOF2
+  echo wta-mt5:wine-staging > "$PASTA/imagem"
+  (cd "$PASTA" && docker compose down) || true
+  rm -rf "$PASTA/config"
+  mkdir -p "$PASTA/config"
+  if grep -q '127.0.0.1:3001' "$PASTA/compose.yaml"; then escrever_compose 127.0.0.1; else escrever_compose 0.0.0.0; fi
+  (cd "$PASTA" && docker compose build --pull) || erro "não consegui montar a imagem com o Wine novo. Me mande o print."
+  subir
+  falar "Esperando o Windows simulado ficar pronto para trocar para Windows 11"
+  local n=0
+  until docker exec mt5 test -f /config/.wine/user.reg 2>/dev/null; do
+    n=$((n + 1)); [ "$n" -le 60 ] || break; printf '.'; sleep 10
+  done
+  echo
+  docker exec -u abc -e HOME=/config -e WINEPREFIX=/config/.wine mt5 wine reg add 'HKCU\Software\Wine' /v Version /d win11 /f || true
+  docker exec -u abc -e HOME=/config -e WINEPREFIX=/config/.wine mt5 wine --version || true
+  falar "Pronto. O MT5 está sendo instalado com o Wine novo (de 5 a 15 minutos). Depois aperte F5 no navegador."
+  echo "  Se a mensagem do 'debugger' voltar a aparecer, rode: docker restart mt5"
+}
+
 case "${1:-instalar}" in
   instalar) instalar ;;
   robo) robo ;;
@@ -210,5 +250,6 @@ case "${1:-instalar}" in
   estado) estado ;;
   testar) testar ;;
   corrigir) corrigir ;;
+  wine) wine_novo ;;
   *) erro "opção desconhecida: $1 (use: instalar, robo, fechar, abrir, estado)" ;;
 esac
