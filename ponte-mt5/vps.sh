@@ -12,6 +12,7 @@
 #   bash vps.sh fechar   tira a tela do MT5 da internet (depois de configurado)
 #   bash vps.sh abrir    volta a abrir a tela do MT5 na porta 3001 (com senha)
 #   bash vps.sh estado   mostra se o MT5 está rodando e quanto usa de memória
+#   bash vps.sh testar   abre o MetaTrader à mão e mostra o erro, se ele fechar
 #
 # Nenhuma senha fica neste arquivo: a senha da tela é pedida na hora e fica
 # só na VPS, em /opt/mt5/.env (legível apenas pelo root).
@@ -169,11 +170,25 @@ estado() {
   [ -f "$EXPERTS/WTA_Ponte.mq5" ] && echo "Robô presente na pasta Experts." || echo "Robô ainda não copiado (bash vps.sh robo)."
 }
 
+testar() {
+  # Abre o MetaTrader à mão dentro do container e mostra por que ele fecha.
+  local exe='/config/.wine/drive_c/Program Files/MetaTrader 5/terminal64.exe'
+  falar "Versão do Wine e do Windows simulado"
+  docker exec -u abc -e HOME=/config -e WINEPREFIX=/config/.wine mt5 wine --version || true
+  docker exec -u abc -e HOME=/config -e WINEPREFIX=/config/.wine mt5 sh -c 'wine reg query "HKCU\\Software\\Wine" /v Version 2>/dev/null | grep -i version' || echo "(versão do Windows padrão)"
+  falar "Abrindo o MetaTrader por 60 segundos (olhe a tela no navegador)"
+  docker exec -u abc -e HOME=/config -e WINEPREFIX=/config/.wine -e DISPLAY=:1 mt5 \
+    sh -c "timeout 60 wine \"$exe\" > /tmp/mt5-teste.log 2>&1; echo saiu com codigo \$? >> /tmp/mt5-teste.log" || true
+  falar "Últimas linhas do que o MetaTrader/Wine disse"
+  docker exec mt5 sh -c 'grep -v -E "^$|fixme:" /tmp/mt5-teste.log | tail -25' || true
+}
+
 case "${1:-instalar}" in
   instalar) instalar ;;
   robo) robo ;;
   fechar) fechar ;;
   abrir) abrir ;;
   estado) estado ;;
+  testar) testar ;;
   *) erro "opção desconhecida: $1 (use: instalar, robo, fechar, abrir, estado)" ;;
 esac
