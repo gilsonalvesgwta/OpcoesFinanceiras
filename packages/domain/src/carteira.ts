@@ -32,6 +32,13 @@ export function consolidarCarteira(execucoes: readonly Execucao[]): PosicaoConso
     const mult = e.multiplicador ?? 1;
     const custos = e.custos ?? 0;
     let p = porCodigo.get(e.codigo);
+    if (p && p.quantidade === 0 && (p.vencimento !== e.vencimento || p.tipo !== e.tipo)) {
+      // Mesmo código, outra série (a B3 reaproveita códigos de um ano para o outro): o que
+      // foi realizado fica, e a posição recomeça com os dados da série nova.
+      p.tipo = e.tipo;
+      if (e.strike !== undefined) p.strike = e.strike; else delete p.strike;
+      if (e.vencimento !== undefined) p.vencimento = e.vencimento; else delete p.vencimento;
+    }
     if (!p) {
       p = {
         codigo: e.codigo, tipo: e.tipo, multiplicador: mult, quantidade: 0, precoMedio: 0, precoMedioComCustos: 0, custoDaPosicao: 0,

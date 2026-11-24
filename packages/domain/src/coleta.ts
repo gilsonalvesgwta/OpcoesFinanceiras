@@ -14,6 +14,11 @@ export function urlDoCotahistDiario(dia: string): string {
   return `https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_D${d}${m}${a}.ZIP`;
 }
 
+// Arquivo anual: COTAHIST_AAAAA.ZIP. Usado para o cadastro histórico das séries de opções.
+export function urlDoCotahistAnual(ano: number): string {
+  return `https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_A${ano}.ZIP`;
+}
+
 // Arquivo mensal: COTAHIST_MmmAAAA.ZIP (mês com dois dígitos). Usado na carga do histórico.
 export function urlDoCotahistMensal(mes: string): string {
   const [a, m] = mes.split('-') as [string, string];

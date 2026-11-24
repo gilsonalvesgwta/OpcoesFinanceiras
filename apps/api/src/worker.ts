@@ -24,11 +24,12 @@ async function rodar(): Promise<void> {
   if (parar) return;
   let proximoMin = intervaloMin;
   try {
-    const r = await cicloDeColeta({ pool, buscar: fetch, log, nome: `coleta@${hostname()}` });
+    const r = await cicloDeColeta({ pool, buscar: fetch, log, nome: `coleta@${hostname()}`, seriesAnuais: true });
     const dias = Object.entries(r.cotahist).map(([d, s]) => `${d}:${s}`).join(' ');
     const calc = Object.entries(r.calculos).map(([d, x]) => `${d}:${x.calculadas}`).join(' ');
     const hist = Object.entries(r.historico).map(([m, x]) => `${m}:${x}`).join(' ');
-    log(`ciclo concluído${dias ? ` | COTAHIST ${dias}` : ''} | Selic ${r.selic}${calc ? ` | gregas ${calc}` : ''}${hist ? ` | histórico ${hist}` : ''}`);
+    const anuais = Object.entries(r.seriesAnuais ?? {}).map(([a, x]) => `${a}:${x}`).join(' ');
+    log(`ciclo concluído${dias ? ` | COTAHIST ${dias}` : ''} | Selic ${r.selic}${calc ? ` | gregas ${calc}` : ''}${hist ? ` | histórico ${hist}` : ''}${anuais ? ` | séries ${anuais}` : ''}`);
   } catch (e) {
     log(`ciclo falhou: ${e instanceof Error ? e.message : String(e)}; nova tentativa em 1 minuto`);
     proximoMin = 1;

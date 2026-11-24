@@ -40,7 +40,7 @@ export type NegocioDaPrevia = {
 
 // Ativo-objeto pelas 4 letras do código: o código à vista mais negociado com essa raiz
 // (BBAS → BBAS3, BOVA → BOVA11, PETR → PETR4).
-async function ativoPelaRaiz(c: Cliente, raiz: string): Promise<string | null> {
+export async function ativoPelaRaiz(c: Cliente, raiz: string): Promise<string | null> {
   const r = await c.query(
     `select codigo from fechamentos where tipo_mercado = 10 and codigo ~ ('^' || $1 || '[0-9]{1,2}$')
      and dia > (select max(dia) from fechamentos) - 10 group by codigo order by sum(volume) desc nulls last limit 1`, [raiz],
@@ -110,7 +110,7 @@ async function prepararNegocios(c: Cliente, nota: NotaLida, cfg: ConfiguracaoDoC
   return r;
 }
 
-async function estrategiaDaCarteira(c: Cliente, userId: string, ativoObjeto: string): Promise<string> {
+export async function estrategiaDaCarteira(c: Cliente, userId: string, ativoObjeto: string): Promise<string> {
   const nome = `Carteira ${ativoObjeto}`;
   const ja = await c.query("select id from estrategias where situacao = 'aberta' and nome = $1 and ativo_objeto = $2 order by criada_em limit 1", [nome, ativoObjeto]);
   if (ja.rows[0]) return ja.rows[0].id as string;
@@ -243,6 +243,22 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
           // Hora do pregão em ordem de leitura: mantém a sequência dos negócios da nota.
           const instante = new Date(Date.parse(`${nota.dataPregao}T10:00:00-03:00`) + k * 1000).toISOString();
           k += 1;
+          // O mesmo negócio já veio do extrato da B3 (sem custos): a nota completa esse
+          // negócio em vez de duplicar.
+          const doExtrato = (await c.query(
+            `select id from execucoes where origem = 'extrato_b3' and nota_id is null and codigo = $1 and lado = $2 and quantidade = $3 and preco = $4
+               and (instante at time zone 'America/Sao_Paulo')::date = $5::date order by instante limit 1`,
+            [n.codigo, n.lado, n.quantidade, n.preco, nota.dataPregao],
+          )).rows[0]?.id as string | undefined;
+          if (doExtrato) {
+            await c.query(
+              "update execucoes set custos = $2, nota_id = $3, origem = 'nota_corretagem', observacao = $4 where id = $1",
+              [doExtrato, n.custos, notaId, `Nota ${nota.numero}${n.observacao ? ` (${n.observacao})` : ''}`],
+            );
+            const e2 = (await c.query('select estrategia_id from execucoes where id = $1', [doExtrato])).rows[0]?.estrategia_id as string;
+            estrategias.add(e2);
+            continue;
+          }
           const id = await inserirExecucao(c, s.usuarioId, est, {
             codigo: n.codigo, tipo: n.tipo, lado: n.lado, quantidade: n.quantidade, preco: n.preco, custos: n.custos, instante,
             ...(n.tipo !== 'ativo' ? { strike: strikeAtual.get(`${n.codigo}|${n.vencimento}`)?.strike ?? n.strike as number, vencimento: n.vencimento as string } : {}),

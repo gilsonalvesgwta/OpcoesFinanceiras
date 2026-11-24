@@ -10,6 +10,7 @@ import { Cabecalho } from '../../../componentes/Casca.tsx';
 import { MensagemDeErro } from '../../../componentes/Acesso.tsx';
 import { Icone } from '../../../componentes/Icone.tsx';
 import { LotesDoAtivo } from '../../../componentes/LotesDoAtivo.tsx';
+import { ExtratoB3 } from '../../../componentes/ExtratoB3.tsx';
 import { chamar, ErroDaApi } from '../../../lib/api.ts';
 import { formatarData, formatarReais } from '../../../lib/formatos.ts';
 import { lerReais } from '../../../lib/simulador.ts';
@@ -248,6 +249,8 @@ export default function PaginaCarteira() {
         <section className="secao"><p className="secao-vazia">Nenhuma posição ainda. Importe suas notas de corretagem ou lance sua posição atual abaixo.</p></section>
       )}
       {carteira?.grupos.map((g) => <Grupo key={g.ativoObjeto} g={g} />)}
+
+      <ExtratoB3 aoImportar={carregar} />
 
       <section className="secao" aria-labelledby="importar-titulo">
         <h2 id="importar-titulo">Importar notas de corretagem</h2>

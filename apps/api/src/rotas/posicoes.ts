@@ -68,7 +68,7 @@ export function lerExecucao(b: CorpoDaExecucao, agora: Date): CorpoDaExecucao {
   return { ...resto, codigo, instante: new Date(t).toISOString(), ...(obs ? { observacao: obs } : {}) };
 }
 
-export async function inserirExecucao(c: Cliente, userId: string, estrategiaId: string, e: CorpoDaExecucao, origem: 'manual' | 'importada_mt5' | 'nota_corretagem' | 'posicao_inicial', rolagemId: string | null = null): Promise<string> {
+export async function inserirExecucao(c: Cliente, userId: string, estrategiaId: string, e: CorpoDaExecucao, origem: 'manual' | 'importada_mt5' | 'nota_corretagem' | 'posicao_inicial' | 'extrato_b3', rolagemId: string | null = null): Promise<string> {
   const r = await c.query(
     `insert into execucoes (user_id, estrategia_id, codigo, tipo, strike, vencimento, multiplicador, lado, quantidade, preco, custos, instante, origem, observacao, rolagem_id)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) returning id`,
@@ -95,12 +95,16 @@ export async function conferirEstrategia(c: Cliente, estrategiaId: string): Prom
      from execucoes where estrategia_id = $1`, [estrategiaId],
   );
   if (r.rows.length > MAXIMO_DE_EXECUCOES) throw new ErroHttp(409, 'limite_de_execucoes');
-  const vistos = new Map<string, string>();
-  for (const l of r.rows) {
+  // Mesmo código com dados diferentes só pode quando a posição anterior já foi zerada
+  // (a B3 reaproveita códigos de opção de um ano para o outro).
+  const linhas = [...r.rows].sort((a, b) => new Date(a.instante).getTime() - new Date(b.instante).getTime());
+  const vistos = new Map<string, { assinatura: string; q: number }>();
+  for (const l of linhas) {
     const assinatura = `${l.tipo}|${l.strike}|${l.vencimento}|${l.multiplicador}`;
     const antes = vistos.get(l.codigo);
-    if (antes !== undefined && antes !== assinatura) throw new ErroHttp(400, 'codigo_com_dados_diferentes', { codigo: l.codigo });
-    vistos.set(l.codigo, assinatura);
+    if (antes && antes.assinatura !== assinatura && antes.q !== 0) throw new ErroHttp(400, 'codigo_com_dados_diferentes', { codigo: l.codigo });
+    const q = (antes && antes.assinatura === assinatura ? antes.q : 0) + (l.lado === 'compra' ? 1 : -1) * Number(l.quantidade);
+    vistos.set(l.codigo, { assinatura, q });
   }
   try {
     montarCarteira(r.rows.map(paraDominio));

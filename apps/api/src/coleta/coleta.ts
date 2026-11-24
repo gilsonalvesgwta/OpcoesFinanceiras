@@ -10,6 +10,7 @@
 import {
   diasParaColetar, lerCotahist, lerLinhaCotahist, lerSerieSgs, MERCADO, mesesParaCarregar, urlDoCotahistMensal, partesEmBrasilia, SERIE_SELIC, seriesDeOpcoes, urlDaSerieSgs, urlDoCotahistDiario,
   type RegistroCotahist,
+  urlDoCotahistAnual,
 } from '@wta/domain';
 import { emTransacao, type Cliente, type Pool } from '../banco.ts';
 import { lerCalendario } from '../calendario.ts';
@@ -19,7 +20,7 @@ import { calcularDia, diasParaRecalcular } from './calculos.ts';
 export const VERSAO_DA_COLETA = '0.1.0';
 const LOTE = 2000;
 const MAXIMO_POR_CICLO = 3;
-const TAMANHO_MAXIMO = 150 * 1024 * 1024;
+const TAMANHO_MAXIMO = 400 * 1024 * 1024; // o arquivo anual da B3 passa de 100 MB
 const CODIGO = /^[A-Z0-9]{4,12}$/;
 
 export type Buscar = (url: string, init?: { signal?: AbortSignal; method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ ok: boolean; status: number; arrayBuffer(): Promise<ArrayBuffer>; json(): Promise<unknown> }>;
@@ -30,6 +31,7 @@ export type DependenciasDaColeta = {
   agora?: () => Date;
   log?: (msg: string) => void;
   nome?: string;
+  seriesAnuais?: boolean; // baixa o arquivo anual da B3 para o cadastro histórico das séries (o worker liga)
 };
 
 export type ResultadoDaImportacao = { registros: number; recusados: number; series: number };
@@ -247,6 +249,7 @@ export type ResumoDoCiclo = {
   selic: 'ok' | 'erro' | 'em_dia';
   calculos: Record<string, { calculadas: number; semCalculo: number }>;
   historico: Record<string, 'ok' | 'sem_arquivo' | 'erro'>;
+  seriesAnuais?: Record<string, 'ok' | 'sem_arquivo' | 'erro'>;
 };
 
 export async function cicloDeColeta(dep: DependenciasDaColeta): Promise<ResumoDoCiclo> {
@@ -313,10 +316,108 @@ export async function cicloDeColeta(dep: DependenciasDaColeta): Promise<ResumoDo
     const mes = meses[0];
     if (mes) resumo.historico[mes] = await coletarHistoricoMensal(dep, mes);
   }
+  // Cadastro histórico das séries de opções (strike e vencimento de séries já vencidas),
+  // para importar o extrato de negociação da B3 e notas antigas. Um ano por ciclo, uma vez.
+  const anos = dep.seriesAnuais ? await emTransacao(dep.pool, null, (c) => anosDeSeriesPendentes(c, agora)) : [];
+  const ano = anos[0];
+  if (ano !== undefined && dep.seriesAnuais) resumo.seriesAnuais = { [String(ano)]: await coletarSeriesDoAno(dep, ano) };
   // Limpeza: opções e cálculos com mais de 120 dias (o histórico das ações fica).
   await emTransacao(dep.pool, null, async (c) => {
     await c.query("delete from fechamentos where tipo_mercado in (70, 80) and dia < ($1::timestamptz - interval '120 days')::date", [agora]);
     await c.query("delete from calculos_opcoes where dia < ($1::timestamptz - interval '120 days')::date", [agora]);
   });
   return resumo;
+}
+
+// ---------- Cadastro histórico das séries (arquivo anual) ----------
+
+export const ANOS_DE_SERIES = 4; // o ano atual e os 4 anteriores
+
+export async function anosDeSeriesPendentes(c: Cliente, agora: Date): Promise<number[]> {
+  const atual = Number(partesEmBrasilia(agora).dia.slice(0, 4));
+  const r = await c.query<{ ano: number; ok: boolean; quando: Date }>(
+    `select extract(year from referencia)::int as ano, bool_or(situacao = 'ok') as ok, max(terminada_em) as quando
+     from importacoes where fonte = 'b3-series-anual' group by 1`,
+  );
+  const estado = new Map(r.rows.map((l) => [Number(l.ano), l]));
+  const pendentes: number[] = [];
+  for (let a = atual; a >= atual - ANOS_DE_SERIES; a--) {
+    const e = estado.get(a);
+    if (e?.ok) continue;
+    if (e && agora.getTime() - new Date(e.quando).getTime() < 6 * 3_600_000) continue; // falhou há pouco
+    pendentes.push(a);
+  }
+  return pendentes;
+}
+
+export async function coletarSeriesDoAno(dep: DependenciasDaColeta, ano: number): Promise<'ok' | 'sem_arquivo' | 'erro'> {
+  const inicio = relogio(dep)();
+  const referencia = `${ano}-01-01`;
+  try {
+    const d = await baixar(dep.buscar, urlDoCotahistAnual(ano), 900_000);
+    if (d.situacao === 'sem_arquivo') {
+      await registrar(dep, 'b3-series-anual', referencia, 'sem_arquivo', inicio, { detalhe: d.detalhe });
+      return 'sem_arquivo';
+    }
+    type S = { codigo: string; vencimento: string; tipo: 'call' | 'put'; strike: number; classe: string; isin: string; primeiro: string; ultimo: string };
+    const series = new Map<string, S>();
+    const vista = new Map<string, Set<string>>();
+    let linhas = 0;
+    for await (const linha of linhasDoPrimeiroArquivo(d.bytes)) {
+      if (!linha.startsWith('01')) continue;
+      const tp = linha.slice(24, 27);
+      if (tp !== '010' && tp !== '070' && tp !== '080') continue;
+      const r = lerLinhaCotahist(linha);
+      if (!r || !CODIGO.test(r.codigo)) continue;
+      linhas += 1;
+      const classe = r.especificacao.split(' ')[0] ?? '';
+      if (r.tipoMercado === MERCADO.VISTA) {
+        if (!/^[A-Z]{4}\d{1,2}$/.test(r.codigo)) continue;
+        const k = `${r.codigo.slice(0, 4)}|${classe}`;
+        if (!vista.has(k)) vista.set(k, new Set());
+        (vista.get(k) as Set<string>).add(r.codigo);
+        continue;
+      }
+      if (r.strike === null || r.vencimento === null) continue;
+      const chave = `${r.codigo}|${r.vencimento}`;
+      const ja = series.get(chave);
+      if (!ja) series.set(chave, { codigo: r.codigo, vencimento: r.vencimento, tipo: r.tipoMercado === MERCADO.CALL ? 'call' : 'put', strike: r.strike, classe, isin: r.isin, primeiro: r.data, ultimo: r.data });
+      else {
+        if (r.data < ja.primeiro) ja.primeiro = r.data;
+        if (r.data >= ja.ultimo) { ja.ultimo = r.data; ja.strike = r.strike; } // strike ajustado: vale o mais recente
+      }
+    }
+    if (!series.size) throw new Error('arquivo_sem_series');
+    const lista = [...series.values()];
+    await emTransacao(dep.pool, null, async (c) => {
+      for (let i = 0; i < lista.length; i += LOTE) {
+        const parte = lista.slice(i, i + LOTE);
+        const objeto = (s: S) => { const cand = [...(vista.get(`${s.codigo.slice(0, 4)}|${s.classe}`) ?? [])]; return cand.length === 1 ? cand[0] as string : null; };
+        await c.query(
+          `insert into series_opcoes (codigo, vencimento, ativo_objeto, tipo, strike, isin, visto_primeiro, visto_ultimo)
+           select codigo, vencimento, ativo_objeto, tipo, strike, nullif(isin, ''), primeiro, ultimo
+           from unnest($1::text[], $2::date[], $3::text[], $4::text[], $5::bigint[], $6::text[], $7::date[], $8::date[])
+             as s(codigo, vencimento, ativo_objeto, tipo, strike, isin, primeiro, ultimo)
+           on conflict (codigo, vencimento) do update set
+             ativo_objeto = coalesce(series_opcoes.ativo_objeto, excluded.ativo_objeto),
+             strike = case when excluded.visto_ultimo >= series_opcoes.visto_ultimo then excluded.strike else series_opcoes.strike end,
+             isin = coalesce(series_opcoes.isin, excluded.isin),
+             visto_primeiro = least(series_opcoes.visto_primeiro, excluded.visto_primeiro),
+             visto_ultimo = greatest(series_opcoes.visto_ultimo, excluded.visto_ultimo)`,
+          [parte.map((s) => s.codigo), parte.map((s) => s.vencimento), parte.map(objeto), parte.map((s) => s.tipo), parte.map((s) => s.strike),
+            parte.map((s) => s.isin), parte.map((s) => s.primeiro), parte.map((s) => s.ultimo)],
+        );
+      }
+      await c.query(
+        'insert into importacoes (fonte, referencia, situacao, registros, recusados, detalhe, iniciada_em, terminada_em) values ($1, $2, $3, $4, $5, $6, $7, $8)',
+        ['b3-series-anual', referencia, 'ok', linhas, 0, `${lista.length.toLocaleString('pt-BR')} séries de opções de ${ano}`, inicio, relogio(dep)()],
+      );
+    });
+    dep.log?.(`Séries de ${ano}: ${lista.length} séries de opções`);
+    return 'ok';
+  } catch (e) {
+    await registrar(dep, 'b3-series-anual', referencia, 'erro', inicio, { detalhe: mensagem(e) });
+    dep.log?.(`Séries de ${ano}: erro ${mensagem(e)}`);
+    return 'erro';
+  }
 }
