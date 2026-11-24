@@ -338,7 +338,7 @@ test.describe.serial('jornada', () => {
     await page.locator('#nova-1-codigo').fill('ITUBK360');
     await page.locator('#nova-1-codigo').blur();
     await expect(page.locator('#nova-1-strike')).toHaveValue('36,00');
-    await expect(page.locator('#nova-1-venc')).toHaveValue('2026-11-23');
+    await expect(page.locator('#nova-1-venc')).toHaveValue('2027-11-23');
     await page.locator('#nova-1-preco').fill('0,70');
     await expect(page.getByLabel('Ativo-objeto')).toHaveValue('ITUB4');
     await page.getByRole('button', { name: 'Criar estratégia' }).click();
@@ -380,13 +380,13 @@ test.describe.serial('jornada', () => {
     await page.getByRole('link', { name: 'Simulador' }).first().click();
     // Lista de ativos: escolher carrega sozinho (sem botão Carregar); favoritar põe no topo.
     await page.getByLabel('Ativo', { exact: true }).selectOption('ITUB4');
-    await expect(page.getByRole('heading', { name: /Cadeia · vence 23\/11\/2026/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Cadeia · vence 23\/11\/2027/ })).toBeVisible();
     // Trocar de ativo duas vezes seguidas: vale a última escolha, e a atualização automática não volta atrás.
     await page.getByLabel('Ativo', { exact: true }).selectOption('PETR4');
     await page.getByLabel('Ativo', { exact: true }).selectOption('ITUB4');
     await page.waitForTimeout(2500);
     await expect(page.getByLabel('Ativo', { exact: true })).toHaveValue('ITUB4');
-    await expect(page.getByRole('heading', { name: /Cadeia · vence 23\/11\/2026/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Cadeia · vence 23\/11\/2027/ })).toBeVisible();
     await expect(page.getByRole('group', { name: 'Painel do dia de ITUB4' })).toBeVisible();
     await expect(page.getByText('Máx. 52 sem')).toBeVisible();
     await page.getByRole('button', { name: '1M' }).click();
