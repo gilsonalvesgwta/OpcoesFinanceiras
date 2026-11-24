@@ -45,3 +45,14 @@ O robô `WTA_Ponte.mq5` roda dentro do MetaTrader 5 logado na sua conta da corre
 ## Onde o MT5 roda
 
 Na VPS, 24 h, no contêiner `mt5` da stack (ver `docs/DEPLOYMENT.md`). Você acessa a tela do MT5 pelo navegador (KasmVNC, com senha) só para instalar e conferir; depois ele fica ligado sozinho.
+
+## MT5 numa VPS Linux (24 horas)
+
+Para a ponte não depender do computador ligado, use uma VPS **x86 (Intel/AMD)** com Ubuntu 24.04 e 4 GB de memória, só para o MT5. Como root:
+
+```
+curl -L -o vps.sh opcoes.wtatech.com.br/ponte/vps.sh
+bash vps.sh
+```
+
+O script instala Docker, swap e o MT5 (imagem `gmag11/metatrader5_vnc`), e abre a tela do MT5 em `https://IP:3001` (usuário `wta` e a senha criada na hora; a senha fica só em `/opt/mt5/.env`). Depois: `bash vps.sh robo` copia o robô, `bash vps.sh fechar` tira a tela da internet, `bash vps.sh abrir` reabre e `bash vps.sh estado` mostra o uso de memória.
