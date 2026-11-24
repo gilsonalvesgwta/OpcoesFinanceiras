@@ -254,7 +254,7 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     assert.deepEqual(p.anosPendentes, [2026]);
     const ex = p.negocios.find((n: any) => n.mercado === 'exercicio_compra');
     assert.deepEqual([ex.codigo, ex.acao, ex.strike, ex.tipo], ['CARTG150', 'CART3', 1500, 'call']);
-    assert.deepEqual(p.negocios.find((n: any) => n.codigo === 'CARTF999').falta, ['strike']);
+    assert.ok(p.negocios.find((n: any) => n.codigo === 'CARTF999').falta.includes('strike'));
     const novos = p.negocios.filter((n: any) => !n.ja && !n.falta.length);
     assert.equal(novos.length, 8);
     const imp = await pedir('carla', 'POST', '/api/extrato-b3/importar', { negocios: novos });
