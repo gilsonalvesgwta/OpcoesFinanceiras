@@ -168,6 +168,7 @@ export default function PaginaCarteira() {
       const novas = r.notas.filter((x) => x.situacao === 'importada');
       setAviso(`${novas.length} nota(s) importada(s), ${novas.reduce((t, x) => t + x.execucoes, 0)} negócio(s). As operações estão em Posições, nas estratégias "Carteira <ativo>".`);
       setPrevia(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       await carregar();
     } catch (x) {
       setErro(textoDoErroDasNotas(x, 'Não foi possível importar agora.'));
@@ -307,10 +308,12 @@ export default function PaginaCarteira() {
               </div>
             ))}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-              <button type="button" className="botao botao-principal" disabled={!prontas || ocupado} onClick={() => void importar()}>Importar {prontas} nota(s)</button>
-              <button type="button" className="botao" onClick={() => setPrevia(null)}>Cancelar</button>
+              <button type="button" className="botao botao-principal" disabled={!prontas || ocupado} onClick={() => void importar()}>{ocupado ? 'Importando…' : `Importar ${prontas} nota(s)`}</button>
+              <button type="button" className="botao" disabled={ocupado} onClick={() => setPrevia(null)}>Cancelar</button>
               {previa.length > prontas && <span className="linha-lista-apoio" style={{ fontSize: 13 }}>Notas com erro, já importadas ou com campo faltando não entram.</span>}
             </div>
+            {/* O erro também aparece aqui, junto do botão (o do topo pode estar fora da tela). */}
+            {erro && <div className="alerta"><Icone nome="aviso" tamanho={18} /><span>{erro}</span></div>}
           </div>
         )}
       </section>
