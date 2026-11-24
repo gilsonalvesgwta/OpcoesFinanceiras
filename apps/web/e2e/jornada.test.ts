@@ -407,7 +407,7 @@ test.describe.serial('jornada', () => {
     await page.getByRole('button', { name: 'Mover ITUBK340 para o strike acima' }).click();
     await expect(page.getByText(/Compra movida de ITUBK340 para ITUBK360/)).toBeVisible();
     await expect(page.getByRole('row', { name: /Total da operação/ })).toContainText('53,00');
-    await page.getByRole('button', { name: /18\/12/ }).click();
+    await page.getByRole('button', { name: /17\/12/ }).click();
     await page.getByRole('button', { name: 'Vender ITUBL380' }).click();
     await expect(page.getByText(/Vencimentos diferentes: no primeiro vencimento/)).toBeVisible();
     // Boleta: código, quantidade e Comprar.
