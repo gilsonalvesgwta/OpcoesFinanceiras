@@ -18,6 +18,8 @@ import type { CacheDoCalendario } from '../calendario.ts';
 import { cotacoesDoUsuario } from '../cotacoes.ts';
 import { textoDoPdf } from '../pdf-texto.ts';
 import { celulasDoXls, ehXls } from '../xls-celulas.ts';
+import { seriesDaB3 } from '../series-da-nota.ts';
+import type { Buscar } from '../coleta/coleta.ts';
 
 // A nota em planilha (.xls) da CM Capital não traz o nome da corretora: usa o mesmo nome
 // que vem no PDF dela, para a mesma nota não entrar duas vezes (PDF e XLS).
@@ -46,9 +48,13 @@ async function ativoPelaRaiz(c: Cliente, raiz: string): Promise<string | null> {
   return (r.rows[0]?.codigo as string | undefined) ?? null;
 }
 
-async function prepararNegocios(c: Cliente, nota: NotaLida, cfg: ConfiguracaoDoCalendario): Promise<NegocioDaPrevia[]> {
+async function prepararNegocios(c: Cliente, nota: NotaLida, cfg: ConfiguracaoDoCalendario, buscar?: Buscar): Promise<NegocioDaPrevia[]> {
   const r: NegocioDaPrevia[] = [];
   const raizes = new Map<string, string | null>();
+  // Opções da nota fora do cadastro: procura de uma vez nos arquivos da B3.
+  const opcoes = [...new Set(nota.negocios.filter((n) => n.codigo && (n.mercado === 'opcao_compra' || n.mercado === 'opcao_venda')).map((n) => n.codigo as string))];
+  const cadastradas = new Set(opcoes.length ? (await c.query('select distinct codigo from series_opcoes where codigo = any($1)', [opcoes])).rows.map((x) => x.codigo as string) : []);
+  const daB3 = await seriesDaB3(buscar, nota.dataPregao, opcoes.filter((o) => !cadastradas.has(o)));
   for (const n of nota.negocios) {
     const falta: string[] = [];
     const alertas: string[] = [];
@@ -66,7 +72,9 @@ async function prepararNegocios(c: Cliente, nota: NotaLida, cfg: ConfiguracaoDoC
       if (n.mercado.startsWith('exercicio')) alertas.push('exercicio');
     } else if (n.mercado === 'opcao_compra' || n.mercado === 'opcao_venda') {
       tipo = n.mercado === 'opcao_compra' ? 'call' : 'put';
-      const s = await serieDoCodigo(c, n.codigo, nota.dataPregao);
+      let s = await serieDoCodigo(c, n.codigo, nota.dataPregao);
+      // Fora do cadastro (série antiga): o arquivo da B3 do dia da nota traz strike e vencimento.
+      if (!s || s.tipo === 'ativo') s = daB3.get(n.codigo) ?? s;
       if (s && s.tipo !== 'ativo') {
         strike = strike ?? s.strike;
         if (n.strike !== null && s.strike !== n.strike) { alertas.push('strike_da_nota_difere_do_cadastro'); }
@@ -152,7 +160,7 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
         notas.push({
           arquivo: a.nome, corretora: lida.corretora, numero: lida.numero, dataPregao: lida.dataPregao, custos: lida.custos,
           custoTotal: lida.custoTotal, irrf: lida.irrf, liquido: lida.liquido, conferida: lida.conferida, avisos: lida.avisos,
-          jaImportada: Boolean(ja.rows[0]), negocios: await prepararNegocios(c, lida, cfg),
+          jaImportada: Boolean(ja.rows[0]), negocios: await prepararNegocios(c, lida, cfg, dep.buscar),
         });
       }
       return { notas };

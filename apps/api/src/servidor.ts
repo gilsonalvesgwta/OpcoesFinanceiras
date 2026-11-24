@@ -10,7 +10,7 @@ import { lerCalendario } from './calendario.ts';
 
 const config = lerConfig();
 const pool = criarPool(config.bancoUrl);
-const app = await construirApp({ config, pool, correio: new CorreioDesligado((m) => console.warn(m)) });
+const app = await construirApp({ config, pool, correio: new CorreioDesligado((m) => console.warn(m)), buscar: fetch });
 
 // Ao subir junto com a stack, o banco pode ainda não estar pronto (ou as migrações ainda
 // rodando): espera até 2 minutos pelo banco com as funções de acesso criadas.

@@ -18,6 +18,7 @@ import { rotasDeRolagens } from './rotas/rolagens.ts';
 import { rotasDeInteligencia } from './rotas/inteligencia.ts';
 import { rotasDoSimulador } from './rotas/simulador.ts';
 import { rotasDaCarteira } from './rotas/carteira.ts';
+import type { Buscar } from './coleta/coleta.ts';
 import { CacheDoCalendario } from './calendario.ts';
 
 export type Politica = 'publica' | 'autenticado' | 'admin' | 'superadmin';
@@ -61,7 +62,7 @@ export class ErroHttp extends Error {
 }
 
 // relogio: só os testes trocam (para simular pregão aberto ou fechado).
-export type Dependencias = { config: Config; pool: Pool; correio: Correio; relogio?: () => Date };
+export type Dependencias = { config: Config; pool: Pool; correio: Correio; relogio?: () => Date; buscar?: Buscar }; // buscar: internet (B3), só em produção
 
 const METODOS_SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
