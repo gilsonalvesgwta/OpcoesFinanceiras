@@ -440,7 +440,7 @@ test.describe.serial('jornada', () => {
     const antes = await qtdItub(); // inclui a venda coberta do teste de Posições
     // A mesma nota de novo: já importada.
     await page.locator('#notas-pdf').setInputFiles({ name: 'nota.pdf', mimeType: 'application/pdf', buffer: pdfDeNotaDeTeste() });
-    await expect(page.getByText('já importada')).toBeVisible();
+    await expect(page.getByText('já importada', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Cancelar' }).click();
     // Posição inicial.
     await page.getByLabel('Código', { exact: true }).fill('ITUB4');
