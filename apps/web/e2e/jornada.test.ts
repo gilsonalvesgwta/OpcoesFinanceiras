@@ -424,6 +424,31 @@ test.describe.serial('jornada', () => {
     await expect(page.getByRole('button', { name: 'Registrar na carteira simulada' })).toBeVisible();
   });
 
+  test('cenários, avisos das posições e histórico com exportação; sair encerra a sessão', async ({ page }) => {
+    await entrarNoPainel(page, EMAIL, SENHA);
+    await page.getByRole('link', { name: 'Posições' }).first().click();
+    await page.getByText(/E se ITUB4 for para outro preço/).click();
+    await expect(page.getByRole('columnheader', { name: /No vencimento/ })).toBeVisible();
+    await expect(page.getByText(/ITUBL360 24,8% \(implícita do fechamento de 16\/10\)/)).toBeVisible();
+    await page.getByRole('link', { name: 'Preferências' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Avisos das posições' })).toBeVisible();
+    await page.getByText('Autorizo o sistema a me mandar sugestões de rolagem.').click();
+    await expect(page.getByText(/Sugestões autorizadas/)).toBeVisible();
+    await page.getByRole('link', { name: 'Histórico' }).first().click();
+    await expect(page.getByText(/Rolagem com crédito de R\$ 66,50/)).toBeVisible();
+    await expect(page.getByText('Venda de 100 ITUBK360 a R$ 0,70')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Exportar para planilha (CSV)' })).toHaveAttribute('href', /formato=csv/);
+    await page.getByLabel('Código (ou parte)').fill('ITUBL');
+    await page.getByRole('button', { name: 'Filtrar' }).click();
+    await expect(page.getByText('Venda de 100 ITUBK360 a R$ 0,70')).toHaveCount(0);
+    await semViolacoes(page, 'historico');
+    await foto(page, 'historico');
+    await page.getByRole('button', { name: 'Sair' }).click();
+    await expect(page).toHaveURL(/\/entrar$/);
+    await page.goto('/');
+    await expect(page).toHaveURL(/\/entrar/);
+  });
+
   test('minha carteira: importa nota de corretagem (PDF), preço médio com custos, posição inicial e simulação', async ({ page }) => {
     await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Minha carteira' }).click();
@@ -456,30 +481,5 @@ test.describe.serial('jornada', () => {
     await page.getByRole('link', { name: 'Simular com esta posição' }).first().click();
     await expect(page.getByText(/Sua posição em ITUB4 entrou na montagem/)).toBeVisible();
     await expect(page.getByText('sua posição real').first()).toBeVisible();
-  });
-
-  test('cenários, avisos das posições e histórico com exportação; sair encerra a sessão', async ({ page }) => {
-    await entrarNoPainel(page, EMAIL, SENHA);
-    await page.getByRole('link', { name: 'Posições' }).first().click();
-    await page.getByText(/E se ITUB4 for para outro preço/).click();
-    await expect(page.getByRole('columnheader', { name: /No vencimento/ })).toBeVisible();
-    await expect(page.getByText(/ITUBL360 24,8% \(implícita do fechamento de 16\/10\)/)).toBeVisible();
-    await page.getByRole('link', { name: 'Preferências' }).first().click();
-    await expect(page.getByRole('heading', { name: 'Avisos das posições' })).toBeVisible();
-    await page.getByText('Autorizo o sistema a me mandar sugestões de rolagem.').click();
-    await expect(page.getByText(/Sugestões autorizadas/)).toBeVisible();
-    await page.getByRole('link', { name: 'Histórico' }).first().click();
-    await expect(page.getByText(/Rolagem com crédito de R\$ 66,50/)).toBeVisible();
-    await expect(page.getByText('Venda de 100 ITUBK360 a R$ 0,70')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Exportar para planilha (CSV)' })).toHaveAttribute('href', /formato=csv/);
-    await page.getByLabel('Código (ou parte)').fill('ITUBL');
-    await page.getByRole('button', { name: 'Filtrar' }).click();
-    await expect(page.getByText('Venda de 100 ITUBK360 a R$ 0,70')).toHaveCount(0);
-    await semViolacoes(page, 'historico');
-    await foto(page, 'historico');
-    await page.getByRole('button', { name: 'Sair' }).click();
-    await expect(page).toHaveURL(/\/entrar$/);
-    await page.goto('/');
-    await expect(page).toHaveURL(/\/entrar/);
   });
 });
