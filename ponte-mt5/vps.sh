@@ -107,8 +107,9 @@ instalar() {
   fi
 
   escrever_compose 0.0.0.0
-  falar "Baixando e iniciando o MetaTrader 5 (a primeira vez demora de 5 a 15 minutos)"
-  subir
+  # Já instala com o Wine Staging + Windows 11 (o Wine 10 da imagem faz o MT5
+  # acusar "A debugger has been found" e fechar).
+  wine_novo
 
   local ip; ip="$(ip_publico)"
   falar "Pronto. O MT5 está sendo instalado dentro do container."
