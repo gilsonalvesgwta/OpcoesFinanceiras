@@ -207,4 +207,17 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     assert.deepEqual((await pedir('ana', 'GET', '/api/notas')).corpo.notas, []);
     assert.equal((await pedir('beto', 'GET', '/api/carteira')).corpo.grupos.length, 1);
   });
+
+  test('importar: código com strike/vencimento diferentes em duas notas diz qual código e quais notas', async () => {
+    const nota = (numero: string, vencimento: string) => ({
+      corretora: 'Corretora Teste CTVM S.A.', numero, dataPregao: '2026-11-20', custoTotal: 0, conferida: true, custos: {},
+      negocios: [{ lado: 'venda', codigo: 'CARTL145', tipo: 'call', strike: 1450, vencimento, ativoObjeto: 'CART3', quantidade: 100, preco: 30, custos: 0 }],
+    });
+    const r = await pedir('beto', 'POST', '/api/notas/importar', { notas: [nota('1001', '2026-12-18'), nota('1002', '2026-12-11')] });
+    assert.equal(r.status, 400, JSON.stringify(r.corpo));
+    assert.equal(r.corpo.erro, 'codigo_com_dados_diferentes');
+    assert.equal(r.corpo.codigo, 'CARTL145');
+    assert.deepEqual(r.corpo.notas, ['1001', '1002']);
+    assert.equal(r.corpo.versoes.length, 2);
+  });
 });

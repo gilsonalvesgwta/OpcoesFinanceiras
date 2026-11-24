@@ -14,7 +14,7 @@ import { chamar, ErroDaApi } from '../../../lib/api.ts';
 import { formatarData, formatarReais } from '../../../lib/formatos.ts';
 import { lerReais } from '../../../lib/simulador.ts';
 import {
-  ALERTA_DO_NEGOCIO, arquivoParaBase64, ERRO_DA_NOTA, NOME_DO_CUSTO, notaPronta, pctBr,
+  ALERTA_DO_NEGOCIO, arquivoParaBase64, ERRO_DA_NOTA, NOME_DO_CUSTO, notaPronta, pctBr, textoDoErroDasNotas,
   type Carteira, type GrupoDaCarteira, type NotaDaPrevia,
 } from '../../../lib/carteira.ts';
 
@@ -123,11 +123,18 @@ export default function PaginaCarteira() {
     if (!lista?.length) return;
     setErro(null); setAviso(null); setOcupado(true);
     try {
-      const arqs = await Promise.all([...lista].slice(0, 20).map(async (f) => ({ nome: f.name, conteudo: await arquivoParaBase64(f) })));
-      const r = await chamar<{ notas: NotaDaPrevia[] }>('POST', '/api/notas/ler', { arquivos: arqs });
-      setPrevia(r.notas);
+      const arqs = await Promise.all([...lista].slice(0, 40).map(async (f) => ({ nome: f.name, conteudo: await arquivoParaBase64(f) })));
+      // Em grupos de 4: cada pedido fica curto (séries antigas são buscadas na B3).
+      const lidas: NotaDaPrevia[] = [];
+      for (let i = 0; i < arqs.length; i += 4) {
+        setAviso(arqs.length > 4 ? `Lendo ${Math.min(i + 4, arqs.length)} de ${arqs.length} arquivos…` : null);
+        const r = await chamar<{ notas: NotaDaPrevia[] }>('POST', '/api/notas/ler', { arquivos: arqs.slice(i, i + 4) });
+        lidas.push(...r.notas);
+      }
+      setAviso(null);
+      setPrevia(lidas);
     } catch (x) {
-      setErro(x instanceof Error ? x.message : 'Não foi possível ler as notas.');
+      setErro(textoDoErroDasNotas(x, 'Não foi possível ler as notas.'));
     } finally {
       setOcupado(false);
       if (arquivos.current) arquivos.current.value = '';
@@ -163,7 +170,7 @@ export default function PaginaCarteira() {
       setPrevia(null);
       await carregar();
     } catch (x) {
-      setErro(x instanceof ErroDaApi ? x.message : 'Não foi possível importar agora.');
+      setErro(textoDoErroDasNotas(x, 'Não foi possível importar agora.'));
     } finally {
       setOcupado(false);
     }
