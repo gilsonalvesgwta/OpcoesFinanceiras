@@ -12,6 +12,7 @@
 #   bash vps.sh fechar   tira a tela do MT5 da internet (depois de configurado)
 #   bash vps.sh abrir    volta a abrir a tela do MT5 na porta 3001 (com senha)
 #   bash vps.sh estado   mostra se o MT5 está rodando e quanto usa de memória
+#   bash vps.sh corrigir troca para o Wine que não tem o defeito do "debugger"
 #   bash vps.sh testar   abre o MetaTrader à mão e mostra o erro, se ele fechar
 #
 # Nenhuma senha fica neste arquivo: a senha da tela é pedida na hora e fica
@@ -32,7 +33,7 @@ escrever_compose() {
   cat > "$PASTA/compose.yaml" <<EOF
 services:
   mt5:
-    image: gmag11/metatrader5_vnc:latest
+    image: $(imagem)
     container_name: mt5
     restart: unless-stopped
     env_file: .env
@@ -52,6 +53,11 @@ services:
         max-file: "3"
 EOF
 }
+
+# Imagem do MT5. A "latest" traz o Wine 10, que tem um defeito conhecido: o MT5
+# acusa "A debugger has been found running in your system" e fecha. A 1.0 usa um
+# Wine anterior a esse defeito (bash vps.sh corrigir troca para ela).
+imagem() { cat "$PASTA/imagem" 2>/dev/null || echo gmag11/metatrader5_vnc:1.0; }
 
 subir() { (cd "$PASTA" && docker compose up -d --remove-orphans); }
 
@@ -183,6 +189,19 @@ testar() {
   docker exec mt5 sh -c 'grep -v -E "^$|fixme:" /tmp/mt5-teste.log | tail -25' || true
 }
 
+corrigir() {
+  [ -f "$PASTA/compose.yaml" ] || erro "o MT5 ainda não foi instalado. Rode: bash vps.sh"
+  falar "Trocando para a imagem com o Wine anterior ao defeito do 'debugger'"
+  (cd "$PASTA" && docker compose down) || true
+  echo gmag11/metatrader5_vnc:1.0 > "$PASTA/imagem"
+  rm -rf "$PASTA/config"
+  mkdir -p "$PASTA/config"
+  if grep -q '127.0.0.1:3001' "$PASTA/compose.yaml"; then escrever_compose 127.0.0.1; else escrever_compose 0.0.0.0; fi
+  subir
+  docker image rm gmag11/metatrader5_vnc:latest >/dev/null 2>&1 || true
+  falar "Pronto. O MT5 está sendo reinstalado (de 5 a 15 minutos). A senha da tela continua a mesma."
+}
+
 case "${1:-instalar}" in
   instalar) instalar ;;
   robo) robo ;;
@@ -190,5 +209,6 @@ case "${1:-instalar}" in
   abrir) abrir ;;
   estado) estado ;;
   testar) testar ;;
+  corrigir) corrigir ;;
   *) erro "opção desconhecida: $1 (use: instalar, robo, fechar, abrir, estado)" ;;
 esac
