@@ -40,7 +40,11 @@ export type NotaDaPrevia = {
 };
 
 export const ERRO_DA_NOTA: Record<string, string> = {
-  nao_e_pdf: 'O arquivo não é um PDF.',
+  nao_e_pdf: 'O arquivo não é PDF nem planilha XLS (Excel 97-2003).',
+  nao_e_xls: 'O arquivo não é uma planilha XLS (Excel 97-2003).',
+  xls_corrompido: 'Não consegui abrir esta planilha XLS (arquivo corrompido?).',
+  xls_sem_planilha: 'A planilha XLS não tem dados.',
+  xls_grande_demais: 'A planilha passa de 5 MB.',
   pdf_protegido: 'O PDF está protegido por senha. Baixe a nota sem senha (ou abra e salve uma cópia) e envie de novo.',
   pdf_grande_demais: 'O PDF passa de 5 MB.',
   nao_e_nota_de_corretagem: 'Não parece uma nota de corretagem (ou é um PDF escaneado, em imagem, que o sistema não lê).',

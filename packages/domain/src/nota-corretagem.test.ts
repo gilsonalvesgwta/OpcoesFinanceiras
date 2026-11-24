@@ -78,3 +78,40 @@ test('vencimento estimado pelo código: mensal 3ª sexta (antecipa feriado), sem
   assert.equal(vencimentoEstimado('PETRX30', '2026-11-24', null, cfg), '2026-12-18', 'X = put de dezembro');
   assert.equal(vencimentoEstimado('BBAS3', '2026-11-24', null, cfg), null);
 });
+
+test('nota em planilha (XLS da CM Capital): cabeçalho, negócios, resumo com ponto decimal e conferência', async () => {
+  const { lerNotaDaPlanilha, lerValorDaPlanilha } = await import('./nota-corretagem.ts');
+  const grade: (string | null)[][] = [
+    ['CLIENTE:', '000000001', 'FULANO DE TAL', 'DATA PREGÃO', '16112026', 'NUM NOTA', '910971'],
+    [],
+    ['PRAÇA', 'C/V', 'TIPO DE MERCADO', 'ESPECIFICAÇÃO DO TÍTULO', 'OBS(*)', 'QUANTIDADE', 'PREÇO DE LIQUIDAÇÃO(R$)', 'COMPRA/VENDA (R$)', 'D/C'],
+    ['1-Bovespa', 'C', 'OPC', 'BOVAK157 CI  157,00', null, '220', '11,55', '2.541,00', 'D'],
+    [null, null, null, 'SUBTOTAL:', null, '220', '11,5500', '2.541,00'],
+    ['1-Bovespa', 'V', 'OPC', 'BOVAL64 CI  159,00', null, '220', '11,68', '2.569,60', 'C'],
+    [],
+    ['RESUMO DOS NEGÓCIOS', null, null, null, null, 'RESUMO FINANCEIRO'],
+    ['DEBÊNTURES:', '0.00', 'VENDAS À VISTA:', '0.00', null, 'VALOR LÍQ. DAS OPER.(1):', '28.60 C', 'TAXA DE LIQUIDAÇÃO / CCP (2):', '1.40 D'],
+    ['COMPRAS À VISTA:', '0.00', 'OPÇÕES - COMPRA:', '2541.00', null, 'TAXA REG.(3):', '3.55 D', 'TOTAL(1+2+3)A:', '23.65 C'],
+    [null, null, null, null, null, 'TAXA DE TRANSFERÊNCIA DE ATIVOS:', '0.00 D'],
+    ['OPÇÕES - VENDA:', '2569.60', 'OPER. À TERMO:', '0.00', null, 'TX. TER/OPC/FUT:', '0.00 D', 'TX. A.N.A.:', '0.00 D'],
+    ['OPER. FUT.:', '0.00', 'VLR. OPER. C/ TIT. PUB.:', '0.00', null, 'EMOLUMENTOS:', '1.89 D', 'TOTAL:', '-1.89 D'],
+    ['VLR. OPER.:', '5110.60', 'VLR. AJU. P/ FUT.:', '0.00', null, 'CORRETAGEM:', '0.00 D', 'ISS:', '0.00 D'],
+    ['IR S/ CORRETAGEM:', '0.00', 'IRRF S/ DAY TRADE:', '0.00', null, 'IRRF S/ OPER., BASE 0.00:', '0.00 D', 'OUTRAS:', '0,00 D'],
+    [null, null, null, null, null, null, null, 'LIQ.(A+B) P/ 17/11/2026:', '21.76 C'],
+  ];
+  const celulas = grade.flatMap((l, linha) => l.map((texto, coluna) => ({ linha, coluna, texto: texto ?? '' })).filter((c) => c.texto));
+  const n = lerNotaDaPlanilha(celulas, 'CM CAPITAL MARKETS CCTVM LTDA.');
+  assert.ok(!('erro' in n), JSON.stringify(n));
+  if ('erro' in n) return;
+  assert.deepEqual([n.corretora, n.numero, n.dataPregao, n.custoTotal, n.irrf, n.liquido, n.conferida], ['CM CAPITAL MARKETS CCTVM LTDA.', '910971', '2026-11-16', 684, 0, 2176, true]);
+  assert.deepEqual(n.negocios.map((x) => [x.lado, x.mercado, x.codigo, x.strike, x.quantidade, x.preco, x.valor, x.custos]), [
+    ['compra', 'opcao_compra', 'BOVAK157', 15700, 220, 1155, 254100, 340],
+    ['venda', 'opcao_compra', 'BOVAL64', 15900, 220, 1168, 256960, 344],
+  ]);
+  assert.deepEqual([n.custos.liquidacao, n.custos.registro, n.custos.emolumentos], [140, 355, 189]);
+  assert.deepEqual(lerValorDaPlanilha('-1.89 D'), { valor: 189, dc: 'D' });
+  assert.deepEqual(lerValorDaPlanilha('2.541,00'), { valor: 254100, dc: null });
+  assert.deepEqual(lerValorDaPlanilha('0,00 D'), { valor: 0, dc: 'D' });
+  assert.equal(lerValorDaPlanilha('abc'), null);
+  assert.deepEqual(lerNotaDaPlanilha([{ linha: 0, coluna: 0, texto: 'qualquer' }]), { erro: 'nao_e_nota_de_corretagem' });
+});

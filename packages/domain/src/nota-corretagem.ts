@@ -139,6 +139,36 @@ const COLUNAS: [keyof Colunas, RegExp][] = [
 ];
 type Colunas = { cv: number; mercado: number; prazo: number; esp: number; obs: number; qtd: number; preco: number; valor: number; dc: number };
 
+// Um negócio a partir dos campos de uma linha do quadro (texto de cada coluna). Serve
+// para o PDF (colunas pela posição) e para a planilha XLS (colunas pela célula).
+function negocioDosCampos(campos: Record<string, string[]>, avisos: string[], textoDaLinha: string): Omit<NegocioDaNota, 'custos'> | null {
+  const cv = (campos.cv ?? []).join(' ').trim().toUpperCase();
+  const qtdT = (campos.qtd ?? [])[0];
+  const precoT = (campos.preco ?? [])[0];
+  const valorT = (campos.valor ?? [])[0];
+  if (!/^[CV]$/.test(cv) || !qtdT || !precoT || !valorT) return null;
+  const quantidade = Number(qtdT.replace(/\./g, ''));
+  const preco = lerValorBr(precoT);
+  const valor = lerValorBr(valorT);
+  if (!Number.isInteger(quantidade) || quantidade <= 0 || preco === null || valor === null) { avisos.push(`linha_ilegivel:${textoDaLinha}`); return null; }
+  const mercadoTexto = (campos.mercado ?? []).join(' ');
+  let mercado = mercadoDe(mercadoTexto);
+  const especificacao = (campos.esp ?? []).join(' ');
+  if (mercado === 'outro' && /^OPC/.test(norm(mercadoTexto))) {
+    const tok = especificacao.toUpperCase().split(/\s+/).find((x) => /^[A-Z]{4}[A-X]\d{1,4}[A-Z0-9]{0,3}$/.test(x));
+    mercado = (tok && opcaoPeloCodigo(tok)) || 'outro';
+  }
+  const codigo = codigoDaEspecificacao(especificacao, mercado);
+  const strikeT = mercado.startsWith('opcao') ? especificacao.split(/\s+/).reverse().find((x) => lerValorBr(x) !== null) : undefined;
+  if (!codigo) avisos.push(`sem_codigo:${especificacao}`);
+  if (mercado === 'termo' || mercado === 'outro') avisos.push(`mercado_nao_tratado:${mercadoTexto}`);
+  return {
+    lado: cv === 'C' ? 'compra' : 'venda', mercado, mercadoTexto, prazo: (campos.prazo ?? [])[0] ?? null, especificacao, codigo,
+    strike: strikeT ? centavos(lerValorBr(strikeT) as number) : null,
+    observacao: (campos.obs ?? []).join(' '), quantidade, preco: Math.round(preco * 100 * 1e6) / 1e6, valor: centavos(valor),
+  };
+}
+
 function negociosDaPagina(linhas: readonly Linha[], avisos: string[]): Omit<NegocioDaNota, 'custos'>[] {
   const r: Omit<NegocioDaNota, 'custos'>[] = [];
   for (const cab of linhas.filter((l) => l.trechos.some((t) => norm(t.texto) === 'C/V') && l.trechos.some((t) => /^QUANTIDADE$/.test(norm(t.texto))))) {
@@ -157,31 +187,8 @@ function negociosDaPagina(linhas: readonly Linha[], avisos: string[]): Omit<Nego
     for (const l of linhas.filter((o) => o.pagina === cab.pagina && o.y < cab.y - 2 && (!fim || o.y > fim.y + 2))) {
       const campos: Record<string, string[]> = {};
       for (const t of l.trechos) { const k = colunaDe(t.x); if (k) (campos[k] ??= []).push(t.texto.trim()); }
-      const cv = (campos.cv ?? []).join(' ').trim().toUpperCase();
-      const qtdT = (campos.qtd ?? [])[0];
-      const precoT = (campos.preco ?? [])[0];
-      const valorT = (campos.valor ?? [])[0];
-      if (!/^[CV]$/.test(cv) || !qtdT || !precoT || !valorT) continue;
-      const quantidade = Number(qtdT.replace(/\./g, ''));
-      const preco = lerValorBr(precoT);
-      const valor = lerValorBr(valorT);
-      if (!Number.isInteger(quantidade) || quantidade <= 0 || preco === null || valor === null) { avisos.push(`linha_ilegivel:${l.trechos.map((t) => t.texto).join(' ')}`); continue; }
-      const mercadoTexto = (campos.mercado ?? []).join(' ');
-      let mercado = mercadoDe(mercadoTexto);
-      const especificacao = (campos.esp ?? []).join(' ');
-      if (mercado === 'outro' && /^OPC/.test(norm(mercadoTexto))) {
-        const tok = especificacao.toUpperCase().split(/\s+/).find((x) => /^[A-Z]{4}[A-X]\d{1,4}[A-Z0-9]{0,3}$/.test(x));
-        mercado = (tok && opcaoPeloCodigo(tok)) || 'outro';
-      }
-      const codigo = codigoDaEspecificacao(especificacao, mercado);
-      const strikeT = mercado.startsWith('opcao') ? especificacao.split(/\s+/).reverse().find((x) => lerValorBr(x) !== null) : undefined;
-      if (!codigo) avisos.push(`sem_codigo:${especificacao}`);
-      if (mercado === 'termo' || mercado === 'outro') avisos.push(`mercado_nao_tratado:${mercadoTexto}`);
-      r.push({
-        lado: cv === 'C' ? 'compra' : 'venda', mercado, mercadoTexto, prazo: (campos.prazo ?? [])[0] ?? null, especificacao, codigo,
-        strike: strikeT ? centavos(lerValorBr(strikeT) as number) : null,
-        observacao: (campos.obs ?? []).join(' '), quantidade, preco: Math.round(preco * 100 * 1e6) / 1e6, valor: centavos(valor),
-      });
+      const n = negocioDosCampos(campos, avisos, l.trechos.map((t) => t.texto).join(' '));
+      if (n) r.push(n);
     }
   }
   return r;
@@ -229,7 +236,6 @@ export function lerNotaDeCorretagem(trechos: readonly TrechoDaNota[]): NotaLida 
     corretagem: v(/^CLEARING$|^CORRETAGEM$|^TAXA OPERACIONAL/), execucao: v(/^EXECUCAO$/), execucaoCasa: v(/^EXECUCAO CASA/),
     iss: v(/^ISS/), outras: v(/^OUTRAS( BOVESPA)?$/),
   };
-  const custoTotal = Object.values(custos).reduce((s, x) => s + x, 0);
   const irrfL = linhas.flatMap((l) => l.trechos).find((t) => /^I\.?R\.?R\.?F/.test(norm(t.texto)));
   let irrf = 0;
   if (irrfL) {
@@ -239,19 +245,110 @@ export function lerNotaDeCorretagem(trechos: readonly TrechoDaNota[]): NotaLida 
   }
   const liq = valorDoRotulo(linhas, /^LIQUIDO PARA/);
   const liquido = liq ? (liq.dc === 'D' ? -liq.valor : liq.valor) : null;
-  const vendas = brutos.filter((n) => n.lado === 'venda').reduce((s, n) => s + n.valor, 0);
-  const compras = brutos.filter((n) => n.lado === 'compra').reduce((s, n) => s + n.valor, 0);
+  return fecharNota({ corretora, numero, dataPregao: `${aaaa}-${mm}-${dd}`, brutos, custos, irrf, liquido, avisos });
+}
+
+// Conferência (vendas − compras − custos = líquido, com ou sem o IRRF) e rateio dos custos.
+function fecharNota(n: { corretora: string; numero: string; dataPregao: string; brutos: Omit<NegocioDaNota, 'custos'>[]; custos: CustosDaNota; irrf: Centavos; liquido: Centavos | null; avisos: string[] }): NotaLida {
+  const { brutos, custos, irrf, liquido, avisos } = n;
+  const custoTotal = Object.values(custos).reduce((s, x) => s + x, 0);
+  const vendas = brutos.filter((x) => x.lado === 'venda').reduce((s, x) => s + x.valor, 0);
+  const compras = brutos.filter((x) => x.lado === 'compra').reduce((s, x) => s + x.valor, 0);
   const refeito = vendas - compras - custoTotal;
   const conferida = liquido !== null && (Math.abs(refeito - liquido) <= 1 || Math.abs(refeito - irrf - liquido) <= 1);
   if (!conferida) avisos.push('liquido_nao_confere');
-
-  const partes = ratearCustos(brutos.map((n) => n.valor), custoTotal);
+  const partes = ratearCustos(brutos.map((x) => x.valor), custoTotal);
   return {
-    corretora, numero, dataPregao: `${aaaa}-${mm}-${dd}`,
-    negocios: brutos.map((n, i) => ({ ...n, custos: partes[i] as number })),
+    corretora: n.corretora, numero: n.numero, dataPregao: n.dataPregao,
+    negocios: brutos.map((x, i) => ({ ...x, custos: partes[i] as number })),
     custos, custoTotal, irrf, liquido, conferida, avisos,
   };
 }
+
+// ---------- Nota em planilha (XLS) ----------
+// Algumas corretoras (ex.: CM Capital) entregam a nota também em .xls: uma linha de
+// cabeçalho (CLIENTE, DATA PREGÃO 16112026, NUM NOTA), o quadro de negócios com os mesmos
+// títulos do Sinacor e o resumo com "RÓTULO: valor D/C" na célula ao lado. No resumo os
+// números vêm com ponto decimal ("1.40 D"); no quadro, no padrão brasileiro ("2.541,00").
+
+export type CelulaDaNota = { linha: number; coluna: number; texto: string };
+
+// Valor de uma célula do resumo: "1.40 D", "-1.89 D", "0,00 D", "2541.00", "2.541,00".
+export function lerValorDaPlanilha(t: string): { valor: Centavos; dc: 'D' | 'C' | null } | null {
+  const m = /^\s*(-?[\d.,]+)\s*([DC])?\s*$/i.exec(t);
+  if (!m) return null;
+  const num = m[1] as string;
+  let v: number | null;
+  if (num.includes(',')) v = lerValorBr(num);
+  else if (/^-?\d+\.\d{1,2}$/.test(num)) v = Number(num);
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(num)) v = Number(num.replace(/\./g, ''));
+  else v = /^-?\d+$/.test(num) ? Number(num) : null;
+  if (v === null || !Number.isFinite(v)) return null;
+  return { valor: Math.abs(centavos(v)), dc: (m[2]?.toUpperCase() as 'D' | 'C' | undefined) ?? null };
+}
+
+export function lerNotaDaPlanilha(celulas: readonly CelulaDaNota[], corretoraPadrao = 'Corretora'): NotaLida | { erro: string } {
+  const linhas = new Map<number, CelulaDaNota[]>();
+  for (const c of celulas) if (c.texto.trim()) (linhas.get(c.linha) ?? linhas.set(c.linha, []).get(c.linha) as CelulaDaNota[]).push(c);
+  for (const l of linhas.values()) l.sort((a, b) => a.coluna - b.coluna);
+  const todas = [...celulas].sort((a, b) => a.linha - b.linha || a.coluna - b.coluna);
+  const rot = (c: CelulaDaNota) => norm(c.texto).replace(/\s*\(\d\)\s*/g, ' ').replace(/[:\s]+$/, '').trim();
+  // Valor de um rótulo: a próxima célula preenchida à direita na mesma linha (ou logo abaixo).
+  const aoLado = (c: CelulaDaNota): string | null => {
+    const l = linhas.get(c.linha) ?? [];
+    const d = l.find((x) => x.coluna > c.coluna);
+    if (d) return d.texto.trim();
+    return (linhas.get(c.linha + 1) ?? []).find((x) => x.coluna === c.coluna)?.texto.trim() ?? null;
+  };
+  const valorDe = (re: RegExp) => { const c = todas.find((x) => re.test(rot(x))); return c ? aoLado(c) : null; };
+
+  const cab = [...linhas.entries()].find(([, l]) => l.some((c) => rot(c) === 'C/V') && l.some((c) => rot(c) === 'QUANTIDADE'));
+  const numeroT = valorDe(/^(NUM|NR|NUMERO)\.? (DA )?NOTA$/);
+  const dataT = valorDe(/^DATA (DO )?PREGAO$/);
+  if (!cab) return { erro: 'nao_e_nota_de_corretagem' };
+  const numero = numeroT && /^\d{1,12}$/.test(numeroT.replace(/\D/g, '')) ? numeroT.replace(/\D/g, '').replace(/^0+(?=\d)/, '') : null;
+  const dm = dataT ? (/^(\d{2})\/?(\d{2})\/?(\d{4})$/.exec(dataT.trim()) ?? /^(\d{2})(\d{2})(\d{4})$/.exec(dataT.replace(/\D/g, ''))) : null;
+  if (!numero || !dm) return { erro: 'cabecalho_ilegivel' };
+  const [, dd, mm, aaaa] = dm as RegExpExecArray;
+
+  const avisos: string[] = [];
+  const [linhaCab, celsCab] = cab;
+  const col: Partial<Record<keyof Colunas, number>> = {};
+  for (const c of celsCab) for (const [k, re] of COLUNAS_DA_PLANILHA) if (re.test(rot(c)) && col[k] === undefined) col[k] = c.coluna;
+  if ((['cv', 'qtd', 'preco', 'valor', 'esp'] as const).some((k) => col[k] === undefined)) return { erro: 'sem_negocios' };
+  const fim = todas.find((c) => c.linha > linhaCab && /^RESUMO DOS NEGOCIOS/.test(rot(c)))?.linha ?? Number.MAX_SAFE_INTEGER;
+  const brutos: Omit<NegocioDaNota, 'custos'>[] = [];
+  for (const [n, l] of [...linhas.entries()].sort((a, b) => a[0] - b[0])) {
+    if (n <= linhaCab || n >= fim) continue;
+    const campos: Record<string, string[]> = {};
+    for (const [k, c] of Object.entries(col) as [keyof Colunas, number][]) {
+      const cel = l.find((x) => x.coluna === c);
+      if (cel) campos[k] = [cel.texto.trim()];
+    }
+    const neg = negocioDosCampos(campos, avisos, l.map((x) => x.texto).join(' '));
+    if (neg) brutos.push(neg);
+  }
+  if (!brutos.length) return { erro: 'sem_negocios' };
+
+  const v = (re: RegExp) => { const t = valorDe(re); return t ? lerValorDaPlanilha(t)?.valor ?? 0 : 0; };
+  const custos: CustosDaNota = {
+    liquidacao: v(/^TAXA DE LIQUIDACAO/), registro: v(/^(TAXA|TX)\.? (DE )?REG/), termoOpcoes: v(/^TAXA DE TERMO\/OPCOES|^TAXA DE OPCOES|^TX\.? TER\/OPC/),
+    ana: v(/^(TAXA|TX)\.? A\.N\.A/), emolumentos: v(/^EMOLUMENTOS/), transferencia: v(/^TAXA DE TRANSFERENCIA/),
+    corretagem: v(/^CLEARING$|^CORRETAGEM$|^TAXA OPERACIONAL/), execucao: v(/^EXECUCAO$/), execucaoCasa: v(/^EXECUCAO CASA/),
+    iss: v(/^ISS$/), outras: v(/^OUTRAS( BOVESPA)?$/),
+  };
+  const irrf = todas.filter((c) => /^IRRF/.test(rot(c))).reduce((s, c) => s + (lerValorDaPlanilha(aoLado(c) ?? '')?.valor ?? 0), 0);
+  const liqT = valorDe(/^LIQ\.? ?\(A ?\+ ?B\)|^LIQUIDO PARA/);
+  const liq = liqT ? lerValorDaPlanilha(liqT) : null;
+  const liquido = liq ? (liq.dc === 'D' ? -liq.valor : liq.valor) : null;
+  const corretora = todas.find((c) => /(CTVM|DTVM|CORRETORA|S\.A\.|LTDA)/i.test(c.texto) && !/CNPJ|C\.N\.P\.J/i.test(c.texto))?.texto.trim() ?? corretoraPadrao;
+  return fecharNota({ corretora, numero, dataPregao: `${aaaa}-${mm}-${dd}`, brutos, custos, irrf, liquido, avisos });
+}
+
+const COLUNAS_DA_PLANILHA: [keyof Colunas, RegExp][] = [
+  ['cv', /^C\/V$/], ['mercado', /^TIPO (DE )?MERCADO$/], ['prazo', /^PRAZO/], ['esp', /^ESPECIFICACAO/], ['obs', /^OBS/],
+  ['qtd', /^QUANTIDADE$/], ['preco', /^PRECO/], ['valor', /^VALOR OPERACAO|^COMPRA\/VENDA/], ['dc', /^D\/C$/],
+];
 
 // ---------- Vencimento estimado pelo código ----------
 // Para opções que não estão no cadastro da B3 do sistema (ex.: séries antigas, já

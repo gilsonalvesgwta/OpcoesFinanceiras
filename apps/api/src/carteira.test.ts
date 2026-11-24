@@ -12,6 +12,7 @@ import { criarPool } from './banco.ts';
 import type { Config } from './config.ts';
 import { CorreioDeTeste } from './correio.ts';
 import { gerarHashDeSenha } from './seguranca.ts';
+import { xlsDeTeste } from './xls-de-teste.ts';
 import { textoDoPdf } from './pdf-texto.ts';
 
 // PDF mínimo no layout Sinacor (Helvetica, WinAnsi), como as notas da BTG, sem dados pessoais.
@@ -115,6 +116,25 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
       ['venda', 'CARTL145', 'call', 1450, '2026-12-18', 'CART3', 37, 2, 0],
     ]);
     assert.ok(r.corpo.notas[1].erro, 'arquivo que não é nota volta com erro, sem derrubar os outros');
+  });
+
+  test('lê a nota em planilha XLS (formato da CM Capital)', async () => {
+    const xls = xlsDeTeste([
+      ['CLIENTE:', '000000001', 'ANA', 'DATA PREGÃO', '20112026', 'NUM NOTA', '4455'],
+      [],
+      ['PRAÇA', 'C/V', 'TIPO DE MERCADO', 'ESPECIFICAÇÃO DO TÍTULO', 'OBS(*)', 'QUANTIDADE', 'PREÇO DE LIQUIDAÇÃO(R$)', 'COMPRA/VENDA (R$)', 'D/C'],
+      ['1-Bovespa', 'C', 'VIS', 'CART3 ON', null, '100', '14,00', '1.400,00', 'D'],
+      [],
+      ['RESUMO DOS NEGÓCIOS', null, null, null, null, 'RESUMO FINANCEIRO'],
+      [null, null, null, null, null, 'VALOR LÍQ. DAS OPER.(1):', '1400.00 D', 'TAXA DE LIQUIDAÇÃO / CCP (2):', '0.35 D'],
+      [null, null, null, null, null, 'EMOLUMENTOS:', '0.05 D', 'TOTAL:', '-0.05 D'],
+      [null, null, null, null, null, null, null, 'LIQ.(A+B) P/ 24/11/2026:', '1400.40 D'],
+    ]);
+    const r = await pedir('ana', 'POST', '/api/notas/ler', { arquivos: [{ nome: 'nota.xls', conteudo: xls.toString('base64') }] });
+    assert.equal(r.status, 200, JSON.stringify(r.corpo));
+    const n = r.corpo.notas[0];
+    assert.deepEqual([n.corretora, n.numero, n.dataPregao, n.custoTotal, n.liquido, n.conferida], ['CM CAPITAL MARKETS CCTVM LTDA.', '4455', '2026-11-20', 40, -140040, true]);
+    assert.deepEqual(n.negocios.map((x: any) => [x.lado, x.codigo, x.tipo, x.quantidade, x.preco, x.custos]), [['compra', 'CART3', 'ativo', 100, 1400, 40]]);
   });
 
   test('importa uma vez só; a carteira mostra preço médio com custos e cobertura', async () => {

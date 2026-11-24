@@ -2,13 +2,13 @@
 // carteira consolidada (todas as estratégias abertas somadas por código, com o preço
 // médio do jeito da Receita e o preço de agora).
 //
-// Notas: o PDF chega em base64, é lido aqui (pdf-texto + domínio) e NÃO é guardado.
+// Notas: o PDF (ou a planilha XLS da CM Capital) chega em base64, é lido aqui e NÃO é guardado.
 // Fluxo em dois passos: /api/notas/ler devolve a prévia (com o que falta completar);
 // /api/notas/importar grava o que a pessoa confirmou. A mesma nota não entra duas vezes.
 
 import type { FastifyInstance } from 'fastify';
 import {
-  consolidarCarteira, lerNotaDeCorretagem, lotesAbertos, resultadoEmAberto, situacaoDoMercado, strikeParaOLote, vencimentoEstimado,
+  consolidarCarteira, lerNotaDaPlanilha, lerNotaDeCorretagem, lotesAbertos, resultadoEmAberto, situacaoDoMercado, strikeParaOLote, vencimentoEstimado,
   type ConfiguracaoDoCalendario, type NotaLida,
 } from '@wta/domain';
 import { ErroHttp, ipDe, type Dependencias, type Sessao } from '../app.ts';
@@ -17,6 +17,11 @@ import { auditar } from '../auditoria.ts';
 import type { CacheDoCalendario } from '../calendario.ts';
 import { cotacoesDoUsuario } from '../cotacoes.ts';
 import { textoDoPdf } from '../pdf-texto.ts';
+import { celulasDoXls, ehXls } from '../xls-celulas.ts';
+
+// A nota em planilha (.xls) da CM Capital não traz o nome da corretora: usa o mesmo nome
+// que vem no PDF dela, para a mesma nota não entrar duas vezes (PDF e XLS).
+const CORRETORA_DO_XLS = 'CM CAPITAL MARKETS CCTVM LTDA.';
 import { conferirEstrategia, inserirExecucao, paraDominio, serieDoCodigo, UUID } from './posicoes.ts';
 
 const DIA = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' } as const;
@@ -137,7 +142,8 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
       for (const a of b.arquivos) {
         let lida: NotaLida | { erro: string };
         try {
-          lida = lerNotaDeCorretagem(textoDoPdf(Buffer.from(a.conteudo, 'base64')));
+          const bytes = Buffer.from(a.conteudo, 'base64');
+          lida = ehXls(bytes) ? lerNotaDaPlanilha(celulasDoXls(bytes), CORRETORA_DO_XLS) : lerNotaDeCorretagem(textoDoPdf(bytes));
         } catch (e) {
           lida = { erro: e instanceof Error && /^[a-z_]+$/.test(e.message) ? e.message : 'pdf_ilegivel' };
         }
