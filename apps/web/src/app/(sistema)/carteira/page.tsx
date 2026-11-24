@@ -244,12 +244,12 @@ export default function PaginaCarteira() {
       <section className="secao" aria-labelledby="importar-titulo">
         <h2 id="importar-titulo">Importar notas de corretagem</h2>
         <p className="linha-lista-apoio" style={{ margin: 0 }}>
-          PDF da nota (padrão Sinacor: BTG, CM Capital, XP, Clear, Genial e outras). Pode enviar várias de uma vez. Você vê a prévia antes de gravar; a mesma nota não entra duas vezes.
-          O PDF não fica guardado: só os negócios e os custos.
+          PDF da nota (padrão Sinacor: BTG, CM Capital, XP, Clear, Genial e outras) ou a planilha XLS da CM Capital. Pode enviar várias de uma vez. Você vê a prévia antes de gravar; a mesma nota não entra duas vezes.
+          O arquivo não fica guardado: só os negócios e os custos.
         </p>
         <div>
-          <input ref={arquivos} id="notas-pdf" type="file" accept="application/pdf,.pdf" multiple className="so-leitor" onChange={(e) => void lerNotas(e.target.files)} />
-          <label htmlFor="notas-pdf" className="botao botao-principal" style={{ display: 'inline-flex' }} aria-disabled={ocupado}>{ocupado ? 'Lendo…' : 'Escolher PDFs das notas'}</label>
+          <input ref={arquivos} id="notas-pdf" type="file" accept="application/pdf,.pdf,application/vnd.ms-excel,.xls" multiple className="so-leitor" onChange={(e) => void lerNotas(e.target.files)} />
+          <label htmlFor="notas-pdf" className="botao botao-principal" style={{ display: 'inline-flex' }} aria-disabled={ocupado}>{ocupado ? 'Lendo…' : 'Escolher notas (PDF ou XLS)'}</label>
         </div>
         {previa && (
           <div className="coluna" style={{ gap: 14 }}>
