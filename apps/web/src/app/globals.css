@@ -413,3 +413,37 @@ tr.linha-perna-v-put th:first-child { box-shadow: inset 4px 0 0 var(--atencao); 
 .painel-ativo-numeros dt { color: var(--apoio); font-size: 13px; }
 .painel-ativo-numeros dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 .tabela-cadeia td.preco-fechamento { color: var(--apoio); font-style: italic; }
+
+/* Minha carteira: lotes de cada ação (régua de preços e cartões com a call sugerida). */
+.lotes { margin: 4px 24px 16px; padding: 18px 20px; border: 1px solid var(--linha); border-radius: 14px; background: linear-gradient(180deg, var(--painel2), var(--painel)); display: flex; flex-direction: column; gap: 12px; }
+.lotes-topo { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px 24px; }
+.lotes-topo h3 { margin: 0; font-size: 18px; color: var(--latao); letter-spacing: 0.01em; }
+.lotes-resumo { display: flex; flex-wrap: wrap; gap: 10px; }
+.lotes-resumo > span { display: flex; flex-direction: column; gap: 2px; padding: 8px 14px; border: 1px solid var(--linha); border-radius: 10px; background: var(--painel); min-width: 150px; }
+.lotes-resumo strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.lotes-rotulo { color: var(--apoio); font-size: 13px; }
+.lotes-regua { width: 100%; height: auto; max-height: 190px; display: block; font-variant-numeric: tabular-nums; }
+.lotes-legenda { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--apoio); font-size: 13px; align-items: center; }
+.lotes-legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.lotes-ponto { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.lotes-traco { width: 18px; height: 0; border-top: 2px dashed var(--latao); display: inline-block; }
+.lotes-losango { width: 9px; height: 9px; background: var(--latao); transform: rotate(45deg); display: inline-block; }
+.lotes-cartoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.lote-cartao { border: 1px solid var(--linha); border-radius: 12px; background: var(--painel); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.lote-cartao header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.lote-resultado { font-weight: 700; font-variant-numeric: tabular-nums; }
+.lote-resultado small, .lote-sugestao small { font-weight: 500; font-size: 12px; }
+.lote-principal { margin: 0; font-size: 20px; font-variant-numeric: tabular-nums; }
+.lote-sugestao { margin-top: 6px; padding: 10px 12px; border-left: 3px solid var(--latao); border-radius: 8px; background: var(--painel2); display: flex; flex-direction: column; gap: 4px; }
+.lote-sugestao dl { margin: 4px 0 6px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.lote-sugestao dl div { display: flex; flex-direction: column; }
+.lote-sugestao dt { color: var(--apoio); font-size: 12px; }
+.lote-sugestao dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lote-sugestao .botao { align-self: flex-start; }
+.lote-sem-sugestao { margin: 6px 0 0; }
+.zona-perigo { border-color: var(--baixa); }
+.zona-perigo h2 { color: var(--baixa); }
+@media (max-width: 600px) {
+  .lotes { margin: 4px 12px 12px; padding: 14px; }
+  .lote-sugestao dl { grid-template-columns: 1fr 1fr; }
+}

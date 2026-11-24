@@ -19,6 +19,7 @@ import { PainelDoAtivo } from '../../../componentes/PainelDoAtivo.tsx';
 import { chamar, ErroDaApi, type Favorito } from '../../../lib/api.ts';
 import { formatarData, formatarReais } from '../../../lib/formatos.ts';
 import { quandoCurto } from '../../../lib/mercado.ts';
+import { lerLote } from '../../../lib/lotes.ts';
 import {
   adicionarPerna, avaliacaoNaData, configDoCalendario, diasEntre, escalaDoGrafico, execucoesParaApi, novoId, pernaDaSerie, pernaDoAtivo,
   classeDaPerna, intervaloDeAtualizacao, loteDe, lerPedidoDeMontagem, lerReais, moverPerna, serieVizinha, pernaQueEncerra, precoDeMercado, precoDoAtivo, resultadoEmPreco, rotuloDoVencimento, somarDias,
@@ -228,6 +229,7 @@ export default function PaginaSimulador() {
   const escolhaFeita = useRef(false);
   const montagemPedida = useRef<{ codigo: string; lado: 'compra' | 'venda' } | null>(null);
   const carteiraRealPedida = useRef(false);
+  const lotePedido = useRef<{ quantidade: number; preco: number } | null>(null);
 
   const carregarCarteiras = useCallback(async () => {
     const r = await chamar<{ simulacoes: ResumoDaCarteira[] }>('GET', '/api/simulacoes');
@@ -273,6 +275,9 @@ export default function PaginaSimulador() {
       const pedido = url.get('ativo')?.toUpperCase();
       montagemPedida.current = lerPedidoDeMontagem(url.get('montar'));
       carteiraRealPedida.current = url.get('carteira') === '1';
+      // Vindo dos lotes da Minha carteira: ?lote=300:2015 (quantidade:preço com custos).
+      lotePedido.current = lerLote(url.get('lote'));
+      if (lotePedido.current) setQuantidadePadrao(String(lotePedido.current.quantidade));
       if (!escolhaFeita.current) void carregarCadeia(pedido || lista[0] || 'PETR4', url.get('vencimento') || undefined);
     }).catch(() => { if (!escolhaFeita.current) void carregarCadeia('PETR4'); });
   }, [carregarCadeia, carregarCarteiras]);
@@ -335,6 +340,18 @@ export default function PaginaSimulador() {
     if (!carteiraRealPedida.current || !cadeia) return;
     carteiraRealPedida.current = false;
     void usarMinhaCarteira(cadeia.ativo.codigo);
+  }, [cadeia]);
+
+  // Lote vindo da Minha carteira: a ação do lote entra como base (preço com custos).
+  useEffect(() => {
+    const lote = lotePedido.current;
+    if (!lote || !cadeia) return;
+    lotePedido.current = null;
+    setCarteira(null);
+    setPernas((ps) => [
+      { id: novoId(), base: true, codigo: cadeia.ativo.codigo, tipo: 'ativo', lado: 'compra', quantidade: lote.quantidade, preco: lote.preco, vol: null },
+      ...ps.filter((p) => !p.base),
+    ]);
   }, [cadeia]);
 
   // Pedido vindo da Cadeia de opções: monta a série assim que a cadeia (com o calendário) chega.

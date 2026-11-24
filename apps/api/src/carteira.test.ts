@@ -93,6 +93,7 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
       await dono.query("insert into users (organization_id, email, nome, papel, senha_hash) values ($1, $2, $3, 'usuario', $4)", [org, `${quem}.cart.${sufixo}@exemplo.test`, quem, hash]);
     }
     await dono.query("insert into series_opcoes (codigo, vencimento, ativo_objeto, tipo, strike, visto_primeiro, visto_ultimo) values ('CARTL145', '2026-12-18', 'CART3', 'call', 1450, '2026-11-23', '2026-11-23') on conflict do nothing");
+    await dono.query("update series_opcoes set visto_ultimo = (select max(visto_ultimo) from series_opcoes) where codigo = 'CARTL145'");
     app = await construirApp({ config, pool, correio: new CorreioDeTeste(), relogio: () => agora });
     for (const quem of ['ana', 'beto']) {
       const r = await app.inject({ method: 'POST', url: '/api/auth/entrar', remoteAddress: '203.0.113.96', payload: { email: `${quem}.cart.${sufixo}@exemplo.test`, senha: SENHA } });
@@ -138,6 +139,12 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     assert.equal(p.status, 201, JSON.stringify(p.corpo));
     let g = (await pedir('ana', 'GET', '/api/carteira')).corpo.grupos.find((x: any) => x.ativoObjeto === 'CART3');
     assert.deepEqual([g.itens[0].quantidade, g.itens[0].precoMedioComCustos], [300, 1422.96]); // (140000 + 286888) / 300
+    // Lotes: um por compra, cada um com o próprio custo e a call sugerida para cobri-lo.
+    assert.deepEqual(g.itens[0].lotes.map((l: any) => [l.data, l.quantidade, l.preco, l.precoComCustos, l.sugestao?.codigo]), [
+      ['2026-11-01', 100, 1400, 1400, 'CARTL145'],
+      ['2026-11-24', 200, 1434, 1434.44, 'CARTL145'],
+    ]);
+    assert.equal(g.itens[0].lotes[0].sugestao.strike, 1450);
     assert.equal((await pedir('ana', 'POST', '/api/carteira/posicao-inicial', { codigo: 'CART3', lado: 'compra', quantidade: 1, preco: 1, data: '2026-12-01' })).corpo.erro, 'data_no_futuro');
     const id = (await pedir('ana', 'GET', '/api/notas')).corpo.notas[0].id;
     assert.equal((await pedir('ana', 'DELETE', `/api/notas/${id}`)).status, 200);
@@ -150,5 +157,16 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     assert.deepEqual((await pedir('beto', 'GET', '/api/carteira')).corpo.grupos, []);
     const id = (await dono.query("select n.id from notas_corretagem n join users u on u.id = n.user_id where u.email = $1 limit 1", [`ana.cart.${sufixo}@exemplo.test`])).rows[0]?.id;
     if (id) assert.equal((await pedir('beto', 'DELETE', `/api/notas/${id}`)).status, 404);
+  });
+
+  test('zerar a carteira: pede confirmação e apaga só a do próprio usuário', async () => {
+    assert.equal((await pedir('beto', 'POST', '/api/carteira/posicao-inicial', { codigo: 'CART3', lado: 'compra', quantidade: 100, preco: 1400, data: '2026-11-01' })).status, 201);
+    assert.equal((await pedir('ana', 'POST', '/api/carteira/zerar', { confirmacao: 'sim' })).corpo.erro, 'confirmacao_invalida');
+    const r = await pedir('ana', 'POST', '/api/carteira/zerar', { confirmacao: 'ZERAR' });
+    assert.equal(r.status, 200, JSON.stringify(r.corpo));
+    assert.ok(r.corpo.apagado.estrategias >= 1);
+    assert.deepEqual((await pedir('ana', 'GET', '/api/carteira')).corpo.grupos, []);
+    assert.deepEqual((await pedir('ana', 'GET', '/api/notas')).corpo.notas, []);
+    assert.equal((await pedir('beto', 'GET', '/api/carteira')).corpo.grupos.length, 1);
   });
 });
