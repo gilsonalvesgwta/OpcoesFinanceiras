@@ -21,3 +21,5 @@ export * from './cenarios.ts';
 export * from './avisos-posicao.ts';
 export * from './brapi.ts';
 export * from './simulador.ts';
+export * from './nota-corretagem.ts';
+export * from './carteira.ts';

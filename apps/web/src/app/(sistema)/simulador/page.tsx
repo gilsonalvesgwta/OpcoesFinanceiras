@@ -227,6 +227,7 @@ export default function PaginaSimulador() {
   // A pessoa já escolheu um ativo: a carga inicial (que espera os favoritos) não passa por cima.
   const escolhaFeita = useRef(false);
   const montagemPedida = useRef<{ codigo: string; lado: 'compra' | 'venda' } | null>(null);
+  const carteiraRealPedida = useRef(false);
 
   const carregarCarteiras = useCallback(async () => {
     const r = await chamar<{ simulacoes: ResumoDaCarteira[] }>('GET', '/api/simulacoes');
@@ -271,6 +272,7 @@ export default function PaginaSimulador() {
       const url = new URLSearchParams(window.location.search);
       const pedido = url.get('ativo')?.toUpperCase();
       montagemPedida.current = lerPedidoDeMontagem(url.get('montar'));
+      carteiraRealPedida.current = url.get('carteira') === '1';
       if (!escolhaFeita.current) void carregarCadeia(pedido || lista[0] || 'PETR4', url.get('vencimento') || undefined);
     }).catch(() => { if (!escolhaFeita.current) void carregarCadeia('PETR4'); });
   }, [carregarCadeia, carregarCarteiras]);
@@ -327,6 +329,13 @@ export default function PaginaSimulador() {
     const vd = volDaSerie(s, cadeia.ativo.cotacao, cadeia.vencimento, cadeia.hoje, cfg, cadeia.selic?.valor ?? null);
     setPernas((ps) => adicionarPerna(ps, { ...pernaDaSerie(s, cadeia.vencimento as string, lado, quantidade, cadeia.ativo.codigo), vol: vd.vol }));
   };
+
+  // Vindo da Minha carteira ("Simular com esta posição"): carrega a posição real.
+  useEffect(() => {
+    if (!carteiraRealPedida.current || !cadeia) return;
+    carteiraRealPedida.current = false;
+    void usarMinhaCarteira(cadeia.ativo.codigo);
+  }, [cadeia]);
 
   // Pedido vindo da Cadeia de opções: monta a série assim que a cadeia (com o calendário) chega.
   useEffect(() => {
@@ -435,6 +444,29 @@ export default function PaginaSimulador() {
     }
   }
 
+  // Minha carteira real (notas e posição inicial) do ativo como ponto de partida: as
+  // pernas novas mostram o risco e o resultado do conjunto.
+  async function usarMinhaCarteira(codigo: string) {
+    setErro(null);
+    try {
+      const c = await chamar<{ grupos: { ativoObjeto: string; itens: { codigo: string; tipo: 'call' | 'put' | 'ativo'; strike: number | null; vencimento: string | null; vencida: boolean; quantidade: number; precoMedioComCustos: number }[] }[] }>('GET', '/api/carteira');
+      const g = c.grupos.find((x) => x.ativoObjeto === codigo);
+      const itens = (g?.itens ?? []).filter((i) => !i.vencida);
+      if (!itens.length) return setAviso(`Você não tem posição em ${codigo} na Minha carteira.`);
+      setCarteira(null);
+      setPernas((ps) => [
+        ...itens.map((i) => ({
+          id: novoId(), base: true, codigo: i.codigo, tipo: i.tipo, lado: (i.quantidade > 0 ? 'compra' : 'venda') as 'compra' | 'venda', quantidade: Math.abs(i.quantidade),
+          preco: Math.round(i.precoMedioComCustos), vol: cadeia?.series.find((x) => x.codigo === i.codigo)?.vol ?? null,
+          ...(i.strike !== null ? { strike: i.strike } : {}), ...(i.vencimento ? { vencimento: i.vencimento } : {}),
+        })),
+        ...ps.filter((p) => !p.base),
+      ]);
+      setAviso(`Sua posição em ${codigo} entrou na montagem (preço médio com custos). Monte as novas pernas para ver o risco do conjunto.`);
+    } catch (x) {
+      setErro(x instanceof Error ? x.message : 'Não foi possível carregar a carteira.');
+    }
+  }
   async function abrirCarteira(id: string) {
     setErro(null);
     try {
@@ -630,7 +662,10 @@ export default function PaginaSimulador() {
           <section className="secao" aria-labelledby="pernas-titulo">
             <div className="secao-topo">
               <h2 id="pernas-titulo">Montagem</h2>
-              {novas.length > 0 && <button type="button" className="botao-texto" onClick={() => setPernas((ps) => ps.filter((p) => p.base))}>Limpar o que é novo</button>}
+              <span style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {cadeia && <button type="button" className="botao-texto" onClick={() => void usarMinhaCarteira(cadeia.ativo.codigo)}>Usar minha carteira de {cadeia.ativo.codigo}</button>}
+                {novas.length > 0 && <button type="button" className="botao-texto" onClick={() => setPernas((ps) => ps.filter((p) => p.base))}>Limpar o que é novo</button>}
+              </span>
             </div>
             {pernas.length === 0 ? <p className="secao-vazia">Clique em C ou V na cadeia, ou use a boleta acima.</p> : (
               <div className="tabela-caixa" tabIndex={0} role="region" aria-label="Pernas da montagem" style={{ margin: '0 -24px' }}>
@@ -641,7 +676,7 @@ export default function PaginaSimulador() {
                   <tbody>
                     {pernas.map((p) => (
                       <tr key={p.id} style={p.base ? { background: 'var(--painel2)' } : undefined} className={!p.base && p.tipo !== 'ativo' ? `linha-${classeDaPerna(p.lado, p.tipo)}` : undefined}>
-                        <th scope="row">{p.codigo}<span className="sub">{p.tipo === 'ativo' ? 'Ação' : `${p.tipo === 'call' ? 'Call' : 'Put'} ${reais(p.strike as number)} · ${formatarData(p.vencimento as string)}`}{p.base ? ' · posição da carteira' : ''}</span></th>
+                        <th scope="row">{p.codigo}<span className="sub">{p.tipo === 'ativo' ? 'Ação' : `${p.tipo === 'call' ? 'Call' : 'Put'} ${reais(p.strike as number)} · ${formatarData(p.vencimento as string)}`}{p.base ? (carteira ? ' · posição da carteira simulada' : ' · sua posição real') : ''}</span></th>
                         <td>
                           {p.base ? <span className={p.lado === 'venda' ? 'resultado-baixa' : ''} style={{ fontWeight: 600 }}>{p.lado === 'compra' ? 'Comprado' : 'Vendido'}</span> : (
                             <select aria-label={`Operação em ${p.codigo}`} value={p.lado} onChange={(e) => mudar(p.id, { lado: e.target.value as 'compra' | 'venda' })} style={{ minHeight: 36, borderRadius: 8, background: 'var(--bg)', color: 'var(--texto)', border: '1px solid var(--borda-campo)' }}>

@@ -85,6 +85,7 @@ jobs:
           grep -q 'OBSERVADOS: todos os testes passaram' banco.txt
           grep -q 'LOTE: todos os testes passaram' banco.txt
           grep -q 'PAINEL: todos os testes passaram' banco.txt
+          grep -q 'NOTAS: todos os testes passaram' banco.txt
       - name: Preparar o banco da API
         run: |
           psql -d postgres -c "drop database if exists wtaopt_api" -c "create database wtaopt_api"
