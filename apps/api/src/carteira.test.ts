@@ -264,6 +264,12 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     const cart = g.find((x: any) => x.ativoObjeto === 'CART3');
     assert.deepEqual(cart.itens.filter((i: any) => !i.vencida).map((i: any) => [i.codigo, i.quantidade]), [['CART3', 110], ['CARTL145', -100]]);
     assert.equal(g.find((x: any) => x.ativoObjeto === 'LFTS11').itens[0].quantidade, 4);
+    assert.deepEqual([cart.classe, g.find((x: any) => x.ativoObjeto === 'LFTS11').classe], ['acoes', 'renda_fixa']);
+    // Lucros e perdas das opções: a put vendida que virou pó ficou com 100% do prêmio.
+    const opc = (await pedir('carla', 'GET', '/api/carteira')).corpo.opcoes;
+    const put = opc.series.find((o: any) => o.codigo === 'CARTT130');
+    assert.deepEqual([put.lado, put.base, put.resultado, put.fracao, put.encerrada], ['vendida', 2000, 2000, 1, true]);
+    assert.equal(opc.encerradas.series, 2);
     // O mesmo extrato de novo: tudo já está no sistema.
     const de_novo = (await pedir('carla', 'POST', '/api/extrato-b3/ler', { arquivo: { nome: 'negociacao.xlsx', conteudo: xlsx.toString('base64') } })).corpo;
     assert.equal(de_novo.negocios.filter((n: any) => !n.ja && !n.falta.length).length, 0);

@@ -22,8 +22,20 @@ export type GrupoDaCarteira = {
   cobertura: { acoes: number; callsVendidas: number; callsCompradas: number; descobertas: number };
   valorDeMercado: number | null; resultado: number | null; custo: number;
 };
+export type ClasseDoAtivo = 'acoes' | 'fiis' | 'etfs' | 'renda_fixa' | 'bdrs';
+export const NOME_DA_CLASSE: Record<ClasseDoAtivo, string> = {
+  acoes: 'Ações', fiis: 'Fundos imobiliários e Fiagro', etfs: 'ETFs de renda variável', renda_fixa: 'Renda fixa', bdrs: 'BDRs (exterior)',
+};
+export const ORDEM_DAS_CLASSES: ClasseDoAtivo[] = ['acoes', 'fiis', 'etfs', 'renda_fixa', 'bdrs'];
+export type SerieDeOpcao = {
+  codigo: string; tipo: 'call' | 'put'; strike: number; vencimento: string; vencida: boolean; lado: 'vendida' | 'comprada'; ativoObjeto: string | null;
+  quantidadeNegociada: number; quantidadeAberta: number; base: number; custos: number; realizadoLiquido: number;
+  precoAgora: number | null; emAberto: number | null; resultado: number; fracao: number | null; encerrada: boolean; primeira: string; ultima: string;
+};
+export type SomaDasOpcoes = { series: number; resultado: number; base: number; fracao: number | null; ganhos: number; perdas: number };
 export type Carteira = {
-  agora: string; hoje: string; mercadoAberto: boolean; grupos: GrupoDaCarteira[];
+  agora: string; hoje: string; mercadoAberto: boolean; grupos: (GrupoDaCarteira & { classe: ClasseDoAtivo })[];
+  opcoes: { series: SerieDeOpcao[]; encerradas: SomaDasOpcoes; abertas: SomaDasOpcoes; todas: SomaDasOpcoes };
   totais: { valorDeMercado: number | null; resultadoEmAberto: number | null; realizadoLiquido: number; realizadoBruto: number; custosPagos: number };
   premissas: string[];
 };

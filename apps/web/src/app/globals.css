@@ -447,3 +447,54 @@ tr.linha-perna-v-put th:first-child { box-shadow: inset 4px 0 0 var(--atencao); 
   .lotes { margin: 4px 12px 12px; padding: 14px; }
   .lote-sugestao dl { grid-template-columns: 1fr 1fr; }
 }
+
+/* Minha carteira: resumo, classes, lista de ativos que abre ao clicar e lucros das opções. */
+.carteira-resumo { display: flex; flex-direction: column; gap: 14px; }
+.carteira-cartoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.carteira-cartao { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; border: 1px solid var(--linha); border-radius: 14px; background: var(--painel); }
+.carteira-cartao strong { font-size: 24px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.carteira-cartao.destaque { background: linear-gradient(135deg, var(--painel2), var(--painel)); border-color: var(--latao); }
+.carteira-cartao.destaque strong { color: var(--latao); font-size: 28px; }
+.carteira-divisao { display: flex; flex-direction: column; gap: 10px; padding: 14px 18px; border: 1px solid var(--linha); border-radius: 14px; background: var(--painel); }
+.carteira-barra { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--trilho); }
+.carteira-barra span { height: 100%; }
+.carteira-barra span + span { box-shadow: -2px 0 0 var(--painel); }
+.carteira-legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 14px; }
+.carteira-legenda li { display: inline-flex; align-items: center; gap: 6px; }
+.carteira-legenda i, .classe-topo h2 i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.classe-secao { padding: 0; gap: 0; overflow: hidden; }
+.classe-topo { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 20px; padding: 16px 20px; border-bottom: 1px solid var(--linha); }
+.classe-topo h2 { margin: 0; font-size: 18px; display: inline-flex; align-items: center; gap: 10px; }
+.classe-totais { display: inline-flex; gap: 18px; align-items: baseline; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ativo-lista { list-style: none; margin: 0; padding: 0; }
+.ativo-linha + .ativo-linha { border-top: 1px solid var(--linha); }
+.ativo-cabeca { width: 100%; display: grid; grid-template-columns: minmax(150px, 1.6fr) repeat(3, minmax(90px, 1fr)) 24px; align-items: center; gap: 12px; padding: 14px 20px; background: none; border: 0; color: var(--texto); font: inherit; text-align: left; cursor: pointer; min-height: 56px; }
+.ativo-cabeca:hover { background: var(--painel2); }
+.ativo-linha.aberto > .ativo-cabeca { background: var(--painel2); }
+.ativo-nome { display: flex; flex-direction: column; gap: 2px; }
+.ativo-nome strong { font-size: 17px; letter-spacing: 0.02em; }
+.ativo-nome span { color: var(--apoio); font-size: 13px; }
+.ativo-col { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; font-weight: 600; }
+.ativo-col small { font-weight: 500; font-size: 12px; }
+.ativo-rotulo { color: var(--apoio); font-size: 12px; font-weight: 500; }
+.ativo-seta { color: var(--apoio); text-align: center; }
+.ativo-detalhe { display: flex; flex-direction: column; gap: 14px; padding: 4px 20px 20px; background: var(--painel2); }
+.ativo-detalhe .lotes { margin: 0; }
+.ativo-detalhe .tabela-caixa { background: var(--painel); border-radius: 10px; }
+.ativo-numeros { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.ativo-numeros div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--linha); border-radius: 10px; background: var(--painel); }
+.ativo-numeros dt { color: var(--apoio); font-size: 12px; }
+.ativo-numeros dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ativo-numeros dd small { font-weight: 500; }
+.ativo-acoes { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.opc-cartoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.opc-cartao { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--linha); border-radius: 12px; background: var(--painel2); }
+.opc-cartao strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.opc-filtro { display: flex; gap: 8px; flex-wrap: wrap; }
+.importar-area > summary { cursor: pointer; list-style: revert; }
+.importar-area .secao { border: 1px solid var(--linha); background: var(--painel2); }
+@media (max-width: 720px) {
+  .ativo-cabeca { grid-template-columns: 1fr auto 20px; padding: 12px 14px; }
+  .ativo-cabeca .ativo-col:nth-of-type(2), .ativo-cabeca .ativo-col:nth-of-type(3) { display: none; }
+  .ativo-detalhe { padding: 4px 12px 14px; }
+}

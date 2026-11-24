@@ -1,97 +1,26 @@
 'use client';
 
-// Minha carteira: posição atual por ativo (ações e as opções de cada uma), preço médio com
-// custos, preço de agora e resultado; importar notas de corretagem (PDF) com prévia;
-// lançar a posição que já existia; notas importadas. Só acompanhamento: nada envia ordem.
+// Minha carteira: resumo, classes (ações, FIIs, ETFs, renda fixa, BDRs) com cada ativo
+// abrindo ao clicar (preço médio, lotes, opções), lucros e perdas das opções e, recolhido,
+// importar o extrato da B3, notas, lançar posição atual e zerar. Nada aqui envia ordem.
 
-import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Cabecalho } from '../../../componentes/Casca.tsx';
 import { MensagemDeErro } from '../../../componentes/Acesso.tsx';
 import { Icone } from '../../../componentes/Icone.tsx';
-import { LotesDoAtivo } from '../../../componentes/LotesDoAtivo.tsx';
+import { VisaoDaCarteira } from '../../../componentes/CarteiraVisao.tsx';
 import { ExtratoB3 } from '../../../componentes/ExtratoB3.tsx';
 import { chamar, ErroDaApi } from '../../../lib/api.ts';
 import { formatarData, formatarReais } from '../../../lib/formatos.ts';
 import { lerReais } from '../../../lib/simulador.ts';
 import {
-  ALERTA_DO_NEGOCIO, arquivoParaBase64, ERRO_DA_NOTA, NOME_DO_CUSTO, notaPronta, pctBr, textoDoErroDasNotas,
-  type Carteira, type GrupoDaCarteira, type NotaDaPrevia,
+  ALERTA_DO_NEGOCIO, arquivoParaBase64, ERRO_DA_NOTA, NOME_DO_CUSTO, notaPronta, textoDoErroDasNotas,
+  type Carteira, type NotaDaPrevia,
 } from '../../../lib/carteira.ts';
 
 const classe = (v: number | null) => (v === null || v === 0 ? '' : v > 0 ? 'resultado-alta' : 'resultado-baixa');
 const preco = (c: number | null) => (c === null ? '—' : (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-const sinal = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}${formatarReais(v)}`);
-const descricao = (i: { tipo: string; strike: number | null; vencimento: string | null }) => (i.tipo === 'ativo' ? 'Ação' : `${i.tipo === 'call' ? 'Call' : 'Put'} ${preco(i.strike)} · ${i.vencimento ? formatarData(i.vencimento) : '—'}`);
 type NotaImportada = { id: string; corretora: string; numero: string; dataPregao: string; custoTotal: number; irrf: number; liquido: number | null; conferida: boolean; negocios: number };
-
-function Grupo({ g }: { g: GrupoDaCarteira }) {
-  const ativas = g.itens.filter((i) => !i.vencida);
-  const vencidas = g.itens.filter((i) => i.vencida);
-  const q = g.cotacao;
-  const ref = q?.fechamentoAnterior ?? null;
-  const agora = q?.ultimo ?? null;
-  const dia = agora !== null && ref ? (agora - ref) / ref : null;
-  return (
-    <section className="secao secao-tabela" aria-labelledby={`g-${g.ativoObjeto}`}>
-      <div className="secao-topo" style={{ flexWrap: 'wrap', gap: 8 }}>
-        <h2 id={`g-${g.ativoObjeto}`}>
-          {g.ativoObjeto} <span style={{ fontWeight: 600 }}>R$ {preco(agora)}</span>{' '}
-          {dia !== null && <span className={classe(dia)} style={{ fontSize: 15 }}>{pctBr(dia)} hoje</span>}
-        </h2>
-        <span style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span className="linha-lista-apoio">Resultado em aberto <strong className={classe(g.resultado)}>{sinal(g.resultado)}</strong></span>
-          <Link className="botao botao-pequeno" href={`/simulador?ativo=${g.ativoObjeto}&carteira=1`}>Simular com esta posição</Link>
-        </span>
-      </div>
-      {g.cobertura.descobertas > 0 && (
-        <div className="alerta" role="note" style={{ margin: '0 24px' }}><Icone nome="aviso" /><span>{g.cobertura.descobertas.toLocaleString('pt-BR')} calls vendidas sem ações nem calls compradas que as cubram: o prejuízo não tem limite se {g.ativoObjeto} subir.</span></div>
-      )}
-      <div className="tabela-caixa" tabIndex={0} role="region" aria-label={`Posição em ${g.ativoObjeto}`}>
-        <table className="tabela">
-          <thead>
-            <tr>
-              <th scope="col">Código</th><th scope="col" className="numero">Quantidade</th><th scope="col" className="numero">Preço médio</th>
-              <th scope="col" className="numero">Médio c/ custos</th><th scope="col" className="numero">Preço agora</th>
-              <th scope="col" className="numero">Valor de mercado</th><th scope="col" className="numero">Resultado</th><th scope="col" className="numero">%</th>
-              <th scope="col" className="numero">Realizado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ativas.map((i) => (
-              <tr key={i.codigo}>
-                <th scope="row">{i.codigo}<span className="sub">{descricao(i)}{i.diasAteVencimento !== null ? ` · ${i.diasAteVencimento} dias` : ''}</span></th>
-                <td className={`numero ${i.quantidade < 0 ? 'resultado-baixa' : ''}`}>{i.quantidade.toLocaleString('pt-BR')}{i.quantidade < 0 ? ' (vendida)' : ''}</td>
-                <td className="numero">{preco(i.precoMedio)}</td>
-                <td className="numero"><strong>{preco(i.precoMedioComCustos)}</strong></td>
-                <td className="numero" title={i.origemDoPreco === 'bid' ? 'Melhor oferta de compra (para vender agora)' : i.origemDoPreco === 'ask' ? 'Melhor oferta de venda (para recomprar agora)' : 'Último negócio'}
-                  style={i.provedor === 'mt5' && i.qualidade === 'tempo_real' ? { color: 'var(--vivo)' } : undefined}>{preco(i.preco)}</td>
-                <td className="numero">{formatarReais(i.valorDeMercado)}</td>
-                <td className={`numero ${classe(i.resultado)}`}>{sinal(i.resultado)}</td>
-                <td className={`numero ${classe(i.resultadoFracao)}`}>{pctBr(i.resultadoFracao)}</td>
-                <td className={`numero ${classe(i.realizadoLiquido)}`}>{i.realizadoLiquido ? sinal(i.realizadoLiquido) : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {ativas.filter((i) => i.tipo === 'ativo' && i.quantidade > 0).map((i) => <LotesDoAtivo key={`lotes-${i.codigo}`} ativo={i.codigo} acao={i} callsVendidas={g.cobertura.callsVendidas} />)}
-      <p className="linha-lista-apoio" style={{ margin: '0 24px', fontSize: 13 }}>
-        {g.cobertura.acoes.toLocaleString('pt-BR')} ações · {g.cobertura.callsVendidas.toLocaleString('pt-BR')} calls vendidas · {g.cobertura.callsCompradas.toLocaleString('pt-BR')} calls compradas.
-        {' '}Preço em destaque: MetaTrader 5 em tempo real.
-      </p>
-      {vencidas.length > 0 && (
-        <div className="alerta" role="note" style={{ margin: '0 24px 12px' }}>
-          <Icone nome="aviso" />
-          <span>
-            Opções vencidas ainda com quantidade: {vencidas.map((v) => `${v.codigo} (${v.quantidade.toLocaleString('pt-BR')})`).join(', ')}.
-            {' '}Se viraram pó, marque "Vencer" na estratégia em <Link href="/posicoes">Posições</Link>; se foram exercidas, lance a ação. Se a compra encerrou uma venda feita antes das notas, lance essa venda em Posição inicial.
-          </span>
-        </div>
-      )}
-    </section>
-  );
-}
 
 export default function PaginaCarteira() {
   const [carteira, setCarteira] = useState<Carteira | null>(null);
@@ -228,7 +157,6 @@ export default function PaginaCarteira() {
     }
   }
 
-  const t = carteira?.totais;
   const prontas = (previa ?? []).filter(notaPronta).length;
   return (
     <>
@@ -236,20 +164,14 @@ export default function PaginaCarteira() {
       <MensagemDeErro texto={erro} />
       {aviso && <p className="sucesso-titulo" role="status" style={{ margin: 0 }}>{aviso}</p>}
 
-      {t && (
-        <div className="grade-cartoes" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
-          <div className="fonte" style={{ flexDirection: 'column', gap: 2 }}><span className="fonte-texto">Valor de mercado</span><strong style={{ fontSize: 22 }}>{formatarReais(t.valorDeMercado)}</strong><span className="fonte-texto" style={{ fontSize: 12 }}>ações − opções vendidas + compradas</span></div>
-          <div className="fonte" style={{ flexDirection: 'column', gap: 2 }}><span className="fonte-texto">Resultado em aberto</span><strong className={classe(t.resultadoEmAberto)} style={{ fontSize: 22 }}>{sinal(t.resultadoEmAberto)}</strong><span className="fonte-texto" style={{ fontSize: 12 }}>contra o preço médio com custos</span></div>
-          <div className="fonte" style={{ flexDirection: 'column', gap: 2 }}><span className="fonte-texto">Realizado (líquido)</span><strong className={classe(t.realizadoLiquido)} style={{ fontSize: 22 }}>{sinal(t.realizadoLiquido)}</strong><span className="fonte-texto" style={{ fontSize: 12 }}>bruto {formatarReais(t.realizadoBruto)}</span></div>
-          <div className="fonte" style={{ flexDirection: 'column', gap: 2 }}><span className="fonte-texto">Custos pagos</span><strong style={{ fontSize: 22 }}>{formatarReais(t.custosPagos)}</strong><span className="fonte-texto" style={{ fontSize: 12 }}>corretagem, taxas e emolumentos</span></div>
-        </div>
-      )}
-
       {carteira && carteira.grupos.length === 0 && (
-        <section className="secao"><p className="secao-vazia">Nenhuma posição ainda. Importe suas notas de corretagem ou lance sua posição atual abaixo.</p></section>
+        <section className="secao"><p className="secao-vazia">Nenhuma posição ainda. Importe o extrato da B3 ou as notas de corretagem em &quot;Importar e lançar operações&quot;, abaixo.</p></section>
       )}
-      {carteira?.grupos.map((g) => <Grupo key={g.ativoObjeto} g={g} />)}
+      {carteira && carteira.grupos.length > 0 && <VisaoDaCarteira carteira={carteira} />}
 
+      <details className="secao importar-area" open={carteira ? carteira.grupos.length === 0 : false}>
+        <summary><h2 style={{ display: 'inline' }}>Importar e lançar operações</h2> <span className="lotes-rotulo">extrato da B3, notas de corretagem, posição atual e zerar</span></summary>
+        <div className="coluna" style={{ gap: 16, marginTop: 16 }}>
       <ExtratoB3 aoImportar={carregar} />
 
       <section className="secao" aria-labelledby="importar-titulo">
@@ -372,6 +294,9 @@ export default function PaginaCarteira() {
           <button type="button" className="botao botao-perigo" disabled={zerar !== 'ZERAR' || ocupado} onClick={() => void zerarCarteira()}>Zerar tudo</button>
         </div>
       </section>
+
+        </div>
+      </details>
 
       {carteira && (
         <section className="secao" aria-labelledby="premissas-carteira">

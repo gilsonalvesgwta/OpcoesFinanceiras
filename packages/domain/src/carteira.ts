@@ -141,3 +141,76 @@ export function strikeParaOLote<T extends { strike: number }>(precoComCustos: nu
   for (const s of series) if (s.strike >= precoComCustos && (!melhor || s.strike < melhor.strike)) melhor = s;
   return melhor;
 }
+
+// Lucros e perdas por série de opção (código + vencimento): quanto entrou de prêmio na
+// abertura (base), o resultado já realizado (com custos) e o que segue aberto. O % é o
+// resultado sobre a base: na vendida, quanto do prêmio recebido ficou; na comprada, quanto
+// rendeu sobre o prêmio pago.
+export type ResumoDaSerie = {
+  codigo: string; tipo: 'call' | 'put'; strike: number; vencimento: string;
+  lado: 'vendida' | 'comprada'; // sentido da primeira abertura
+  quantidadeNegociada: number; // soma das aberturas
+  base: number; // centavos: soma de quantidade × preço × multiplicador das aberturas
+  realizadoLiquido: number; // centavos
+  custos: number;
+  quantidadeAberta: number; // com sinal
+  precoMedioComCustos: number;
+  multiplicador: number;
+  primeira: string; ultima: string;
+};
+
+export function resumoDasOpcoes(execucoes: readonly Execucao[]): ResumoDaSerie[] {
+  const grupos = new Map<string, Execucao[]>();
+  for (const e of execucoes) {
+    if (e.tipo === 'ativo' || !e.vencimento || e.strike === undefined) continue;
+    const k = `${e.codigo}|${e.vencimento}`;
+    if (!grupos.has(k)) grupos.set(k, []);
+    (grupos.get(k) as Execucao[]).push(e);
+  }
+  const r: ResumoDaSerie[] = [];
+  for (const lista of grupos.values()) {
+    const ordem = [...lista].sort((a, b) => Date.parse(a.instante) - Date.parse(b.instante));
+    let q = 0; let base = 0; let negociada = 0; let custos = 0;
+    let lado: ResumoDaSerie['lado'] | null = null;
+    for (const e of ordem) {
+      const d = e.lado === 'compra' ? e.quantidade : -e.quantidade;
+      custos += e.custos ?? 0;
+      if (q === 0 || Math.sign(q) === Math.sign(d)) {
+        lado ??= d > 0 ? 'comprada' : 'vendida';
+        base += e.quantidade * e.preco * (e.multiplicador ?? 1);
+        negociada += e.quantidade;
+        q += d;
+      } else {
+        const encerra = Math.min(Math.abs(q), e.quantidade);
+        const resto = e.quantidade - encerra;
+        q += Math.sign(d) * encerra;
+        if (resto > 0) { base += resto * e.preco * (e.multiplicador ?? 1); negociada += resto; q = Math.sign(d) * resto; }
+      }
+    }
+    const [c] = consolidarCarteira(ordem);
+    const p = ordem[0] as Execucao;
+    r.push({
+      codigo: p.codigo, tipo: p.tipo as 'call' | 'put', strike: (ordem[ordem.length - 1] as Execucao).strike as number, vencimento: p.vencimento as string,
+      lado: lado ?? 'comprada', quantidadeNegociada: negociada, base: Math.round(base), realizadoLiquido: c?.realizadoLiquido ?? 0, custos,
+      quantidadeAberta: c?.quantidade ?? 0, precoMedioComCustos: c?.precoMedioComCustos ?? 0, multiplicador: p.multiplicador ?? 1,
+      primeira: p.instante, ultima: (ordem[ordem.length - 1] as Execucao).instante,
+    });
+  }
+  return r.sort((a, b) => b.ultima.localeCompare(a.ultima));
+}
+
+// Classe do ativo para agrupar a carteira: pela especificação da B3 (CI = cotas de fundo,
+// UNT = unit, DR = BDR) e por listas de ETFs conhecidos (renda fixa e renda variável).
+export type ClasseDoAtivo = 'acoes' | 'fiis' | 'etfs' | 'renda_fixa' | 'bdrs';
+const ETF_RENDA_FIXA = new Set(['LFTS11', 'LFTB11', 'IMAB11', 'IRFM11', 'B5P211', 'FIXA11', 'IMBB11', 'IB5M11', 'B5MB11', 'NTNS11', 'IDKA11', 'DEBB11', 'SELIC11', 'TFLL11', 'IRFL11', 'SPXB11']);
+const ETF_RENDA_VARIAVEL = new Set(['BOVA11', 'BOVV11', 'BOVB11', 'BOVX11', 'IVVB11', 'SMAL11', 'SMAC11', 'HASH11', 'GOLD11', 'DIVO11', 'NASD11', 'XINA11', 'SPXI11', 'ECOO11', 'FIND11', 'MATB11', 'PIBB11', 'BRAX11', 'ACWI11', 'EURP11', 'XFIX11', 'QBTC11', 'ETHE11', 'BITH11', 'WRLD11', 'TECK11', 'USTK11', 'ISUS11', 'DIVD11', 'GOVE11', 'BBSD11', 'ESGB11', 'META11', 'SHOT11', 'UTEC11', 'NDIV11', 'BOVS11', 'CMDB11', 'AGRI11']);
+export function classeDoAtivo(codigo: string, especificacao: string | null): ClasseDoAtivo {
+  if (ETF_RENDA_FIXA.has(codigo)) return 'renda_fixa';
+  if (ETF_RENDA_VARIAVEL.has(codigo)) return 'etfs';
+  const esp = (especificacao ?? '').toUpperCase().trim();
+  if (/^DR[N123E]/.test(esp) || /^[A-Z]{4}3[2-5]$/.test(codigo)) return 'bdrs';
+  if (/^UNT/.test(esp)) return 'acoes';
+  if (/^CI/.test(esp)) return 'fiis';
+  if (!esp && /^[A-Z]{4}11$/.test(codigo)) return 'fiis';
+  return 'acoes';
+}

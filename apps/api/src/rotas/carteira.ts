@@ -8,7 +8,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import {
-  consolidarCarteira, lerNotaDaPlanilha, lerNotaDeCorretagem, lotesAbertos, resultadoEmAberto, situacaoDoMercado, strikeParaOLote, vencimentoEstimado,
+  classeDoAtivo, consolidarCarteira, lerNotaDaPlanilha, resumoDasOpcoes, lerNotaDeCorretagem, lotesAbertos, resultadoEmAberto, situacaoDoMercado, strikeParaOLote, vencimentoEstimado,
   type ConfiguracaoDoCalendario, type NotaLida,
 } from '@wta/domain';
 import { ErroHttp, ipDe, type Dependencias, type Sessao } from '../app.ts';
@@ -499,16 +499,47 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
           custo: itens.filter((i) => !i.vencida).reduce((t, i) => t + Math.sign(i.quantidade) * i.custoDaPosicao, 0),
         };
       });
+      // Classe de cada ativo (ações, FIIs, ETFs, renda fixa, BDRs) pela especificação da B3.
+      const esp = new Map((await c.query(
+        `select distinct on (codigo) codigo, especificacao from fechamentos where codigo = any($1) and tipo_mercado = 10 order by codigo, dia desc`, [ativos],
+      )).rows.map((l) => [l.codigo as string, l.especificacao as string | null]));
+      const gruposComClasse = grupos.map((g) => ({ ...g, classe: classeDoAtivo(g.ativoObjeto, esp.get(g.ativoObjeto) ?? null) }));
+
+      // Lucros e perdas das opções, por série: realizado e o que segue aberto (pelo preço de agora).
+      const seriesOpc = resumoDasOpcoes(execs);
+      const cotOpc = new Map((await cotacoesDoUsuario(c, [...new Set(seriesOpc.filter((x) => x.quantidadeAberta !== 0 && x.vencimento >= hoje).map((x) => x.codigo))], agora, cfg)).map((q) => [q.codigo, q]));
+      const opcoes = seriesOpc.map((x) => {
+        const vencida = x.vencimento < hoje;
+        const q = cotOpc.get(x.codigo) ?? null;
+        const preco = x.quantidadeAberta === 0 || vencida || !q ? null : (x.quantidadeAberta > 0 ? q.bid : q.ask) ?? q.ultimo ?? null;
+        const emAberto = preco === null ? null : resultadoEmAberto({ quantidade: x.quantidadeAberta, precoMedioComCustos: x.precoMedioComCustos, multiplicador: x.multiplicador }, preco).valor;
+        const resultado = x.realizadoLiquido + (emAberto ?? 0);
+        return {
+          codigo: x.codigo, tipo: x.tipo, strike: x.strike, vencimento: x.vencimento, vencida, lado: x.lado, ativoObjeto: ativoDe.get(x.codigo) ?? null,
+          quantidadeNegociada: x.quantidadeNegociada, quantidadeAberta: x.quantidadeAberta, base: x.base, custos: x.custos,
+          realizadoLiquido: x.realizadoLiquido, precoAgora: preco, emAberto, resultado, fracao: x.base > 0 ? resultado / x.base : null,
+          encerrada: x.quantidadeAberta === 0, primeira: x.primeira, ultima: x.ultima,
+        };
+      });
+      const somaOpc = (f: (o: (typeof opcoes)[number]) => boolean) => {
+        const l = opcoes.filter(f);
+        const resultado = l.reduce((t, o) => t + o.resultado, 0);
+        const base = l.reduce((t, o) => t + o.base, 0);
+        return { series: l.length, resultado, base, fracao: base > 0 ? resultado / base : null, ganhos: l.filter((o) => o.resultado > 0).length, perdas: l.filter((o) => o.resultado < 0).length };
+      };
+
       const total = (k: 'valorDeMercado' | 'resultado') => grupos.reduce<number | null>((t, g) => (t === null || g[k] === null ? null : t + (g[k] as number)), 0);
       return {
         agora: agora.toISOString(), hoje, mercadoAberto: mercado.aberto,
-        grupos,
+        grupos: gruposComClasse,
+        opcoes: { series: opcoes, encerradas: somaOpc((o) => o.encerrada), abertas: somaOpc((o) => !o.encerrada), todas: somaOpc(() => true) },
         totais: { valorDeMercado: total('valorDeMercado'), resultadoEmAberto: total('resultado'), realizadoLiquido: realizado, realizadoBruto, custosPagos },
         premissas: [
           'Preço médio com custos: compras somam os custos da nota ao preço (como na apuração da Receita); vendas não mudam o preço médio.',
           'Opção vendida: o prêmio recebido, menos os custos, é o preço médio; o resultado em aberto ganha quando a opção cai.',
           'Preço de agora: ação pelo último negócio; opção pelo preço de quem encerraria (comprada no bid, vendida no ask) ou, sem oferta, pelo último.',
           'Entram todas as estratégias abertas em Posições. Opção vencida com quantidade aparece separada para você conferir.',
+          'Opções (lucros e perdas): por série; base = prêmio das aberturas (recebido na vendida, pago na comprada); % = resultado ÷ base. Em aberto pelo preço de agora; vencida sem exercício conta como encerrada a zero.',
           'Lotes: um por compra; as vendas abatem dos lotes mais antigos primeiro. O preço médio geral continua o da Receita.',
           'Call sugerida por lote: série mensal do primeiro vencimento com 5 dias ou mais, menor strike que não fica abaixo do custo do lote; prêmio pelo bid. É uma referência, não recomendação.',
         ],
