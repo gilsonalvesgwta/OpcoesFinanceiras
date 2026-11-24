@@ -55,4 +55,4 @@ curl -L -o vps.sh opcoes.wtatech.com.br/ponte/vps.sh
 bash vps.sh
 ```
 
-O script instala Docker, swap e o MT5 (imagem `gmag11/metatrader5_vnc`), e abre a tela do MT5 em `https://IP:3001` (usuário `wta` e a senha criada na hora; a senha fica só em `/opt/mt5/.env`). Depois: `bash vps.sh robo` copia o robô, `bash vps.sh fechar` tira a tela da internet, `bash vps.sh abrir` reabre e `bash vps.sh estado` mostra o uso de memória.
+O script instala Docker, swap e o MT5 (imagem `gmag11/metatrader5_vnc` com o Wine Staging e Windows 11, porque o Wine 10 faz o MT5 acusar "A debugger has been found" e fechar), e abre a tela do MT5 em `https://IP:3001` (usuário `wta` e a senha criada na hora; a senha fica só em `/opt/mt5/.env`). Depois: `bash vps.sh robo` copia o robô, `bash vps.sh fechar` tira a tela da internet, `bash vps.sh abrir` reabre e `bash vps.sh estado` mostra o uso de memória.
