@@ -456,12 +456,20 @@ test.describe.serial('jornada', () => {
     await entrarNoPainel(page, EMAIL, SENHA);
     await page.getByRole('link', { name: 'Minha carteira' }).click();
     await expect(page.getByRole('heading', { name: 'Minha carteira', level: 1 })).toBeVisible();
+    const abrirImportar = async () => {
+      const area = page.locator('details.importar-area');
+      if (!(await area.evaluate((d) => (d as HTMLDetailsElement).open))) await area.locator('summary').click();
+    };
+    await abrirImportar();
     await page.locator('#notas-pdf').setInputFiles({ name: 'nota.pdf', mimeType: 'application/pdf', buffer: pdfDeNotaDeTeste() });
     await expect(page.getByText('Nota 555001')).toBeVisible();
     await expect(page.getByText('conferida')).toBeVisible();
     await semViolacoes(page, 'carteira-previa');
     await page.getByRole('button', { name: 'Importar 1 nota(s)' }).click();
     await expect(page.getByText(/1 nota\(s\) importada\(s\), 2 negócio/)).toBeVisible();
+    // Lista limpa por classe: o ativo abre ao clicar.
+    await expect(page.getByRole('heading', { name: /^Ações/ })).toBeVisible();
+    await page.getByRole('button', { name: /^ITUB4/ }).click();
     const itub = page.getByRole('region', { name: 'Posição em ITUB4' });
     const qtdItub = async () => Number((await itub.getByRole('row', { name: /^ITUB4/ }).locator('td').first().innerText()).replace(/\D/g, ''));
     await expect(page.getByText(/ITUBK380/).first()).toBeVisible(); // na tabela ou, depois do vencimento, no aviso de vencidas
@@ -490,6 +498,8 @@ test.describe.serial('jornada', () => {
     await expect(page.getByText('sua posição real').first()).toBeVisible();
     // Zerar a carteira (último teste: apaga as posições deste usuário).
     await page.getByRole('link', { name: 'Minha carteira' }).click();
+    await expect(page.getByRole('heading', { name: 'Opções: lucros e perdas' })).toBeVisible();
+    await abrirImportar();
     await expect(page.getByRole('button', { name: 'Zerar tudo' })).toBeDisabled();
     await page.locator('#zerar-confirma').fill('zerar');
     await page.getByRole('button', { name: 'Zerar tudo' }).click();

@@ -68,3 +68,23 @@ test('mesmo código em outro ano (a B3 reaproveita): a posição recomeça com a
   ]);
   assert.deepEqual([p?.quantidade, p?.strike, p?.vencimento, p?.realizadoBruto], [500, 4100, '2026-11-19', 5000]);
 });
+
+test('lucros e perdas por série de opção: base, realizado e %', async () => {
+  const { resumoDasOpcoes, classeDoAtivo } = await import('./carteira.ts');
+  const r = resumoDasOpcoes([
+    { codigo: 'BBASK196', tipo: 'call', strike: 1960, vencimento: '2026-11-19', lado: 'venda', quantidade: 100, preco: 520, instante: '2026-10-13T13:00:00Z' },
+    { codigo: 'BBASK196', tipo: 'call', strike: 1960, vencimento: '2026-11-19', lado: 'compra', quantidade: 100, preco: 10, instante: '2026-10-29T13:00:00Z' },
+    { codigo: 'PETRL447', tipo: 'call', strike: 4241, vencimento: '2026-12-18', lado: 'venda', quantidade: 500, preco: 291, custos: 194, instante: '2026-11-17T13:00:00Z' },
+    { codigo: 'BBAS3', tipo: 'ativo', lado: 'compra', quantidade: 100, preco: 1412, instante: '2026-11-19T13:00:00Z' },
+  ]);
+  assert.deepEqual(r.map((s) => [s.codigo, s.lado, s.base, s.realizadoLiquido, s.quantidadeAberta]), [
+    ['PETRL447', 'vendida', 145500, 0, -500],
+    ['BBASK196', 'vendida', 52000, 51000, 0], // vendeu a 5,20 e recomprou a 0,10: ficou com 98% do prêmio
+  ]);
+  assert.equal(classeDoAtivo('TAEE11', 'UNT N2'), 'acoes');
+  assert.equal(classeDoAtivo('HGLG11', 'CI'), 'fiis');
+  assert.equal(classeDoAtivo('LFTS11', 'CI'), 'renda_fixa');
+  assert.equal(classeDoAtivo('BOVA11', 'CI'), 'etfs');
+  assert.equal(classeDoAtivo('AAPL34', 'DRN'), 'bdrs');
+  assert.equal(classeDoAtivo('PETR4', 'PN N2'), 'acoes');
+});
