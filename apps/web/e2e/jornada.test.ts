@@ -248,6 +248,9 @@ test.describe.serial('jornada', () => {
     const robo = await request.get('/ponte/WTA_Ponte.mq5');
     expect(robo.ok()).toBe(true);
     expect(await robo.text()).toContain('Só leitura');
+    const instalador = await request.get('/ponte/vps.sh');
+    expect(instalador.ok()).toBe(true);
+    expect(await instalador.text()).toContain('gmag11/metatrader5_vnc');
   });
 
   test('calendário e diagnóstico: superadmin cadastra e remove um dia sem pregão e vê a situação das fontes', async ({ page }) => {
