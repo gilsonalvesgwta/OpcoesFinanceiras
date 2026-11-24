@@ -17,6 +17,7 @@ import { rotasDePosicoes } from './rotas/posicoes.ts';
 import { rotasDeRolagens } from './rotas/rolagens.ts';
 import { rotasDeInteligencia } from './rotas/inteligencia.ts';
 import { rotasDoSimulador } from './rotas/simulador.ts';
+import { rotasDaCarteira } from './rotas/carteira.ts';
 import { CacheDoCalendario } from './calendario.ts';
 
 export type Politica = 'publica' | 'autenticado' | 'admin' | 'superadmin';
@@ -172,5 +173,6 @@ export async function construirApp(dep: Dependencias): Promise<FastifyInstance> 
   await rotasDeRolagens(app, dep, calendario);
   await rotasDeInteligencia(app, dep, calendario);
   await rotasDoSimulador(app, dep, calendario);
+  await rotasDaCarteira(app, dep, calendario);
   return app;
 }

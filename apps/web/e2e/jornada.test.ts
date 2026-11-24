@@ -4,6 +4,7 @@
 import { test, expect, type Page, type Browser } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdirSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
 
 const EMAIL = process.env.SUPERADMIN_EMAIL ?? 'chefe@exemplo.test';
 const SENHA_INICIAL = process.env.SUPERADMIN_SENHA_INICIAL ?? 'senha inicial do teste';
@@ -30,6 +31,35 @@ async function entrar(page: Page, email: string, senha: string) {
 }
 
 // Entra e espera o painel abrir (a sessão já está gravada quando ele aparece).
+// Nota de corretagem em PDF (layout Sinacor, Helvetica), sem dados pessoais: compra de
+// 200 ITUB4 e venda de 200 calls ITUBK380 (séries do banco de teste).
+function pdfDeNotaDeTeste(): Buffer {
+  const L: [number, number, string][] = [
+    [116, 797, 'NOTA DE CORRETAGEM'], [402, 792, ' Nr. nota'], [457, 792, 'Folha'], [512, 792, 'Data pregão'],
+    [416, 783, '555001'], [483, 783, '1'], [525, 783, '16/10/2026'], [126, 770, 'Corretora Teste CTVM S.A.'],
+    [28, 604, 'Q'], [38, 604, 'Negociação'], [88, 604, 'C/V'], [106, 604, 'Tipo Mercado'], [188, 604, 'Prazo'], [214, 604, 'Especificação do título'],
+    [308, 604, 'Obs. (*)'], [342, 604, 'Quantidade'], [391, 604, 'Preço / Ajuste'], [452, 604, 'Valor Operação / Ajuste'], [552, 604, 'D/C'],
+    [38, 593, '1-BOVESPA'], [88, 593, 'C'], [106, 593, 'VISTA'], [214, 593, 'ITUB4'], [254, 593, 'PN'], [342, 593, '200'], [391, 593, '34,00'], [452, 593, '6.800,00'], [552, 593, 'D'],
+    [38, 584, '1-BOVESPA'], [88, 584, 'V'], [106, 584, 'OPCAO DE COMPRA'], [188, 584, '11/26'], [214, 584, 'ITUBK380'], [254, 584, 'PN'], [342, 584, '200'], [391, 584, '0,16'], [452, 584, '32,00'], [552, 584, 'C'],
+    [28, 348, 'Resumo dos Negócios'], [300, 348, 'Resumo Financeiro'],
+    [300, 321, 'Taxa de liquidação/CCP'], [541, 321, '0,65'], [557, 321, 'D'],
+    [300, 267, 'Emolumentos'], [541, 267, '0,15'], [557, 267, 'D'],
+    [300, 139, 'Líquido para 20/10/2026'], [537, 138, '6.768,80'], [557, 138, 'D'],
+  ];
+  const esc = (t: string) => t.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const dados = deflateSync(Buffer.from(L.map(([x, y, t]) => `BT /F1 6 Tf 1 0 0 1 ${x} ${y} Tm (${esc(t)}) Tj ET`).join('\n'), 'latin1'));
+  const objs = ['<</Type/Catalog/Pages 2 0 R>>', '<</Type/Pages/Kids[3 0 R]/Count 1>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Resources<</Font<</F1 5 0 R>>>>/Contents 4 0 R>>', null,
+    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>'];
+  const partes: Buffer[] = [Buffer.from('%PDF-1.4\n', 'latin1')];
+  objs.forEach((o, i) => {
+    if (o === null) partes.push(Buffer.from(`${i + 1} 0 obj\n<</Length ${dados.length}/Filter/FlateDecode>>stream\n`, 'latin1'), dados, Buffer.from('\nendstream\nendobj\n', 'latin1'));
+    else partes.push(Buffer.from(`${i + 1} 0 obj\n${o}\nendobj\n`, 'latin1'));
+  });
+  partes.push(Buffer.from('trailer\n<</Root 1 0 R>>\n%%EOF\n', 'latin1'));
+  return Buffer.concat(partes);
+}
+
 async function entrarNoPainel(page: Page, email: string, senha: string) {
   await entrar(page, email, senha);
   await expect(page.getByRole('heading', { name: 'Painel', level: 1 })).toBeVisible();
@@ -392,6 +422,40 @@ test.describe.serial('jornada', () => {
     await expect(page.getByText('posição da carteira', { exact: false }).first()).toBeVisible();
     await page.getByRole('button', { name: 'Encerrar' }).first().click();
     await expect(page.getByRole('button', { name: 'Registrar na carteira simulada' })).toBeVisible();
+  });
+
+  test('minha carteira: importa nota de corretagem (PDF), preço médio com custos, posição inicial e simulação', async ({ page }) => {
+    await entrarNoPainel(page, EMAIL, SENHA);
+    await page.getByRole('link', { name: 'Minha carteira' }).click();
+    await expect(page.getByRole('heading', { name: 'Minha carteira', level: 1 })).toBeVisible();
+    await page.locator('#notas-pdf').setInputFiles({ name: 'nota.pdf', mimeType: 'application/pdf', buffer: pdfDeNotaDeTeste() });
+    await expect(page.getByText('Nota 555001')).toBeVisible();
+    await expect(page.getByText('conferida')).toBeVisible();
+    await semViolacoes(page, 'carteira-previa');
+    await page.getByRole('button', { name: 'Importar 1 nota(s)' }).click();
+    await expect(page.getByText(/1 nota\(s\) importada\(s\), 2 negócio/)).toBeVisible();
+    const itub = page.getByRole('region', { name: 'Posição em ITUB4' });
+    const qtdItub = async () => Number((await itub.getByRole('row', { name: /^ITUB4/ }).locator('td').first().innerText()).replace(/\D/g, ''));
+    await expect(page.getByText(/ITUBK380/).first()).toBeVisible(); // na tabela ou, depois do vencimento, no aviso de vencidas
+    const antes = await qtdItub(); // inclui a venda coberta do teste de Posições
+    // A mesma nota de novo: já importada.
+    await page.locator('#notas-pdf').setInputFiles({ name: 'nota.pdf', mimeType: 'application/pdf', buffer: pdfDeNotaDeTeste() });
+    await expect(page.getByText('já importada')).toBeVisible();
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+    // Posição inicial.
+    await page.getByLabel('Código', { exact: true }).fill('ITUB4');
+    await page.getByLabel('Quantidade', { exact: true }).fill('100');
+    await page.getByLabel('Preço médio (R$)').fill('30,00');
+    await page.getByLabel('Data', { exact: true }).fill('2026-10-01');
+    await page.getByRole('button', { name: 'Lançar' }).click();
+    await expect(page.getByText('Compra de 100 ITUB4 lançada.')).toBeVisible();
+    await expect.poll(qtdItub).toBe(antes + 100);
+    await semViolacoes(page, 'carteira');
+    await foto(page, 'carteira');
+    // Simular a partir da posição real.
+    await page.getByRole('link', { name: 'Simular com esta posição' }).first().click();
+    await expect(page.getByText(/Sua posição em ITUB4 entrou na montagem/)).toBeVisible();
+    await expect(page.getByText('sua posição real').first()).toBeVisible();
   });
 
   test('cenários, avisos das posições e histórico com exportação; sair encerra a sessão', async ({ page }) => {

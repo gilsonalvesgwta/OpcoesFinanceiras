@@ -1,0 +1,72 @@
+// Minha carteira: tipos da api, leitura dos PDFs para enviar e textos da prévia das notas.
+
+export type ItemDaCarteira = {
+  codigo: string; tipo: 'call' | 'put' | 'ativo'; strike: number | null; vencimento: string | null; vencida: boolean;
+  quantidade: number; precoMedio: number; precoMedioComCustos: number; custoDaPosicao: number;
+  preco: number | null; origemDoPreco: 'ultimo' | 'bid' | 'ask' | null; qualidade: string | null; provedor: string | null;
+  valorDeMercado: number | null; resultado: number | null; resultadoFracao: number | null; realizadoLiquido: number; diasAteVencimento: number | null;
+};
+export type GrupoDaCarteira = {
+  ativoObjeto: string;
+  cotacao: { ultimo: number | null; bid: number | null; ask: number | null; fechamentoAnterior: number | null; qualidade: string; provedor: string; instanteDaFonte: string | null } | null;
+  itens: ItemDaCarteira[];
+  cobertura: { acoes: number; callsVendidas: number; callsCompradas: number; descobertas: number };
+  valorDeMercado: number | null; resultado: number | null; custo: number;
+};
+export type Carteira = {
+  agora: string; hoje: string; mercadoAberto: boolean; grupos: GrupoDaCarteira[];
+  totais: { valorDeMercado: number | null; resultadoEmAberto: number | null; realizadoLiquido: number; realizadoBruto: number; custosPagos: number };
+  premissas: string[];
+};
+
+export type NegocioDaPrevia = {
+  lado: 'compra' | 'venda'; mercado: string; codigo: string | null; tipo: 'call' | 'put' | 'ativo' | null;
+  strike: number | null; vencimento: string | null; ativoObjeto: string | null; vencimentoEstimado: boolean;
+  quantidade: number; preco: number; valor: number; custos: number; observacao: string; falta: string[]; alertas: string[];
+};
+export type NotaDaPrevia = {
+  arquivo: string; erro?: string;
+  corretora?: string; numero?: string; dataPregao?: string; custos?: Record<string, number>; custoTotal?: number; irrf?: number;
+  liquido?: number | null; conferida?: boolean; avisos?: string[]; jaImportada?: boolean; negocios?: NegocioDaPrevia[];
+};
+
+export const ERRO_DA_NOTA: Record<string, string> = {
+  nao_e_pdf: 'O arquivo não é um PDF.',
+  pdf_protegido: 'O PDF está protegido por senha. Baixe a nota sem senha (ou abra e salve uma cópia) e envie de novo.',
+  pdf_grande_demais: 'O PDF passa de 5 MB.',
+  nao_e_nota_de_corretagem: 'Não parece uma nota de corretagem (ou é um PDF escaneado, em imagem, que o sistema não lê).',
+  nota_de_futuros_nao_tratada: 'Nota de futuros (BM&F) ainda não é lida: só ações e opções.',
+  cabecalho_ilegivel: 'Não achei o número e a data da nota.',
+  sem_negocios: 'Não achei os negócios da nota.',
+  pdf_ilegivel: 'Não consegui ler este PDF.',
+};
+
+export const ALERTA_DO_NEGOCIO: Record<string, string> = {
+  exercicio: 'Exercício de opção: entra como compra/venda da ação ao preço de exercício. Encerre a opção exercida na estratégia (Vencer).',
+  strike_da_nota_difere_do_cadastro: 'O strike da nota é diferente do cadastro da B3 (série ajustada por provento?). Usei o da nota.',
+  parece_encerrar_venda_anterior: 'Parece uma rolagem: esta compra encerra uma venda feita antes, que não está no sistema. Lance essa venda em "Posição inicial" (data e preço da venda) para o resultado ficar certo.',
+  preco_com_fracao_de_centavo: 'Preço com mais de 2 casas: arredondado ao centavo.',
+};
+
+export const NOME_DO_CUSTO: Record<string, string> = {
+  liquidacao: 'Taxa de liquidação', registro: 'Taxa de registro', termoOpcoes: 'Taxa de termo/opções', ana: 'Taxa A.N.A.',
+  emolumentos: 'Emolumentos', transferencia: 'Transferência de ativos', corretagem: 'Corretagem', execucao: 'Execução',
+  execucaoCasa: 'Execução casa', iss: 'ISS', outras: 'Outras',
+};
+
+// Arquivo → base64 (sem o prefixo "data:...").
+export function arquivoParaBase64(f: File): Promise<string> {
+  return new Promise((ok, falha) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, ''));
+    r.onerror = () => falha(new Error('Não foi possível ler o arquivo.'));
+    r.readAsDataURL(f);
+  });
+}
+
+// Uma nota pode ser importada quando foi lida, não está importada e nada falta.
+export function notaPronta(n: NotaDaPrevia): boolean {
+  return !n.erro && !n.jaImportada && Boolean(n.negocios?.length) && (n.negocios ?? []).every((x) => x.falta.length === 0 && x.codigo && x.tipo && x.ativoObjeto);
+}
+
+export const pctBr = (f: number | null) => (f === null ? '—' : `${f > 0 ? '+' : f < 0 ? '−' : ''}${Math.abs(f * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`);
