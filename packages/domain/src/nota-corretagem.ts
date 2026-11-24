@@ -196,7 +196,10 @@ export function ratearCustos(valores: readonly Centavos[], total: Centavos): Cen
   const partes = valores.map((v) => Math.floor((total * v) / soma));
   let sobra = total - partes.reduce((s, v) => s + v, 0);
   const ordem = valores.map((v, i) => [v, i] as const).sort((a, b) => b[0] - a[0]);
-  for (let k = 0; sobra > 0; k = (k + 1) % ordem.length, sobra -= 1) partes[(ordem[k] as readonly [number, number])[1]] += 1;
+  for (let k = 0; sobra > 0; k = (k + 1) % ordem.length, sobra -= 1) {
+    const i = (ordem[k] as readonly [number, number])[1];
+    partes[i] = (partes[i] ?? 0) + 1;
+  }
   return partes;
 }
 
