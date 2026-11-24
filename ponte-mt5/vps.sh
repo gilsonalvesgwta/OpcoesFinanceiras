@@ -154,7 +154,18 @@ abrir() {
 estado() {
   docker ps --filter name=mt5 --format 'Container: {{.Names}}  |  {{.Status}}  |  porta {{.Ports}}' || true
   docker stats --no-stream --format 'Memória: {{.MemUsage}}  |  CPU: {{.CPUPerc}}' mt5 2>/dev/null || true
-  free -h
+  free -h | head -2
+  echo "--- etapas da instalação (do registro do container):"
+  docker logs mt5 2>&1 | grep -E '^\[[0-9]/[0-9]\]|rror|ailed|not found' | grep -v -E 'pip|dependency|mt5linux|8001' | tail -15 || true
+  echo "--- MetaTrader instalado?"
+  if [ -f "$PASTA/config/.wine/drive_c/Program Files/MetaTrader 5/terminal64.exe" ]; then
+    echo "sim (terminal64.exe existe)"
+  else
+    echo "NAO: terminal64.exe ainda não existe"
+    ls "$PASTA/config/.wine/drive_c/Program Files" 2>/dev/null || echo "(pasta Program Files ainda não existe)"
+  fi
+  echo "--- MetaTrader rodando?"
+  docker exec mt5 sh -c 'ps -eo rss,args | grep -i -E "terminal64|mt5setup" | grep -v grep' 2>/dev/null || echo "NAO há processo do MetaTrader rodando"
   [ -f "$EXPERTS/WTA_Ponte.mq5" ] && echo "Robô presente na pasta Experts." || echo "Robô ainda não copiado (bash vps.sh robo)."
 }
 
