@@ -13,6 +13,7 @@ import type { Config } from './config.ts';
 import { CorreioDeTeste } from './correio.ts';
 import { gerarHashDeSenha } from './seguranca.ts';
 import { xlsDeTeste } from './xls-de-teste.ts';
+import { linhaCotahist, zipDoCotahist } from './cotahist-de-teste.ts';
 import { textoDoPdf } from './pdf-texto.ts';
 
 // PDF mínimo no layout Sinacor (Helvetica, WinAnsi), como as notas da BTG, sem dados pessoais.
@@ -95,7 +96,16 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     }
     await dono.query("insert into series_opcoes (codigo, vencimento, ativo_objeto, tipo, strike, visto_primeiro, visto_ultimo) values ('CARTL145', '2026-12-18', 'CART3', 'call', 1450, '2026-11-23', '2026-11-23') on conflict do nothing");
     await dono.query("update series_opcoes set visto_ultimo = (select max(visto_ultimo) from series_opcoes) where codigo = 'CARTL145'");
-    app = await construirApp({ config, pool, correio: new CorreioDeTeste(), relogio: () => agora });
+    // Internet simulada: o arquivo COTAHIST da B3 do dia 24/11/2026 com uma série antiga.
+    const arquivoB3 = zipDoCotahist('2026-11-24', [
+      linhaCotahist({ codigo: 'CART3', tpmerc: 10, ult: 1434 }),
+      linhaCotahist({ codigo: 'CARTH140', tpmerc: 70, ult: 20, exe: 1400, venc: '20260821' }),
+    ]);
+    const buscar = async (url: string) => {
+      const ok = url.endsWith('COTAHIST_D24112026.ZIP');
+      return { ok, status: ok ? 200 : 404, arrayBuffer: async () => { const b = ok ? arquivoB3 : Buffer.alloc(0); return b.buffer.slice(b.byteOffset, b.byteOffset + b.length) as ArrayBuffer; }, json: async () => ({}) };
+    };
+    app = await construirApp({ config, pool, correio: new CorreioDeTeste(), relogio: () => agora, buscar });
     for (const quem of ['ana', 'beto']) {
       const r = await app.inject({ method: 'POST', url: '/api/auth/entrar', remoteAddress: '203.0.113.96', payload: { email: `${quem}.cart.${sufixo}@exemplo.test`, senha: SENHA } });
       assert.equal(r.statusCode, 200, r.body);
@@ -116,6 +126,14 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
       ['venda', 'CARTL145', 'call', 1450, '2026-12-18', 'CART3', 37, 2, 0],
     ]);
     assert.ok(r.corpo.notas[1].erro, 'arquivo que não é nota volta com erro, sem derrubar os outros');
+  });
+
+  test('série fora do cadastro: strike e vencimento vêm do arquivo da B3 do dia da nota', async () => {
+    const antiga = NOTA.map(([x, y, t]) => [x, y, t === 'CARTL145' ? 'CARTH140' : t === '987654' ? '987600' : t] as [number, number, string]);
+    const r = await pedir('ana', 'POST', '/api/notas/ler', { arquivos: [{ nome: 'antiga.pdf', conteudo: pdfDeNota(antiga).toString('base64') }] });
+    assert.equal(r.status, 200, JSON.stringify(r.corpo));
+    const opc = r.corpo.notas[0].negocios.find((n: any) => n.codigo === 'CARTH140');
+    assert.deepEqual([opc.tipo, opc.strike, opc.vencimento, opc.vencimentoEstimado, opc.ativoObjeto, opc.falta], ['call', 1400, '2026-08-21', false, 'CART3', []]);
   });
 
   test('lê a nota em planilha XLS (formato da CM Capital)', async () => {
