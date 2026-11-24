@@ -135,7 +135,7 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
         type: 'object', additionalProperties: false, required: ['arquivos'],
         properties: {
           arquivos: {
-            type: 'array', minItems: 1, maxItems: 20,
+            type: 'array', minItems: 1, maxItems: 40,
             items: { type: 'object', additionalProperties: false, required: ['nome', 'conteudo'], properties: { nome: { type: 'string', maxLength: 200 }, conteudo: { type: 'string', maxLength: 7_000_000 } } },
           },
         },
@@ -186,7 +186,7 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
         type: 'object', additionalProperties: false, required: ['notas'],
         properties: {
           notas: {
-            type: 'array', minItems: 1, maxItems: 20,
+            type: 'array', minItems: 1, maxItems: 60,
             items: {
               type: 'object', additionalProperties: true, required: ['corretora', 'numero', 'dataPregao', 'custoTotal', 'conferida', 'negocios'],
               properties: {
@@ -208,7 +208,7 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
       const estrategias = new Set<string>();
       for (const nota of b.notas) {
         for (const n of nota.negocios) {
-          if (n.tipo !== 'ativo' && (!n.strike || !n.vencimento)) throw new ErroHttp(400, 'opcao_sem_strike_ou_vencimento');
+          if (n.tipo !== 'ativo' && (!n.strike || !n.vencimento)) throw new ErroHttp(400, 'opcao_sem_strike_ou_vencimento', { nota: nota.numero, codigo: n.codigo });
         }
         const ins = await c.query(
           `insert into notas_corretagem (user_id, corretora, numero, data_pregao, custos, custo_total, irrf, liquido, conferida)
@@ -233,7 +233,20 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
         }
         saida.push({ numero: nota.numero, situacao: 'importada', execucoes: nota.negocios.length });
       }
-      for (const e of estrategias) await conferirEstrategia(c, e);
+      // Consistência de cada carteira; no erro, diz qual código e em qual nota ele está.
+      for (const e of estrategias) {
+        try {
+          await conferirEstrategia(c, e);
+        } catch (x) {
+          if (!(x instanceof ErroHttp)) throw x;
+          const codigo = typeof x.extra?.codigo === 'string' ? x.extra.codigo : null;
+          const notas = codigo ? b.notas.filter((n) => n.negocios.some((g) => g.codigo === codigo)).map((n) => n.numero) : [];
+          const versoes = codigo ? (await c.query(
+            `select distinct strike, to_char(vencimento, 'YYYY-MM-DD') as vencimento from execucoes where estrategia_id = $1 and codigo = $2`, [e, codigo],
+          )).rows.map((v) => ({ strike: v.strike === null ? null : Number(v.strike), vencimento: v.vencimento as string | null })) : [];
+          throw new ErroHttp(x.status, x.codigo, { ...x.extra, notas, versoes });
+        }
+      }
       await auditar(c, s, 'notas.importadas', { tipo: 'notas_corretagem', depois: { notas: saida } }, ipDe(req));
       return saida;
     });

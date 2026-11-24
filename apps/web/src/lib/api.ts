@@ -6,10 +6,12 @@ import { mensagemDoErro } from './mensagens.ts';
 export class ErroDaApi extends Error {
   readonly status: number;
   readonly codigo: string;
-  constructor(status: number, codigo: string) {
+  readonly extra: Record<string, unknown>;
+  constructor(status: number, codigo: string, extra: Record<string, unknown> = {}) {
     super(mensagemDoErro(codigo));
     this.status = status;
     this.codigo = codigo;
+    this.extra = extra;
   }
 }
 
@@ -43,7 +45,7 @@ export async function chamar<T>(metodo: Metodo, caminho: string, corpo?: unknown
     const codigo = typeof dados === 'object' && dados !== null && typeof (dados as { erro?: unknown }).erro === 'string'
       ? (dados as { erro: string }).erro
       : 'erro_interno';
-    throw new ErroDaApi(r.status, codigo);
+    throw new ErroDaApi(r.status, codigo, typeof dados === 'object' && dados !== null ? dados as Record<string, unknown> : {});
   }
   if (typeof dados === 'object' && dados !== null && typeof (dados as { csrf?: unknown }).csrf === 'string') {
     csrf = (dados as { csrf: string }).csrf;

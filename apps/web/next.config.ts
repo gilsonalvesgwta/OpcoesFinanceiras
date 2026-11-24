@@ -14,6 +14,8 @@ const config: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   transpilePackages: ['@wta/domain'],
+  // A leitura de notas com séries antigas pode baixar o arquivo mensal da B3 (até ~2 min).
+  experimental: { proxyTimeout: 180_000 },
   async rewrites() {
     return [{ source: '/api/:caminho*', destination: `${API_INTERNA}/api/:caminho*` }];
   },

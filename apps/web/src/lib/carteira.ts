@@ -83,3 +83,27 @@ export function notaPronta(n: NotaDaPrevia): boolean {
 }
 
 export const pctBr = (f: number | null) => (f === null ? '—' : `${f > 0 ? '+' : f < 0 ? '−' : ''}${Math.abs(f * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`);
+
+// Mensagem do erro ao ler ou importar notas: diz o que houve, em qual nota e com qual
+// código, em vez do genérico "não conseguiu concluir".
+export function textoDoErroDasNotas(x: unknown, padrao: string): string {
+  if (!(x instanceof Error)) return padrao;
+  const e = x as Error & { codigo?: string; status?: number; extra?: Record<string, unknown> };
+  const extra = e.extra ?? {};
+  const notas = Array.isArray(extra.notas) && extra.notas.length ? ` (nota${extra.notas.length > 1 ? 's' : ''} ${(extra.notas as string[]).join(', ')})` : typeof extra.nota === 'string' ? ` (nota ${extra.nota})` : '';
+  const cod = typeof extra.codigo === 'string' ? extra.codigo : '';
+  const real = (c: unknown) => (typeof c === 'number' ? (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—');
+  const data = (v: unknown) => (typeof v === 'string' ? v.split('-').reverse().join('/') : '—');
+  switch (e.codigo) {
+    case 'codigo_com_dados_diferentes': {
+      const versoes = Array.isArray(extra.versoes) ? (extra.versoes as { strike: number | null; vencimento: string | null }[]).map((v) => `strike ${real(v.strike)} e vencimento ${data(v.vencimento)}`).join(' / ') : '';
+      return `A opção ${cod} aparece com strike ou vencimento diferentes${notas}${versoes ? `: ${versoes}` : ''}. Deixe iguais na prévia (o certo é o da B3) ou, se ela já estava na carteira com dados errados, zere a carteira e importe de novo.`;
+    }
+    case 'opcao_sem_strike_ou_vencimento': return `Falta o strike ou o vencimento de ${cod || 'uma opção'}${notas}.`;
+    case 'entrada_invalida': return 'Algum campo da prévia está fora do formato (strike, vencimento ou ativo). Confira e tente de novo.';
+    case 'corpo_grande_demais': return 'Arquivos grandes demais para enviar de uma vez. Envie as notas em grupos menores.';
+    case 'sem_conexao': return 'Sem conexão com o sistema. Confira a internet e tente de novo.';
+    default:
+      return e.codigo && e.codigo !== 'erro_interno' ? `${e.message} (código: ${e.codigo}${notas ? `,${notas.replace(/[()]/g, '')}` : ''}${cod ? `, ${cod}` : ''})` : `${e.message}${e.status ? ` (resposta ${e.status})` : ''}`;
+  }
+}

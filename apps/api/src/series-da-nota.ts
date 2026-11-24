@@ -11,7 +11,6 @@ import { ehZip, extrairPrimeiroArquivo, linhasDoPrimeiroArquivo } from './coleta
 export type SerieDaB3 = { codigo: string; tipo: 'call' | 'put'; strike: number; vencimento: string; ativoObjeto: string | null };
 
 const diarios = new Map<string, Promise<Map<string, SerieDaB3>>>();
-const achadas = new Map<string, SerieDaB3>(); // código@mês → série (do arquivo mensal)
 const LIMITE = 150 * 1024 * 1024;
 
 function paraMapa(registros: readonly RegistroCotahist[]): Map<string, SerieDaB3> {
@@ -40,20 +39,36 @@ function doDia(buscar: Buscar, dia: string): Promise<Map<string, SerieDaB3>> {
   return p;
 }
 
-async function doMes(buscar: Buscar, mes: string, codigos: readonly string[]): Promise<Map<string, SerieDaB3>> {
-  const b = await baixar(buscar, urlDoCotahistMensal(mes), 180_000).catch(() => null);
-  if (!b) return new Map();
-  const procurados = new Set(codigos);
-  const raizes = new Set(codigos.map((c) => c.slice(0, 4)));
-  const registros: RegistroCotahist[] = [];
-  for await (const linha of linhasDoPrimeiroArquivo(b)) {
-    if (!linha.startsWith('01')) continue;
-    const codigo = linha.slice(12, 24).trim();
-    if (!procurados.has(codigo) && !(linha.slice(24, 27) === '010' && raizes.has(codigo.slice(0, 4)))) continue;
-    const r = lerLinhaCotahist(linha);
-    if (r) registros.push(r);
+// Mensal: todas as séries (e as ações) de cada raiz pedida naquele mês, guardadas por
+// mês+raiz, para outra nota do mesmo mês não baixar o arquivo de novo.
+const mensais = new Map<string, Promise<Map<string, SerieDaB3>>>();
+
+function doMes(buscar: Buscar, mes: string, raizes: readonly string[]): Promise<Map<string, SerieDaB3>[]> {
+  const novas = raizes.filter((r) => !mensais.has(`${mes}|${r}`));
+  if (novas.length) {
+    const tudo = (async () => {
+      const b = await baixar(buscar, urlDoCotahistMensal(mes), 120_000);
+      if (!b) return new Map<string, SerieDaB3>();
+      const procuradas = new Set(novas);
+      const registros: RegistroCotahist[] = [];
+      for await (const linha of linhasDoPrimeiroArquivo(b)) {
+        if (!linha.startsWith('01') || !procuradas.has(linha.slice(12, 16))) continue;
+        const tp = linha.slice(24, 27);
+        if (tp !== '010' && tp !== '070' && tp !== '080') continue;
+        const r = lerLinhaCotahist(linha);
+        if (r) registros.push(r);
+      }
+      return paraMapa(registros);
+    })().catch(() => new Map<string, SerieDaB3>());
+    for (const r of novas) {
+      const chave = `${mes}|${r}`;
+      const p = tudo.then((m) => new Map([...m].filter(([c]) => c.startsWith(r))));
+      mensais.set(chave, p);
+      void tudo.then((m) => { if (!m.size) mensais.delete(chave); });
+    }
+    while (mensais.size > 60) mensais.delete(mensais.keys().next().value as string);
   }
-  return paraMapa(registros);
+  return Promise.all(raizes.map((r) => mensais.get(`${mes}|${r}`) ?? Promise.resolve(new Map<string, SerieDaB3>())));
 }
 
 export async function seriesDaB3(buscar: Buscar | undefined, dia: string, codigos: readonly string[]): Promise<Map<string, SerieDaB3>> {
@@ -62,15 +77,13 @@ export async function seriesDaB3(buscar: Buscar | undefined, dia: string, codigo
   const mes = dia.slice(0, 7);
   const diario = await doDia(buscar, dia);
   for (const c of codigos) {
-    const s = diario.get(c) ?? achadas.get(`${c}@${mes}`);
+    const s = diario.get(c);
     if (s) r.set(c, s);
   }
   const faltam = codigos.filter((c) => !r.has(c));
   if (faltam.length) {
-    for (const [c, s] of await doMes(buscar, mes, faltam)) {
-      if (!faltam.includes(c)) continue;
-      r.set(c, s);
-      achadas.set(`${c}@${mes}`, s);
+    for (const m of await doMes(buscar, mes, [...new Set(faltam.map((c) => c.slice(0, 4)))])) {
+      for (const c of faltam) { const x = m.get(c); if (x) r.set(c, x); }
     }
   }
   return r;
