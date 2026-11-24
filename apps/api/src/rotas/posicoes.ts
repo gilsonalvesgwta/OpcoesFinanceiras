@@ -68,7 +68,7 @@ export function lerExecucao(b: CorpoDaExecucao, agora: Date): CorpoDaExecucao {
   return { ...resto, codigo, instante: new Date(t).toISOString(), ...(obs ? { observacao: obs } : {}) };
 }
 
-export async function inserirExecucao(c: Cliente, userId: string, estrategiaId: string, e: CorpoDaExecucao, origem: 'manual' | 'importada_mt5' | 'nota_corretagem' | 'posicao_inicial', rolagemId: string | null = null): Promise<string> {
+export async function inserirExecucao(c: Cliente, userId: string, estrategiaId: string, e: CorpoDaExecucao, origem: 'manual' | 'importada_mt5' | 'nota_corretagem' | 'posicao_inicial' | 'extrato_b3', rolagemId: string | null = null): Promise<string> {
   const r = await c.query(
     `insert into execucoes (user_id, estrategia_id, codigo, tipo, strike, vencimento, multiplicador, lado, quantidade, preco, custos, instante, origem, observacao, rolagem_id)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) returning id`,
