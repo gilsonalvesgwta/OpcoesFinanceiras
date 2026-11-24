@@ -59,3 +59,12 @@ test('strike sugerido para cobrir o lote: o menor que não fica abaixo do custo'
   assert.equal(strikeParaOLote(1800, series)?.codigo, 'A');
   assert.equal(strikeParaOLote(2200, series), null);
 });
+
+test('mesmo código em outro ano (a B3 reaproveita): a posição recomeça com a série nova', () => {
+  const [p] = consolidarCarteira([
+    { codigo: 'PETRK441', tipo: 'call', strike: 4410, vencimento: '2025-11-21', lado: 'venda', quantidade: 100, preco: 50, instante: '2025-11-01T13:00:00Z' },
+    { codigo: 'PETRK441', tipo: 'call', strike: 4410, vencimento: '2025-11-21', lado: 'compra', quantidade: 100, preco: 0, instante: '2025-11-21T21:00:00Z' },
+    { codigo: 'PETRK441', tipo: 'call', strike: 4100, vencimento: '2026-11-19', lado: 'compra', quantidade: 500, preco: 295, instante: '2026-11-16T13:00:00Z' },
+  ]);
+  assert.deepEqual([p?.quantidade, p?.strike, p?.vencimento, p?.realizadoBruto], [500, 4100, '2026-11-19', 5000]);
+});

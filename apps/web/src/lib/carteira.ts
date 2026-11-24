@@ -103,6 +103,10 @@ export function textoDoErroDasNotas(x: unknown, padrao: string): string {
     case 'entrada_invalida': return 'Algum campo da prévia está fora do formato (strike, vencimento ou ativo). Confira e tente de novo.';
     case 'corpo_grande_demais': return 'Arquivos grandes demais para enviar de uma vez. Envie as notas em grupos menores.';
     case 'sem_conexao': return 'Sem conexão com o sistema. Confira a internet e tente de novo.';
+    case 'extrato_nao_e_planilha': return 'O arquivo não é uma planilha do Excel (.xlsx ou .xls). Na B3, exporte o extrato em Excel.';
+    case 'nao_e_extrato_da_b3': return 'A planilha não parece o extrato de negociação da B3 (faltam as colunas "Data do Negócio" e "Código de Negociação").';
+    case 'extrato_ilegivel': return 'Não consegui abrir esta planilha.';
+    case 'data_no_futuro': return `Há um negócio com data no futuro${cod ? ` (${cod})` : ''}.`;
     default:
       return e.codigo && e.codigo !== 'erro_interno' ? `${e.message} (código: ${e.codigo}${notas ? `,${notas.replace(/[()]/g, '')}` : ''}${cod ? `, ${cod}` : ''})` : `${e.message}${e.status ? ` (resposta ${e.status})` : ''}`;
   }

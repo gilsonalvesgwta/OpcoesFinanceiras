@@ -50,7 +50,11 @@ function validarExecucao(e: Execucao): void {
 export function aplicarExecucao(carteira: Carteira, e: Execucao): Carteira {
   validarExecucao(e);
   const nova: Carteira = new Map(carteira);
-  const atual = carteira.get(e.codigo);
+  // A B3 reaproveita códigos de opção de um ano para o outro: posição zerada e uma
+  // execução de outra série com o mesmo código recomeça o instrumento com os dados novos.
+  const anterior = carteira.get(e.codigo);
+  const atual = anterior && anterior.quantidade === 0 && (anterior.vencimento !== e.vencimento || anterior.strike !== e.strike || anterior.tipo !== e.tipo)
+    ? undefined : anterior;
   const mult = e.multiplicador ?? atual?.multiplicador ?? 1;
   if (atual && atual.multiplicador !== mult) throw new ErroDeValor('multiplicador_diferente_do_registrado');
   const base: Instrumento = atual

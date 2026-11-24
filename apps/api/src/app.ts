@@ -18,6 +18,7 @@ import { rotasDeRolagens } from './rotas/rolagens.ts';
 import { rotasDeInteligencia } from './rotas/inteligencia.ts';
 import { rotasDoSimulador } from './rotas/simulador.ts';
 import { rotasDaCarteira } from './rotas/carteira.ts';
+import { rotasDoExtratoB3 } from './rotas/extrato-b3.ts';
 import type { Buscar } from './coleta/coleta.ts';
 import { CacheDoCalendario } from './calendario.ts';
 
@@ -175,5 +176,6 @@ export async function construirApp(dep: Dependencias): Promise<FastifyInstance> 
   await rotasDeInteligencia(app, dep, calendario);
   await rotasDoSimulador(app, dep, calendario);
   await rotasDaCarteira(app, dep, calendario);
+  await rotasDoExtratoB3(app, dep, calendario);
   return app;
 }

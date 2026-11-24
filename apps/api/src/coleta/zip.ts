@@ -81,3 +81,69 @@ export function montarZip(nome: string, conteudo: Buffer): Buffer {
   fim.writeUInt32LE(46 + n.length, 12); fim.writeUInt32LE(inicioCentral, 16);
   return Buffer.concat([local, n, comprimido, central, n, fim]);
 }
+
+// Todos os arquivos de um .ZIP (ex.: a planilha .xlsx, que é um zip de XMLs), pelo
+// diretório central, com limite de tamanho total descompactado.
+export function arquivosDoZip(zip: Buffer, limite = 50 * 1024 * 1024): Map<string, Buffer> {
+  if (!ehZip(zip)) throw new ErroDeZip('nao_e_zip');
+  let fim = -1;
+  for (let i = zip.length - 22; i >= Math.max(0, zip.length - 22 - 65_535); i -= 1) {
+    if (zip.readUInt32LE(i) === FIM_DO_DIRETORIO) { fim = i; break; }
+  }
+  if (fim < 0) throw new ErroDeZip('zip_sem_diretorio');
+  const total = zip.readUInt16LE(fim + 10);
+  let p = zip.readUInt32LE(fim + 16);
+  const r = new Map<string, Buffer>();
+  let soma = 0;
+  for (let k = 0; k < total; k++) {
+    if (p + 46 > zip.length || zip.readUInt32LE(p) !== ENTRADA_CENTRAL) throw new ErroDeZip('zip_corrompido');
+    const metodo = zip.readUInt16LE(p + 10);
+    const compactado = zip.readUInt32LE(p + 20);
+    const tamanho = zip.readUInt32LE(p + 24);
+    const tamNome = zip.readUInt16LE(p + 28);
+    const extra = zip.readUInt16LE(p + 30);
+    const comentario = zip.readUInt16LE(p + 32);
+    const local = zip.readUInt32LE(p + 42);
+    const nome = zip.subarray(p + 46, p + 46 + tamNome).toString('utf8');
+    p += 46 + tamNome + extra + comentario;
+    if (nome.endsWith('/')) continue;
+    soma += tamanho;
+    if (soma > limite) throw new ErroDeZip('arquivo_grande_demais');
+    if (local + 30 > zip.length || zip.readUInt32LE(local) !== CABECALHO_LOCAL) throw new ErroDeZip('zip_corrompido');
+    const dados = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+    const bruto = zip.subarray(dados, dados + compactado);
+    if (metodo === 0) r.set(nome, Buffer.from(bruto));
+    else if (metodo === 8) r.set(nome, inflateRawSync(bruto, { maxOutputLength: limite }));
+    else throw new ErroDeZip('compressao_nao_suportada');
+  }
+  return r;
+}
+
+// Monta um .ZIP com vários arquivos (testes).
+export function montarZipDeVarios(arquivos: Record<string, Buffer | string>): Buffer {
+  const locais: Buffer[] = [];
+  const centrais: Buffer[] = [];
+  let pos = 0;
+  for (const [nome, c] of Object.entries(arquivos)) {
+    const conteudo = typeof c === 'string' ? Buffer.from(c, 'utf8') : c;
+    const comprimido = deflateRawSync(conteudo);
+    const n = Buffer.from(nome, 'utf8');
+    const crc = crc32(conteudo);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(CABECALHO_LOCAL, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(8, 8);
+    local.writeUInt32LE(crc, 14); local.writeUInt32LE(comprimido.length, 18); local.writeUInt32LE(conteudo.length, 22); local.writeUInt16LE(n.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(ENTRADA_CENTRAL, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6); central.writeUInt16LE(8, 10);
+    central.writeUInt32LE(crc, 16); central.writeUInt32LE(comprimido.length, 20); central.writeUInt32LE(conteudo.length, 24);
+    central.writeUInt16LE(n.length, 28); central.writeUInt32LE(pos, 42);
+    locais.push(local, n, comprimido);
+    centrais.push(central, n);
+    pos += 30 + n.length + comprimido.length;
+  }
+  const dir = Buffer.concat(centrais);
+  const fim = Buffer.alloc(22);
+  const qtd = Object.keys(arquivos).length;
+  fim.writeUInt32LE(FIM_DO_DIRETORIO, 0); fim.writeUInt16LE(qtd, 8); fim.writeUInt16LE(qtd, 10);
+  fim.writeUInt32LE(dir.length, 12); fim.writeUInt32LE(pos, 16);
+  return Buffer.concat([...locais, dir, fim]);
+}

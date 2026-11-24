@@ -14,6 +14,7 @@ import { CorreioDeTeste } from './correio.ts';
 import { gerarHashDeSenha } from './seguranca.ts';
 import { xlsDeTeste } from './xls-de-teste.ts';
 import { linhaCotahist, zipDoCotahist } from './cotahist-de-teste.ts';
+import { xlsxDeTeste } from './xlsx-de-teste.ts';
 import { textoDoPdf } from './pdf-texto.ts';
 
 // PDF mínimo no layout Sinacor (Helvetica, WinAnsi), como as notas da BTG, sem dados pessoais.
@@ -91,11 +92,14 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     dono = new pg.Pool({ connectionString: URL_DONO });
     const hash = await gerarHashDeSenha(SENHA);
     const org = (await dono.query('insert into organizations (nome) values ($1) returning id', [`Carteira ${sufixo}`])).rows[0].id;
-    for (const quem of ['ana', 'beto']) {
+    for (const quem of ['ana', 'beto', 'carla']) {
       await dono.query("insert into users (organization_id, email, nome, papel, senha_hash) values ($1, $2, $3, 'usuario', $4)", [org, `${quem}.cart.${sufixo}@exemplo.test`, quem, hash]);
     }
     await dono.query("insert into series_opcoes (codigo, vencimento, ativo_objeto, tipo, strike, visto_primeiro, visto_ultimo) values ('CARTL145', '2026-12-18', 'CART3', 'call', 1450, '2026-11-23', '2026-11-23') on conflict do nothing");
     await dono.query("update series_opcoes set visto_ultimo = (select max(visto_ultimo) from series_opcoes) where codigo = 'CARTL145'");
+    await dono.query(`insert into series_opcoes (codigo, vencimento, ativo_objeto, tipo, strike, visto_primeiro, visto_ultimo) values
+      ('CARTT130', '2026-08-21', 'CART3', 'put', 1300, '2026-08-01', '2026-08-21'),
+      ('CARTG150', '2026-07-17', 'CART3', 'call', 1500, '2026-07-01', '2026-07-17') on conflict do nothing`);
     // Internet simulada: o arquivo COTAHIST da B3 do dia 24/11/2026 com uma série antiga.
     const arquivoB3 = zipDoCotahist('2026-11-24', [
       linhaCotahist({ codigo: 'CART3', tpmerc: 10, ult: 1434 }),
@@ -106,7 +110,7 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
       return { ok, status: ok ? 200 : 404, arrayBuffer: async () => { const b = ok ? arquivoB3 : Buffer.alloc(0); return b.buffer.slice(b.byteOffset, b.byteOffset + b.length) as ArrayBuffer; }, json: async () => ({}) };
     };
     app = await construirApp({ config, pool, correio: new CorreioDeTeste(), relogio: () => agora, buscar });
-    for (const quem of ['ana', 'beto']) {
+    for (const quem of ['ana', 'beto', 'carla']) {
       const r = await app.inject({ method: 'POST', url: '/api/auth/entrar', remoteAddress: '203.0.113.96', payload: { email: `${quem}.cart.${sufixo}@exemplo.test`, senha: SENHA } });
       assert.equal(r.statusCode, 200, r.body);
       sessoes[quem] = { cookie: `wtaopt_sessao=${r.cookies.find((c) => c.name === 'wtaopt_sessao')?.value}`, csrf: r.json().csrf };
@@ -225,5 +229,56 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     assert.equal(r.corpo.codigo, 'CARTL145');
     assert.deepEqual(r.corpo.notas, ['1001', '1002']);
     assert.equal(r.corpo.versoes.length, 2);
+  });
+
+  test('extrato da B3: prévia, importação com exercício e vencida, sem duplicar; a nota completa os custos', async () => {
+    const CAB = ['Data do Negócio', 'Tipo de Movimentação', 'Mercado', 'Prazo/Vencimento', 'Instituição', 'Código de Negociação', 'Quantidade', 'Preço', 'Valor'];
+    const xlsx = xlsxDeTeste([
+      CAB,
+      ['05/11/2026', 'Venda', 'Opção de Compra sobre Ações', '18/12/2026', 'BTG', 'CARTL145', 100, 0.4, 40],
+      ['05/11/2026', 'Compra', 'Mercado Fracionário', '-', 'BTG', 'CART3F', 10, 14.1, 141],
+      ['03/11/2026', 'Compra', 'Mercado à Vista', '-', 'BTG', 'CART3', 100, 14, 1400],
+      ['10/08/2026', 'Venda', 'Opção de Venda sobre Ações', '21/08/2026', 'CM', 'CARTT130', 100, 0.2, 20],
+      ['17/07/2026', 'Venda', 'Exercício de Opção de Compra', '17/07/2026', 'BTG', 'CARTG150E', 100, 15, 1500],
+      ['10/07/2026', 'Venda', 'Opção de Compra sobre Ações', '17/07/2026', 'BTG', 'CARTG150', 100, 0.3, 30],
+      ['01/06/2026', 'Compra', 'Mercado à Vista', '-', 'BTG', 'CART3', 100, 12, 1200],
+      ['16/07/2026', 'Compra', 'Renda Fixa', '-', 'BTG', 'LFTS11', 4, 156.4, 625.6],
+      ['18/03/2026', 'Compra', 'Futuro', '15/04/2026', 'GENIAL', 'WINJ26', 1, 181815, 36363],
+      ['02/06/2026', 'Compra', 'Opção de Compra sobre Ações', '19/06/2026', 'BTG', 'CARTF999', 100, 0.1, 10],
+    ]);
+    const ler = await pedir('carla', 'POST', '/api/extrato-b3/ler', { arquivo: { nome: 'negociacao.xlsx', conteudo: xlsx.toString('base64') } });
+    assert.equal(ler.status, 200, JSON.stringify(ler.corpo));
+    const p = ler.corpo;
+    assert.equal(p.negocios.length, 9);
+    assert.deepEqual(p.ignorados.map((i: any) => i.motivo), ['futuro']);
+    assert.deepEqual(p.anosPendentes, [2026]);
+    const ex = p.negocios.find((n: any) => n.mercado === 'exercicio_compra');
+    assert.deepEqual([ex.codigo, ex.acao, ex.strike, ex.tipo], ['CARTG150', 'CART3', 1500, 'call']);
+    assert.deepEqual(p.negocios.find((n: any) => n.codigo === 'CARTF999').falta, ['strike']);
+    const novos = p.negocios.filter((n: any) => !n.ja && !n.falta.length);
+    assert.equal(novos.length, 8);
+    const imp = await pedir('carla', 'POST', '/api/extrato-b3/importar', { negocios: novos });
+    assert.equal(imp.status, 201, JSON.stringify(imp.corpo));
+    assert.deepEqual(imp.corpo, { inseridos: 8, jaExistiam: 0, exercicios: 1, viraramPo: 1 });
+    const g = (await pedir('carla', 'GET', '/api/carteira')).corpo.grupos;
+    const cart = g.find((x: any) => x.ativoObjeto === 'CART3');
+    assert.deepEqual(cart.itens.filter((i: any) => !i.vencida).map((i: any) => [i.codigo, i.quantidade]), [['CART3', 110], ['CARTL145', -100]]);
+    assert.equal(g.find((x: any) => x.ativoObjeto === 'LFTS11').itens[0].quantidade, 4);
+    // O mesmo extrato de novo: tudo já está no sistema.
+    const de_novo = (await pedir('carla', 'POST', '/api/extrato-b3/ler', { arquivo: { nome: 'negociacao.xlsx', conteudo: xlsx.toString('base64') } })).corpo;
+    assert.equal(de_novo.negocios.filter((n: any) => !n.ja && !n.falta.length).length, 0);
+    const imp2 = await pedir('carla', 'POST', '/api/extrato-b3/importar', { negocios: novos });
+    assert.deepEqual([imp2.corpo.inseridos, imp2.corpo.jaExistiam], [0, 8]);
+    // Nota do mesmo negócio (03/11, 100 CART3 a 14,00): completa os custos, não duplica.
+    const notaDe = NOTA.filter(([, y]) => y !== 584).map(([x, y, t]) => [x, y,
+      t === '987654' ? '444001' : t === '24/11/2026' ? '03/11/2026' : t === '200' ? '100' : t === '14,34' ? '14,00' : t === '2.868,00' ? '1.400,00' : t === '2.794,90' ? '1.400,90' : t,
+    ] as [number, number, string]);
+    const lida = (await pedir('carla', 'POST', '/api/notas/ler', { arquivos: [{ nome: 'n.pdf', conteudo: pdfDeNota(notaDe).toString('base64') }] })).corpo.notas[0];
+    assert.equal(lida.conferida, true, JSON.stringify(lida));
+    assert.equal((await pedir('carla', 'POST', '/api/notas/importar', { notas: [lida] })).status, 201);
+    const cart2 = (await pedir('carla', 'GET', '/api/carteira')).corpo.grupos.find((x: any) => x.ativoObjeto === 'CART3');
+    const acao = cart2.itens.find((i: any) => i.codigo === 'CART3');
+    assert.equal(acao.quantidade, 110);
+    assert.ok(acao.precoMedioComCustos > acao.precoMedio, 'os custos da nota entraram no preço médio');
   });
 });
