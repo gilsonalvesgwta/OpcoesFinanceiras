@@ -478,11 +478,22 @@ test.describe.serial('jornada', () => {
     await page.getByRole('button', { name: 'Lançar' }).click();
     await expect(page.getByText('Compra de 100 ITUB4 lançada.')).toBeVisible();
     await expect.poll(qtdItub).toBe(antes + 100);
+    // Lotes: um por compra, com o preço de cada um e o preço médio geral.
+    await expect(page.getByRole('heading', { name: 'Seus lotes de ITUB4' })).toBeVisible();
+    await expect(page.getByText(/Comprado em 01\/10\/2026/)).toBeVisible();
+    await expect(page.getByText('Preço médio geral').first()).toBeVisible();
     await semViolacoes(page, 'carteira');
     await foto(page, 'carteira');
     // Simular a partir da posição real.
     await page.getByRole('link', { name: 'Simular com esta posição' }).first().click();
     await expect(page.getByText(/Sua posição em ITUB4 entrou na montagem/)).toBeVisible();
     await expect(page.getByText('sua posição real').first()).toBeVisible();
+    // Zerar a carteira (último teste: apaga as posições deste usuário).
+    await page.getByRole('link', { name: 'Minha carteira' }).click();
+    await expect(page.getByRole('button', { name: 'Zerar tudo' })).toBeDisabled();
+    await page.locator('#zerar-confirma').fill('zerar');
+    await page.getByRole('button', { name: 'Zerar tudo' }).click();
+    await expect(page.getByText(/Carteira zerada/)).toBeVisible();
+    await expect(page.getByText(/Nenhuma posição ainda/)).toBeVisible();
   });
 });

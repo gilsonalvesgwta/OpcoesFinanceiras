@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Cabecalho } from '../../../componentes/Casca.tsx';
 import { MensagemDeErro } from '../../../componentes/Acesso.tsx';
 import { Icone } from '../../../componentes/Icone.tsx';
+import { LotesDoAtivo } from '../../../componentes/LotesDoAtivo.tsx';
 import { chamar, ErroDaApi } from '../../../lib/api.ts';
 import { formatarData, formatarReais } from '../../../lib/formatos.ts';
 import { lerReais } from '../../../lib/simulador.ts';
@@ -73,6 +74,7 @@ function Grupo({ g }: { g: GrupoDaCarteira }) {
           </tbody>
         </table>
       </div>
+      {ativas.filter((i) => i.tipo === 'ativo' && i.quantidade > 0).map((i) => <LotesDoAtivo key={`lotes-${i.codigo}`} ativo={i.codigo} acao={i} callsVendidas={g.cobertura.callsVendidas} />)}
       <p className="linha-lista-apoio" style={{ margin: '0 24px', fontSize: 13 }}>
         {g.cobertura.acoes.toLocaleString('pt-BR')} ações · {g.cobertura.callsVendidas.toLocaleString('pt-BR')} calls vendidas · {g.cobertura.callsCompradas.toLocaleString('pt-BR')} calls compradas.
         {' '}Preço em destaque: MetaTrader 5 em tempo real.
@@ -97,6 +99,7 @@ export default function PaginaCarteira() {
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [zerar, setZerar] = useState('');
   const [inicial, setInicial] = useState({ codigo: '', lado: 'compra' as 'compra' | 'venda', quantidade: '', preco: '', data: '', strike: '', vencimento: '' });
   const arquivos = useRef<HTMLInputElement>(null);
 
@@ -197,6 +200,22 @@ export default function PaginaCarteira() {
     } catch (x) {
       const m = x instanceof ErroDaApi ? x.codigo : '';
       setErro(m === 'opcao_sem_strike_ou_vencimento' ? 'Essa opção não está no cadastro da B3 do sistema: preencha o strike e o vencimento.' : x instanceof Error ? x.message : 'Não foi possível lançar.');
+    }
+  }
+
+  async function zerarCarteira() {
+    if (zerar !== 'ZERAR') return;
+    setOcupado(true); setErro(null); setAviso(null);
+    try {
+      const r = await chamar<{ apagado: { estrategias: number; execucoes: number; notas: number } }>('POST', '/api/carteira/zerar', { confirmacao: 'ZERAR' });
+      setZerar('');
+      setPrevia(null);
+      setAviso(`Carteira zerada: ${r.apagado.estrategias} estratégia(s), ${r.apagado.execucoes} operação(ões) e ${r.apagado.notas} nota(s) apagadas. Pode começar a cadastrar do zero.`);
+      await carregar();
+    } catch (x) {
+      setErro(x instanceof Error ? x.message : 'Não foi possível zerar agora.');
+    } finally {
+      setOcupado(false);
     }
   }
 
@@ -324,6 +343,21 @@ export default function PaginaCarteira() {
             </tbody>
           </table></div>
         )}
+      </section>
+
+      <section className="secao zona-perigo" aria-labelledby="zerar-titulo">
+        <h2 id="zerar-titulo">Zerar minha carteira</h2>
+        <p className="linha-lista-apoio" style={{ margin: 0 }}>
+          Apaga <strong>todas</strong> as suas posições e estratégias (inclusive as lançadas em Posições), as operações, as rolagens, as notas importadas e os avisos de posições.
+          {' '}Continuam: alertas de preço, favoritos, carteiras simuladas, a chave do MetaTrader 5 e o Telegram. Não dá para desfazer.
+        </p>
+        <div className="boleta" style={{ alignItems: 'flex-end' }}>
+          <div className="campo" style={{ flex: '0 1 260px' }}>
+            <label htmlFor="zerar-confirma">Para confirmar, digite ZERAR</label>
+            <input id="zerar-confirma" value={zerar} autoComplete="off" onChange={(e) => setZerar(e.target.value.toUpperCase())} />
+          </div>
+          <button type="button" className="botao botao-perigo" disabled={zerar !== 'ZERAR' || ocupado} onClick={() => void zerarCarteira()}>Zerar tudo</button>
+        </div>
       </section>
 
       {carteira && (

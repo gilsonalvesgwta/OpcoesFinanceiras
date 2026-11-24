@@ -8,7 +8,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import {
-  consolidarCarteira, lerNotaDeCorretagem, resultadoEmAberto, situacaoDoMercado, vencimentoEstimado,
+  consolidarCarteira, lerNotaDeCorretagem, lotesAbertos, resultadoEmAberto, situacaoDoMercado, strikeParaOLote, vencimentoEstimado,
   type ConfiguracaoDoCalendario, type NotaLida,
 } from '@wta/domain';
 import { ErroHttp, ipDe, type Dependencias, type Sessao } from '../app.ts';
@@ -310,6 +310,21 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
     return reply.status(201).send({ id });
   });
 
+  // ---------- Zerar a carteira (só do próprio usuário) ----------
+
+  app.post('/api/carteira/zerar', {
+    config: { politica: 'autenticado' },
+    schema: { body: { type: 'object', additionalProperties: false, required: ['confirmacao'], properties: { confirmacao: { type: 'string', maxLength: 20 } } } },
+  }, async (req) => {
+    const s = req.sessao as Sessao;
+    if ((req.body as { confirmacao: string }).confirmacao !== 'ZERAR') throw new ErroHttp(400, 'confirmacao_invalida');
+    return emTransacao(pool, s.usuarioId, async (c) => {
+      const apagado = (await c.query('select app.zerar_carteira() as r')).rows[0]?.r as Record<string, number>;
+      await auditar(c, s, 'carteira.zerada', { tipo: 'usuario', id: s.usuarioId, antes: apagado }, ipDe(req));
+      return { apagado };
+    });
+  });
+
   // ---------- Carteira consolidada ----------
 
   app.get('/api/carteira', { config: { politica: 'autenticado' } }, async (req) => {
@@ -325,15 +340,59 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
          from execucoes x join estrategias e on e.id = x.estrategia_id where e.situacao = 'aberta' order by x.instante, x.criada_em`,
       )).rows;
       const ativoDe = new Map<string, string>(linhas.map((l) => [l.codigo as string, l.ativo_objeto as string]));
+      const execs = linhas.map(paraDominio);
       let posicoes;
       try {
-        posicoes = consolidarCarteira(linhas.map(paraDominio));
+        posicoes = consolidarCarteira(execs);
       } catch (e) {
         throw new ErroHttp(409, e instanceof Error ? e.message : 'carteira_inconsistente');
       }
       const abertas = posicoes.filter((p) => p.quantidade !== 0);
       const ativos = [...new Set(abertas.map((p) => ativoDe.get(p.codigo) as string))];
-      const cot = new Map((await cotacoesDoUsuario(c, [...new Set([...abertas.map((p) => p.codigo), ...ativos])], agora, cfg)).map((q) => [q.codigo, q]));
+
+      // Lotes das ações compradas e, para cada lote, a call sugerida para cobri-lo: série
+      // mensal do primeiro vencimento com pelo menos 5 dias, menor strike ≥ custo do lote.
+      const lotes = lotesAbertos(execs);
+      const seriesDoAtivo = new Map<string, { codigo: string; strike: number; vencimento: string }[]>();
+      for (const p of abertas) {
+        if (p.tipo !== 'ativo' || p.quantidade <= 0) continue;
+        const r = await c.query(
+          `select codigo, strike::int as strike, to_char(vencimento, 'YYYY-MM-DD') as vencimento from series_opcoes
+           where ativo_objeto = $1 and tipo = 'call' and vencimento >= $2::date + 5 and codigo !~ 'W[0-9]$'
+             and visto_ultimo >= (select max(visto_ultimo) from series_opcoes) - 5
+           order by vencimento, strike`, [p.codigo, hoje],
+        );
+        const primeiro = r.rows[0]?.vencimento as string | undefined;
+        seriesDoAtivo.set(p.codigo, r.rows.filter((x) => x.vencimento === primeiro) as { codigo: string; strike: number; vencimento: string }[]);
+      }
+      const sugeridas = new Map<string, { codigo: string; strike: number; vencimento: string }>();
+      for (const [codigo, ls] of lotes) for (const l of ls) {
+        const s = strikeParaOLote(l.precoComCustos, seriesDoAtivo.get(codigo) ?? []);
+        if (s) sugeridas.set(`${codigo}:${l.instante}`, s);
+      }
+      const codigosSugeridos = [...new Set([...sugeridas.values()].map((s) => s.codigo))];
+      const cot = new Map((await cotacoesDoUsuario(c, [...new Set([...abertas.map((p) => p.codigo), ...ativos, ...codigosSugeridos])], agora, cfg)).map((q) => [q.codigo, q]));
+      const diasAte = (v: string) => Math.round((Date.parse(`${v}T12:00:00Z`) - Date.parse(`${hoje}T12:00:00Z`)) / 86_400_000);
+      const lotesDe = (codigo: string, preco: number | null) => (lotes.get(codigo) ?? []).map((l) => {
+        const s = sugeridas.get(`${codigo}:${l.instante}`) ?? null;
+        const qs = s ? cot.get(s.codigo) ?? null : null;
+        const premio = qs ? (qs.bid ?? qs.ultimo ?? null) : null;
+        const custo = Math.round(l.quantidade * l.precoComCustos);
+        const resultado = preco !== null ? Math.round(l.quantidade * (preco - l.precoComCustos)) : null;
+        const seExercido = s ? Math.round(l.quantidade * (s.strike - l.precoComCustos + (premio ?? 0))) : null;
+        return {
+          instante: l.instante, data: new Date(l.instante).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }),
+          quantidadeOriginal: l.quantidadeOriginal, quantidade: l.quantidade, preco: l.preco, precoComCustos: l.precoComCustos, custo,
+          resultado, resultadoFracao: resultado !== null && custo > 0 ? resultado / custo : null,
+          sugestao: s ? {
+            codigo: s.codigo, strike: s.strike, vencimento: s.vencimento, dias: diasAte(s.vencimento),
+            premio, origemDoPremio: qs ? (qs.bid ? 'bid' : qs.ultimo ? 'ultimo' : null) : null, qualidade: qs?.qualidade ?? null,
+            receita: premio !== null ? Math.round(premio * l.quantidade) : null,
+            premioFracao: premio !== null ? premio / l.precoComCustos : null,
+            seExercido, seExercidoFracao: seExercido !== null && custo > 0 ? seExercido / custo : null,
+          } : null,
+        };
+      });
       const realizado = posicoes.reduce((t, p) => t + p.realizadoLiquido, 0);
       const realizadoBruto = posicoes.reduce((t, p) => t + p.realizadoBruto, 0);
       const custosPagos = posicoes.reduce((t, p) => t + p.custosPagos, 0);
@@ -360,7 +419,8 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
             preco, origemDoPreco: origem, qualidade: q?.qualidade ?? null, provedor: q?.provedor ?? null,
             valorDeMercado: preco !== null ? Math.round(p.quantidade * preco * p.multiplicador) : null,
             resultado: r?.valor ?? null, resultadoFracao: r?.fracao ?? null, realizadoLiquido: p.realizadoLiquido,
-            diasAteVencimento: p.vencimento && !vencida ? Math.round((Date.parse(`${p.vencimento}T12:00:00Z`) - Date.parse(`${hoje}T12:00:00Z`)) / 86_400_000) : null,
+            diasAteVencimento: p.vencimento && !vencida ? diasAte(p.vencimento) : null,
+            lotes: p.tipo === 'ativo' && p.quantidade > 0 ? lotesDe(p.codigo, preco) : [],
           };
         }).sort((a, b) => (a.tipo === 'ativo' ? -1 : b.tipo === 'ativo' ? 1 : (a.vencimento ?? '').localeCompare(b.vencimento ?? '') || (a.strike ?? 0) - (b.strike ?? 0)));
         const acoes = itens.filter((i) => i.tipo === 'ativo').reduce((t, i) => t + i.quantidade, 0);
@@ -387,6 +447,8 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
           'Opção vendida: o prêmio recebido, menos os custos, é o preço médio; o resultado em aberto ganha quando a opção cai.',
           'Preço de agora: ação pelo último negócio; opção pelo preço de quem encerraria (comprada no bid, vendida no ask) ou, sem oferta, pelo último.',
           'Entram todas as estratégias abertas em Posições. Opção vencida com quantidade aparece separada para você conferir.',
+          'Lotes: um por compra; as vendas abatem dos lotes mais antigos primeiro. O preço médio geral continua o da Receita.',
+          'Call sugerida por lote: série mensal do primeiro vencimento com 5 dias ou mais, menor strike que não fica abaixo do custo do lote; prêmio pelo bid. É uma referência, não recomendação.',
         ],
       };
     });

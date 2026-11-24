@@ -5,6 +5,15 @@ export type ItemDaCarteira = {
   quantidade: number; precoMedio: number; precoMedioComCustos: number; custoDaPosicao: number;
   preco: number | null; origemDoPreco: 'ultimo' | 'bid' | 'ask' | null; qualidade: string | null; provedor: string | null;
   valorDeMercado: number | null; resultado: number | null; resultadoFracao: number | null; realizadoLiquido: number; diasAteVencimento: number | null;
+  lotes?: LoteDaCarteira[];
+};
+export type SugestaoDoLote = {
+  codigo: string; strike: number; vencimento: string; dias: number; premio: number | null; origemDoPremio: 'bid' | 'ultimo' | null; qualidade: string | null;
+  receita: number | null; premioFracao: number | null; seExercido: number | null; seExercidoFracao: number | null;
+};
+export type LoteDaCarteira = {
+  instante: string; data: string; quantidadeOriginal: number; quantidade: number; preco: number; precoComCustos: number; custo: number;
+  resultado: number | null; resultadoFracao: number | null; sugestao: SugestaoDoLote | null;
 };
 export type GrupoDaCarteira = {
   ativoObjeto: string;
