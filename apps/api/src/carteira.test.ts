@@ -213,6 +213,12 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
       corretora: 'Corretora Teste CTVM S.A.', numero, dataPregao: '2026-11-20', custoTotal: 0, conferida: true, custos: {},
       negocios: [{ lado: 'venda', codigo: 'CARTL145', tipo: 'call', strike: 1450, vencimento, ativoObjeto: 'CART3', quantidade: 100, preco: 30, custos: 0 }],
     });
+    // Mesma série com strike ajustado por provento entre as notas: vale o da nota mais nova.
+    const ajustada = (numero: string, dataPregao: string, strike: number) => ({ ...nota(numero, '2026-12-18'), dataPregao, negocios: [{ ...nota(numero, '2026-12-18').negocios[0], strike }] });
+    const a = await pedir('beto', 'POST', '/api/notas/importar', { notas: [ajustada('2001', '2026-11-03', 1406), ajustada('2002', '2026-11-10', 1395)] });
+    assert.equal(a.status, 201, JSON.stringify(a.corpo));
+    const strikes = (await dono.query("select distinct x.strike from execucoes x join users u on u.id = x.user_id where u.email = $1 and x.codigo = 'CARTL145'", [`beto.cart.${sufixo}@exemplo.test`])).rows.map((x) => Number(x.strike));
+    assert.deepEqual(strikes, [1395]);
     const r = await pedir('beto', 'POST', '/api/notas/importar', { notas: [nota('1001', '2026-12-18'), nota('1002', '2026-12-11')] });
     assert.equal(r.status, 400, JSON.stringify(r.corpo));
     assert.equal(r.corpo.erro, 'codigo_com_dados_diferentes');

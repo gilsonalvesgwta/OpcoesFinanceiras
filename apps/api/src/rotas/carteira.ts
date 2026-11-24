@@ -206,6 +206,25 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
     const resultado = await emTransacao(pool, s.usuarioId, async (c) => {
       const saida: { numero: string; situacao: 'importada' | 'ja_importada'; execucoes: number }[] = [];
       const estrategias = new Set<string>();
+      // Strike ajustado por provento: a mesma série (código + vencimento) aparece com strikes
+      // diferentes em notas de datas diferentes. Vale o mais recente (o da nota mais nova),
+      // nas execuções novas e nas que já estavam na carteira.
+      const strikeAtual = new Map<string, { strike: number; data: string }>();
+      for (const nota of b.notas) for (const n of nota.negocios) {
+        if (n.tipo === 'ativo' || !n.strike || !n.vencimento) continue;
+        const chave = `${n.codigo}|${n.vencimento}`;
+        const ja = strikeAtual.get(chave);
+        if (!ja || nota.dataPregao >= ja.data) strikeAtual.set(chave, { strike: n.strike, data: nota.dataPregao });
+      }
+      for (const [chave, v] of strikeAtual) {
+        const [codigo, vencimento] = chave.split('|') as [string, string];
+        const depois = (await c.query(
+          `select strike from execucoes where codigo = $1 and vencimento = $2 and instante >= $3::date + 1 order by instante desc limit 1`,
+          [codigo, vencimento, v.data],
+        )).rows[0];
+        if (depois) v.strike = Number(depois.strike);
+        await c.query('update execucoes set strike = $3 where codigo = $1 and vencimento = $2 and strike <> $3', [codigo, vencimento, v.strike]);
+      }
       for (const nota of b.notas) {
         for (const n of nota.negocios) {
           if (n.tipo !== 'ativo' && (!n.strike || !n.vencimento)) throw new ErroHttp(400, 'opcao_sem_strike_ou_vencimento', { nota: nota.numero, codigo: n.codigo });
@@ -226,7 +245,7 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
           k += 1;
           const id = await inserirExecucao(c, s.usuarioId, est, {
             codigo: n.codigo, tipo: n.tipo, lado: n.lado, quantidade: n.quantidade, preco: n.preco, custos: n.custos, instante,
-            ...(n.tipo !== 'ativo' ? { strike: n.strike as number, vencimento: n.vencimento as string } : {}),
+            ...(n.tipo !== 'ativo' ? { strike: strikeAtual.get(`${n.codigo}|${n.vencimento}`)?.strike ?? n.strike as number, vencimento: n.vencimento as string } : {}),
             observacao: `Nota ${nota.numero}${n.observacao ? ` (${n.observacao})` : ''}`,
           }, 'nota_corretagem');
           await c.query('update execucoes set nota_id = $1 where id = $2', [notaId, id]);
