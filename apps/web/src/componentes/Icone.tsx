@@ -8,6 +8,7 @@ const CAMINHOS = {
   alertas: 'M6 16V11a6 6 0 1112 0v5l2 2H4l2-2zM10 20a2 2 0 004 0',
   posicoes: 'M4 8h16v11H4zM9 8V5h6v3',
   carteira: 'M3 7h15a3 3 0 013 3v7a3 3 0 01-3 3H3zM3 7l12-4v4M16 13h2',
+  fazenda: 'M4 9l3-4h10l3 4M6 9v5a6 6 0 0012 0V9M9 13h.01M15 13h.01M10 17h4M4 9H2M20 9h2',
   simulador: 'M4 20V4M4 20h16M7 16l4-6 3 3 5-7M17 6h2v2',
   rolagens: 'M4 12a8 8 0 0114-5l2-2v6h-6l2-2a5 5 0 00-9 3M20 12a8 8 0 01-14 5l-2 2v-6h6l-2 2a5 5 0 009-3',
   historico: 'M12 7v5l3 2M3 12a9 9 0 109-9 9 9 0 00-7 3M3 4v4h4',

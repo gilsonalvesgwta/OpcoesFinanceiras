@@ -118,6 +118,10 @@ export function textoDoErroDasNotas(x: unknown, padrao: string): string {
     case 'extrato_nao_e_planilha': return 'O arquivo não é uma planilha do Excel (.xlsx ou .xls). Na B3, exporte o extrato em Excel.';
     case 'nao_e_extrato_da_b3': return 'A planilha não parece o extrato de negociação da B3 (faltam as colunas "Data do Negócio" e "Código de Negociação").';
     case 'extrato_ilegivel': return 'Não consegui abrir esta planilha.';
+    case 'vaca_ja_existe': return 'Já existe uma vaca com esse nome.';
+    case 'fazenda_nao_e_planilha': return 'O arquivo não é uma planilha .xlsx. No Google Sheets: Arquivo → Fazer download → Microsoft Excel (.xlsx).';
+    case 'fazenda_planilha_ilegivel': return 'Não consegui abrir esta planilha.';
+    case 'fazenda_sem_vacas': return 'Não achei nenhuma aba de vaca (com "Data da Operação", "Operação", "Tipo", "Quantidade", "Ticker" e "Preço").';
     case 'data_no_futuro': return `Há um negócio com data no futuro${cod ? ` (${cod})` : ''}.`;
     default:
       return e.codigo && e.codigo !== 'erro_interno' ? `${e.message} (código: ${e.codigo}${notas ? `,${notas.replace(/[()]/g, '')}` : ''}${cod ? `, ${cod}` : ''})` : `${e.message}${e.status ? ` (resposta ${e.status})` : ''}`;

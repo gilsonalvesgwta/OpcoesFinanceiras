@@ -506,4 +506,21 @@ test.describe.serial('jornada', () => {
     await expect(page.getByText(/Carteira zerada/)).toBeVisible();
     await expect(page.getByText(/Nenhuma posição ainda/)).toBeVisible();
   });
+
+  test('vaca (fazenda): cria uma vaca e vê o painel dela', async ({ page }) => {
+    await entrarNoPainel(page, EMAIL, SENHA);
+    await page.getByRole('link', { name: 'Vaca (Fazenda)' }).click();
+    await expect(page.getByRole('heading', { name: 'Vaca (Fazenda)', level: 1 })).toBeVisible();
+    await expect(page.getByText('Comece o rebanho')).toBeVisible();
+    await page.getByRole('button', { name: 'Nova vaca' }).click();
+    await page.getByLabel('Nome').fill('mimosa');
+    await page.getByLabel('Margem (R$)').fill('3.761,52');
+    await page.getByLabel('Tamanho da perna').fill('120');
+    await page.getByRole('button', { name: 'Criar' }).click();
+    await expect(page.getByText('Vaca MIMOSA criada.')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'MIMOSA', level: 2 })).toBeVisible();
+    await expect(page.getByText('Ordenha total')).toBeVisible();
+    await semViolacoes(page, 'fazenda');
+    await foto(page, 'fazenda');
+  });
 });

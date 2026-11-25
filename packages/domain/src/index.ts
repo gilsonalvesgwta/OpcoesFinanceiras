@@ -24,3 +24,4 @@ export * from './simulador.ts';
 export * from './nota-corretagem.ts';
 export * from './carteira.ts';
 export * from './extrato-b3.ts';
+export * from './fazenda.ts';
