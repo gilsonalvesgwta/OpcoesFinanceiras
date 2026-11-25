@@ -578,3 +578,32 @@ tr.linha-perna-v-put th:first-child { box-shadow: inset 4px 0 0 var(--atencao); 
   .vaca-detalhe > *:not(.vaca-faixa) { margin: 0 12px; }
 }
 .fazenda-numeros dd.fazenda-nota { font-size: 12px; font-weight: 500; color: #f8e5c8; }
+
+/* Lotes por faixa de preço (substitui a régua de bolinhas). */
+.faixas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.faixa { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--linha); border-radius: 12px; background: var(--painel); }
+.faixa-cabeca { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(80px, 2fr) minmax(70px, auto) minmax(110px, auto); align-items: center; gap: 14px; }
+.faixa-preco, .faixa-qtd { display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
+.faixa-qtd { align-items: flex-end; }
+.faixa-qtd strong { font-size: 18px; }
+.faixa-barra { height: 10px; border-radius: 999px; background: var(--trilho); overflow: hidden; }
+.faixa-barra span { display: block; height: 100%; border-radius: 999px; }
+.faixa-resultado { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; font-variant-numeric: tabular-nums; }
+.faixa-resultado small { font-weight: 500; font-size: 12px; }
+.faixa-marcas { display: flex; flex-wrap: wrap; gap: 6px; }
+.faixa-selo { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid currentColor; }
+.faixa-selo.agora { color: var(--vivo); }
+.faixa-selo.pm { color: var(--latao); }
+.faixa-sugestao { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px 18px; padding: 10px 12px; border-left: 3px solid var(--latao); border-radius: 8px; background: var(--painel2); }
+.faixa-sugestao-texto { display: flex; flex-direction: column; gap: 2px; }
+.faixa-numeros { display: flex; gap: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.faixa-numeros > span { display: flex; flex-direction: column; }
+.faixa-numeros small { font-weight: 500; }
+.faixa-sem { margin: 0; }
+@media (max-width: 760px) {
+  .faixa-cabeca { grid-template-columns: 1fr auto; }
+  .faixa-barra { grid-column: 1 / -1; order: 3; }
+  .faixa-resultado { display: none; }
+  .faixa-sugestao { grid-template-columns: 1fr; }
+  .faixa-numeros { flex-wrap: wrap; gap: 10px 16px; }
+}
