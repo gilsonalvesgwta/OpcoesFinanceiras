@@ -489,7 +489,11 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
         const acoes = itens.filter((i) => i.tipo === 'ativo').reduce((t, i) => t + i.quantidade, 0);
         const callsVendidas = itens.filter((i) => i.tipo === 'call' && !i.vencida && i.quantidade < 0).reduce((t, i) => t - i.quantidade, 0);
         const callsCompradas = itens.filter((i) => i.tipo === 'call' && !i.vencida && i.quantidade > 0).reduce((t, i) => t + i.quantidade, 0);
-        const soma = (f: (i: (typeof itens)[number]) => number | null) => itens.filter((i) => !i.vencida).reduce<number | null>((t, i) => (t === null || f(i) === null ? null : t + (f(i) as number)), 0);
+        // Soma o que tem preço; o que está sem preço agora fica de fora (e é sinalizado).
+        const soma = (f: (i: (typeof itens)[number]) => number | null) => {
+          const v = itens.filter((i) => !i.vencida).map(f).filter((x): x is number => x !== null);
+          return v.length ? v.reduce((t, x) => t + x, 0) : null;
+        };
         return {
           ativoObjeto: ativo,
           cotacao: qAtivo ? { ultimo: qAtivo.ultimo, bid: qAtivo.bid, ask: qAtivo.ask, fechamentoAnterior: qAtivo.fechamentoAnterior, qualidade: qAtivo.qualidade, provedor: qAtivo.provedor, instanteDaFonte: qAtivo.instanteDaFonte } : null,
@@ -498,6 +502,7 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
           valorDeMercado: soma((i) => i.valorDeMercado),
           resultado: soma((i) => i.resultado),
           custo: itens.filter((i) => !i.vencida).reduce((t, i) => t + Math.sign(i.quantidade) * i.custoDaPosicao, 0),
+          semPreco: itens.filter((i) => !i.vencida && i.preco === null).map((i) => i.codigo),
         };
       });
       // Classe de cada ativo (ações, FIIs, ETFs, renda fixa, BDRs) pela especificação da B3.
@@ -529,12 +534,12 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
         return { series: l.length, resultado, base, fracao: base > 0 ? resultado / base : null, ganhos: l.filter((o) => o.resultado > 0).length, perdas: l.filter((o) => o.resultado < 0).length };
       };
 
-      const total = (k: 'valorDeMercado' | 'resultado') => grupos.reduce<number | null>((t, g) => (t === null || g[k] === null ? null : t + (g[k] as number)), 0);
+      const total = (k: 'valorDeMercado' | 'resultado') => { const v = grupos.map((g) => g[k]).filter((x): x is number => x !== null); return v.length ? v.reduce((t, x) => t + x, 0) : null; };
       return {
         agora: agora.toISOString(), hoje, mercadoAberto: mercado.aberto,
         grupos: gruposComClasse,
         opcoes: { series: opcoes, encerradas: somaOpc((o) => o.encerrada), abertas: somaOpc((o) => !o.encerrada), todas: somaOpc(() => true) },
-        totais: { valorDeMercado: total('valorDeMercado'), resultadoEmAberto: total('resultado'), realizadoLiquido: realizado, realizadoBruto, custosPagos },
+        totais: { semPreco: grupos.flatMap((g) => g.semPreco), valorDeMercado: total('valorDeMercado'), resultadoEmAberto: total('resultado'), realizadoLiquido: realizado, realizadoBruto, custosPagos },
         premissas: [
           'Preço médio com custos: compras somam os custos da nota ao preço (como na apuração da Receita); vendas não mudam o preço médio.',
           'Opção vendida: o prêmio recebido, menos os custos, é o preço médio; o resultado em aberto ganha quando a opção cai.',

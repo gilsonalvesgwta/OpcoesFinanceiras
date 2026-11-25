@@ -36,7 +36,7 @@ export type SomaDasOpcoes = { series: number; resultado: number; base: number; f
 export type Carteira = {
   agora: string; hoje: string; mercadoAberto: boolean; grupos: (GrupoDaCarteira & { classe: ClasseDoAtivo })[];
   opcoes: { series: SerieDeOpcao[]; encerradas: SomaDasOpcoes; abertas: SomaDasOpcoes; todas: SomaDasOpcoes };
-  totais: { valorDeMercado: number | null; resultadoEmAberto: number | null; realizadoLiquido: number; realizadoBruto: number; custosPagos: number };
+  totais: { semPreco?: string[]; valorDeMercado: number | null; resultadoEmAberto: number | null; realizadoLiquido: number; realizadoBruto: number; custosPagos: number };
   premissas: string[];
 };
 
