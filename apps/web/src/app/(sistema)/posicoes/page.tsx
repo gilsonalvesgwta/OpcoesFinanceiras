@@ -163,7 +163,7 @@ function preencherDaSerie(f: FormularioDaPerna, s: Serie): Partial<FormularioDaP
 
 // ---------- Cartão de uma estratégia ----------
 
-function CartaoDaEstrategia({ e, aoAgir }: { e: Estrategia; aoAgir: (fn: () => Promise<unknown>, texto: string) => Promise<boolean> }) {
+function CartaoDaEstrategia({ e, aoAgir, aberto, alternar }: { e: Estrategia; aoAgir: (fn: () => Promise<unknown>, texto: string) => Promise<boolean>; aberto: boolean; alternar: () => void }) {
   const [registrando, setRegistrando] = useState<FormularioDaPerna | null>(null);
   const [erroForm, setErroForm] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState<string | null>(null);
@@ -187,12 +187,28 @@ function CartaoDaEstrategia({ e, aoAgir }: { e: Estrategia; aoAgir: (fn: () => P
     if (ok) setRegistrando(null);
   }
 
+  // Resumo de uma linha (sempre visível); o resto abre ao clicar.
+  const pernas = abertos.map((i) => `${i.quantidade > 0 ? '' : '−'}${Math.abs(i.quantidade).toLocaleString('pt-BR')} ${i.codigo}`).join(' · ');
+  const alerta = Boolean(e.erro) || descobertas > 0;
+  const corpoId = `est-corpo-${e.id}`;
   return (
-    <section className="secao" aria-labelledby={`est-${e.id}`}>
+    <section className="secao classe-secao est-item" aria-labelledby={`est-${e.id}`}>
+      <h2 id={`est-${e.id}`} className="est-titulo">
+        <button type="button" className="ativo-cabeca est-cabeca" aria-expanded={aberto} {...(aberto ? { 'aria-controls': corpoId } : {})} onClick={alternar}>
+          <span className="ativo-nome">
+            <strong>{e.nome}{alerta && <span className="est-alerta" title="Precisa de atenção"> ⚠</span>}</strong>
+            <span>{e.ativoObjeto}{e.ativo ? ` ${formatarReais(e.ativo.ultimo)}` : ''}{pernas ? ` · ${pernas}` : ''}{proximo ? ` · vence em ${proximo.diasCorridos} d` : ''}</span>
+          </span>
+          <span className={`ativo-col ${classeDoValor(r?.realizadoLiquido ?? null)}`}><span className="ativo-rotulo">Realizado</span>{r ? formatarReais(r.realizadoLiquido) : '—'}</span>
+          <span className={`ativo-col ${classeDoValor(r?.naoRealizadoEstimado ?? null)}`}><span className="ativo-rotulo">Em aberto</span>{!encerrada && r ? formatarReais(r.naoRealizadoEstimado) : '—'}</span>
+          <span className="ativo-col"><span className="ativo-rotulo">Situação</span>{encerrada ? 'Encerrada' : `${abertos.length} perna${abertos.length === 1 ? '' : 's'}`}</span>
+          <span className="ativo-seta" aria-hidden="true">{aberto ? '▴' : '▾'}</span>
+        </button>
+      </h2>
+      {aberto && <div id={corpoId} className="est-corpo">
       <div className="secao-topo">
         <div className="ponte-texto">
           <div className="ponte-nome">
-            <h2 id={`est-${e.id}`} style={{ fontSize: 20 }}>{e.nome}</h2>
             <span className={`selo ${encerrada ? 'selo-neutro' : 'selo-alta'}`}>{encerrada ? `Encerrada em ${e.encerradaEm ? formatarData(e.encerradaEm) : '—'}` : 'Aberta'}</span>
           </div>
           <span className="ponte-apoio">
@@ -266,7 +282,7 @@ function CartaoDaEstrategia({ e, aoAgir }: { e: Estrategia; aoAgir: (fn: () => P
       {!encerrada && <GraficoDoPayoff e={e} />}
 
       {abertos.length > 0 && (
-        <div className="tabela-caixa" tabIndex={0} role="region" aria-label={`Pernas abertas de ${e.nome}`} style={{ margin: '0 -24px' }}>
+        <div className="tabela-caixa" tabIndex={0} role="region" aria-label={`Pernas abertas de ${e.nome}`} style={{ margin: '0 -20px' }}>
           <table className="tabela">
             <thead>
               <tr>
@@ -364,6 +380,7 @@ function CartaoDaEstrategia({ e, aoAgir }: { e: Estrategia; aoAgir: (fn: () => P
           ))}
         </div>
       </details>
+      </div>}
     </section>
   );
 }
@@ -396,7 +413,7 @@ function Cenarios({ e }: { e: Estrategia }) {
           {!r && !erro && <p className="secao-vazia" role="status">Calculando…</p>}
           {r && (
             <>
-              <div className="tabela-caixa" tabIndex={0} role="region" aria-label={`Cenários de ${e.nome}`} style={{ margin: '0 -24px' }}>
+              <div className="tabela-caixa" tabIndex={0} role="region" aria-label={`Cenários de ${e.nome}`} style={{ margin: '0 -20px' }}>
                 <table className="tabela">
                   <thead>
                     <tr>
@@ -475,6 +492,9 @@ function AvisosDasPosicoes({ eventos, aoLer }: { eventos: EventoDePosicao[]; aoL
 
 export default function PaginaPosicoes() {
   const [dados, setDados] = useState<RespostaDePosicoes | null>(null);
+  // Estratégias abertas na tela: com até 3, todas abertas; com mais, uma lista limpa que abre ao clicar.
+  const [expandidas, setExpandidas] = useState<Set<string> | null>(null);
+  const alternarEstrategia = (id: string) => setExpandidas((s) => { const n = new Set(s ?? []); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const [corretora, setCorretora] = useState<PosicaoDaCorretora[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -621,11 +641,36 @@ export default function PaginaPosicoes() {
         </section>
       )}
 
-      {abertas.map((e) => <CartaoDaEstrategia key={e.id} e={e} aoAgir={agir} />)}
+      {abertas.length > 0 && (() => {
+        const realizado = abertas.reduce((t, e) => t + (e.resultado?.realizadoLiquido ?? 0), 0);
+        const semPreco = abertas.some((e) => e.resultado && e.resultado.naoRealizadoEstimado === null);
+        const emAberto = abertas.reduce((t, e) => t + (e.resultado?.naoRealizadoEstimado ?? 0), 0);
+        const atencao = abertas.filter((e) => e.erro).length;
+        return (
+          <div className="carteira-cartoes">
+            <div className="carteira-cartao destaque"><span className="lotes-rotulo">Estratégias abertas</span><strong>{abertas.length}</strong><span className="lotes-rotulo">clique numa linha para ver pernas, gráfico e histórico</span></div>
+            <div className="carteira-cartao"><span className="lotes-rotulo">Realizado (líquido)</span><strong className={classeDoValor(realizado)}>{formatarReais(realizado)}</strong><span className="lotes-rotulo">das estratégias abertas</span></div>
+            <div className="carteira-cartao"><span className="lotes-rotulo">Em aberto (estimado)</span><strong className={classeDoValor(emAberto)}>{formatarReais(emAberto)}</strong><span className="lotes-rotulo">{semPreco ? 'há pernas sem preço agora' : 'pelo preço para sair agora'}</span></div>
+            {atencao > 0 && <div className="carteira-cartao"><span className="lotes-rotulo">Precisam de atenção</span><strong className="resultado-baixa">{atencao}</strong><span className="lotes-rotulo">operações que não fecham entre si (⚠)</span></div>}
+          </div>
+        );
+      })()}
+      {abertas.length > 0 && (
+        <ul className="est-lista">
+          {abertas.map((e) => (
+            <li key={e.id}>
+              <CartaoDaEstrategia e={e} aoAgir={agir} aberto={expandidas ? expandidas.has(e.id) : abertas.length <= 3} alternar={() => {
+                if (!expandidas) setExpandidas(new Set(abertas.length <= 3 ? abertas.map((x) => x.id) : []));
+                alternarEstrategia(e.id);
+              }} />
+            </li>
+          ))}
+        </ul>
+      )}
 
       {exposicoes.length > 0 && (
-        <section className="secao secao-tabela" aria-labelledby="exp-titulo">
-          <div className="secao-topo"><h2 id="exp-titulo">Exposição somada</h2><span className="linha-lista-apoio">Todas as estratégias abertas, por ativo e vencimento, em quantidade de ações.</span></div>
+        <details className="secao secao-tabela dobra">
+          <summary className="secao-topo"><h2 id="exp-titulo" style={{ display: 'inline' }}>Exposição somada</h2><span className="linha-lista-apoio">Todas as estratégias abertas, por ativo e vencimento, em quantidade de ações.</span></summary>
           <div className="tabela-caixa" tabIndex={0} role="region" aria-label="Exposição por ativo e vencimento">
             <table className="tabela">
               <thead>
@@ -649,15 +694,16 @@ export default function PaginaPosicoes() {
               </tbody>
             </table>
           </div>
-        </section>
+        </details>
       )}
 
       {conferencia.length > 0 && (
-        <section className="secao" aria-labelledby="mt5-titulo">
-          <div className="secao-topo">
-            <h2 id="mt5-titulo">Conferência com a corretora</h2>
-            <span className="linha-lista-apoio">O que o MetaTrader 5 mostra × o que está registrado aqui. <Link href="/preferencias#metatrader">Ponte MT5</Link></span>
-          </div>
+        <details className="secao dobra">
+          <summary className="secao-topo">
+            <h2 id="mt5-titulo" style={{ display: 'inline' }}>Conferência com a corretora</h2>
+            <span className="linha-lista-apoio">O que o MetaTrader 5 mostra × o que está registrado aqui.</span>
+          </summary>
+          <p className="linha-lista-apoio" style={{ margin: 0 }}><Link href="/preferencias#metatrader">Ponte MT5</Link></p>
           <div className="pontes">
             {conferencia.map((c) => {
               const pode = c.situacao === 'nao_registrada' || c.situacao === 'diferente';
@@ -708,12 +754,12 @@ export default function PaginaPosicoes() {
               </button>
             </div>
           )}
-        </section>
+        </details>
       )}
 
       {encerradas.length > 0 && (
-        <section className="secao" aria-labelledby="enc-titulo">
-          <h2 id="enc-titulo">Encerradas</h2>
+        <details className="secao dobra">
+          <summary><h2 id="enc-titulo" style={{ display: 'inline' }}>Encerradas ({encerradas.length})</h2></summary>
           <div className="pontes">
             {encerradas.map((e) => (
               <div key={e.id} className="ponte" style={{ padding: '10px 14px' }}>
@@ -728,7 +774,7 @@ export default function PaginaPosicoes() {
               </div>
             ))}
           </div>
-        </section>
+        </details>
       )}
 
       {dados && (
