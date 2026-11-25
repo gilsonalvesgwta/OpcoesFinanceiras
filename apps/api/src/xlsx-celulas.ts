@@ -26,24 +26,12 @@ function coluna(ref: string): number {
   return n - 1;
 }
 
-export function celulasDoXlsx(bytes: Buffer): CelulaXls[] {
-  if (bytes.length > 10 * 1024 * 1024) throw new Error('xlsx_grande_demais');
-  let arquivos: Map<string, Buffer>;
-  try { arquivos = arquivosDoZip(bytes); } catch { throw new Error('xlsx_ilegivel'); }
-  const ler = (n: string) => arquivos.get(n)?.toString('utf8') ?? null;
-  const compartilhados = [...(ler('xl/sharedStrings.xml') ?? '').matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => juntarT(m[1] as string));
-  // Primeira aba: workbook.xml → r:id → workbook.xml.rels → caminho.
-  let caminho = 'xl/worksheets/sheet1.xml';
-  const wb = ler('xl/workbook.xml');
-  const rels = ler('xl/_rels/workbook.xml.rels');
-  const rid = wb ? /<sheet\b[^>]*\br:id="([^"]+)"/.exec(wb)?.[1] : undefined;
-  if (rid && rels) {
-    const alvo = new RegExp(`<Relationship\\b[^>]*Id="${rid}"[^>]*Target="([^"]+)"`).exec(rels)?.[1]
-      ?? new RegExp(`<Relationship\\b[^>]*Target="([^"]+)"[^>]*Id="${rid}"`).exec(rels)?.[1];
-    if (alvo) caminho = alvo.startsWith('/') ? alvo.slice(1) : `xl/${alvo.replace(/^\.\//, '')}`;
-  }
-  const folha = ler(caminho);
-  if (!folha) throw new Error('xlsx_sem_planilha');
+function lerArquivos(bytes: Buffer): Map<string, Buffer> {
+  if (bytes.length > 12 * 1024 * 1024) throw new Error('xlsx_grande_demais');
+  try { return arquivosDoZip(bytes, 120 * 1024 * 1024); } catch { throw new Error('xlsx_ilegivel'); }
+}
+
+function celulasDaFolha(folha: string, compartilhados: readonly string[]): CelulaXls[] {
   const r: CelulaXls[] = [];
   for (const m of folha.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
     const attrs = m[1] as string;
@@ -60,4 +48,36 @@ export function celulasDoXlsx(bytes: Buffer): CelulaXls[] {
     r.push({ linha: Number(/\d+$/.exec(ref)?.[0]) - 1, coluna: coluna(ref), texto: valor });
   }
   return r.sort((a, b) => a.linha - b.linha || a.coluna - b.coluna);
+}
+
+// Todas as abas, na ordem do arquivo, com o nome de cada uma.
+export function planilhasDoXlsx(bytes: Buffer): { nome: string; celulas: CelulaXls[] }[] {
+  const arquivos = lerArquivos(bytes);
+  const ler = (n: string) => arquivos.get(n)?.toString('utf8') ?? null;
+  const compartilhados = [...(ler('xl/sharedStrings.xml') ?? '').matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => juntarT(m[1] as string));
+  const wb = ler('xl/workbook.xml') ?? '';
+  const rels = ler('xl/_rels/workbook.xml.rels') ?? '';
+  const alvos = new Map<string, string>();
+  for (const m of rels.matchAll(/<Relationship\b[^>]*>/g)) {
+    const id = /\bId="([^"]+)"/.exec(m[0])?.[1];
+    const alvo = /\bTarget="([^"]+)"/.exec(m[0])?.[1];
+    if (id && alvo) alvos.set(id, alvo.startsWith('/') ? alvo.slice(1) : `xl/${alvo.replace(/^\.\//, '')}`);
+  }
+  const r: { nome: string; celulas: CelulaXls[] }[] = [];
+  for (const m of wb.matchAll(/<sheet\b[^>]*>/g)) {
+    const nome = texto(/\bname="([^"]*)"/.exec(m[0])?.[1] ?? '');
+    const rid = /\br:id="([^"]+)"/.exec(m[0])?.[1];
+    const folha = rid ? ler(alvos.get(rid) ?? '') : null;
+    if (folha) r.push({ nome, celulas: celulasDaFolha(folha, compartilhados) });
+  }
+  if (!r.length) {
+    const folha = ler('xl/worksheets/sheet1.xml');
+    if (folha) r.push({ nome: 'Planilha1', celulas: celulasDaFolha(folha, compartilhados) });
+  }
+  if (!r.length) throw new Error('xlsx_sem_planilha');
+  return r;
+}
+
+export function celulasDoXlsx(bytes: Buffer): CelulaXls[] {
+  return (planilhasDoXlsx(bytes)[0] as { celulas: CelulaXls[] }).celulas;
 }

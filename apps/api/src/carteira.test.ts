@@ -81,7 +81,7 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     convite: { validade: '7 days' }, recuperacao: { validade: '30 minutes' }, superadmin: null,
   };
   const sessoes: Record<string, { cookie: string; csrf: string }> = {};
-  async function pedir(quem: string, metodo: 'GET' | 'POST' | 'DELETE', url: string, payload?: unknown) {
+  async function pedir(quem: string, metodo: 'GET' | 'POST' | 'DELETE' | 'PATCH', url: string, payload?: unknown) {
     const s = sessoes[quem];
     const headers: Record<string, string> = s ? { cookie: s.cookie, 'x-csrf-token': s.csrf } : {};
     const r = await app.inject({ method: metodo, url, headers, remoteAddress: '203.0.113.96', ...(payload === undefined ? {} : { payload: payload as object }) });
@@ -92,14 +92,16 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     dono = new pg.Pool({ connectionString: URL_DONO });
     const hash = await gerarHashDeSenha(SENHA);
     const org = (await dono.query('insert into organizations (nome) values ($1) returning id', [`Carteira ${sufixo}`])).rows[0].id;
-    for (const quem of ['ana', 'beto', 'carla']) {
+    for (const quem of ['ana', 'beto', 'carla', 'davi']) {
       await dono.query("insert into users (organization_id, email, nome, papel, senha_hash) values ($1, $2, $3, 'usuario', $4)", [org, `${quem}.cart.${sufixo}@exemplo.test`, quem, hash]);
     }
     await dono.query("insert into series_opcoes (codigo, vencimento, ativo_objeto, tipo, strike, visto_primeiro, visto_ultimo) values ('CARTL145', '2026-12-18', 'CART3', 'call', 1450, '2026-11-23', '2026-11-23') on conflict do nothing");
     await dono.query("update series_opcoes set visto_ultimo = (select max(visto_ultimo) from series_opcoes) where codigo = 'CARTL145'");
     await dono.query(`insert into series_opcoes (codigo, vencimento, ativo_objeto, tipo, strike, visto_primeiro, visto_ultimo) values
       ('CARTT130', '2026-08-21', 'CART3', 'put', 1300, '2026-08-01', '2026-08-21'),
-      ('CARTG150', '2026-07-17', 'CART3', 'call', 1500, '2026-07-01', '2026-07-17') on conflict do nothing`);
+      ('CARTG150', '2026-07-17', 'CART3', 'call', 1500, '2026-07-01', '2026-07-17'),
+      ('FAZEL160', '2026-12-18', 'FAZE11', 'call', 16000, '2026-11-01', '2026-11-20'),
+      ('FAZEX150', '2026-12-18', 'FAZE11', 'put', 15000, '2026-11-01', '2026-11-20') on conflict do nothing`);
     // Internet simulada: o arquivo COTAHIST da B3 do dia 24/11/2026 com uma série antiga.
     const arquivoB3 = zipDoCotahist('2026-11-24', [
       linhaCotahist({ codigo: 'CART3', tpmerc: 10, ult: 1434 }),
@@ -110,7 +112,7 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
       return { ok, status: ok ? 200 : 404, arrayBuffer: async () => { const b = ok ? arquivoB3 : Buffer.alloc(0); return b.buffer.slice(b.byteOffset, b.byteOffset + b.length) as ArrayBuffer; }, json: async () => ({}) };
     };
     app = await construirApp({ config, pool, correio: new CorreioDeTeste(), relogio: () => agora, buscar });
-    for (const quem of ['ana', 'beto', 'carla']) {
+    for (const quem of ['ana', 'beto', 'carla', 'davi']) {
       const r = await app.inject({ method: 'POST', url: '/api/auth/entrar', remoteAddress: '203.0.113.96', payload: { email: `${quem}.cart.${sufixo}@exemplo.test`, senha: SENHA } });
       assert.equal(r.statusCode, 200, r.body);
       sessoes[quem] = { cookie: `wtaopt_sessao=${r.cookies.find((c) => c.name === 'wtaopt_sessao')?.value}`, csrf: r.json().csrf };
@@ -286,5 +288,43 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     const acao = cart2.itens.find((i: any) => i.codigo === 'CART3');
     assert.equal(acao.quantidade, 110);
     assert.ok(acao.precoMedioComCustos > acao.precoMedio, 'os custos da nota entraram no preço médio');
+  });
+
+  test('fazenda: importa a planilha da vaca, faz as contas e distribui sozinha as operações das notas', async () => {
+    const CAB = ['Data da Operação', 'Operação', 'Tipo', 'Prazo', 'Quantidade', 'Ticker', 'Strike', 'Em Custódia', 'Vencimento', 'Preço', 'Total', 'Saldo'];
+    const xlsx = xlsxDeTeste([
+      [], [null, 'Data da Compra da Bonito'],
+      [null, null, null, null, null, null, 'Data da Compra', '01/11/2026', null, null, 'Rentabilidade'],
+      [null, null, null, null, null, null, 'Margem', 4000],
+      [null, null, null, null, null, null, ...CAB],
+      [null, null, null, null, null, null, '03/11/2026', 'VENDA', 'PUT', 'CURTA', 120, 'X150', 150, 'SIM', '18/12/2026', 1.5],
+      [null, null, null, null, null, null, '10/11/2026', 'VENDA', 'CALL', 'CURTA', 120, 'L160', 160, 'SIM', '18/12/2026', 2],
+    ], 'Pioneira');
+    const imp = await pedir('davi', 'POST', '/api/fazenda/importar', { arquivo: { nome: 'fazenda.xlsx', conteudo: xlsx.toString('base64') } });
+    assert.equal(imp.status, 200, JSON.stringify(imp.corpo));
+    assert.deepEqual(imp.corpo.vacas, [{ nome: 'PIONEIRA', operacoes: 2, nova: true }]);
+    const id = (await pedir('davi', 'GET', '/api/fazenda')).corpo.vacas[0].id;
+    assert.equal((await pedir('davi', 'PATCH', `/api/fazenda/vacas/${id}`, { ativoObjeto: 'FAZE11' })).status, 200);
+    // A mesma venda de call veio da nota (execução): liga, não duplica. Uma nova put entra sozinha.
+    assert.equal((await pedir('davi', 'POST', '/api/carteira/posicao-inicial', { codigo: 'FAZEL160', lado: 'venda', quantidade: 120, preco: 200, data: '2026-11-10' })).status, 201);
+    assert.equal((await pedir('davi', 'POST', '/api/carteira/posicao-inicial', { codigo: 'FAZEX150', lado: 'compra', quantidade: 120, preco: 50, data: '2026-11-20' })).status, 201);
+    const f = (await pedir('davi', 'GET', '/api/fazenda')).corpo;
+    const v = f.vacas[0];
+    assert.equal(v.linhas.length, 3);
+    assert.deepEqual(v.linhas.map((l: any) => [l.data, l.lado, l.tipo, l.total, l.saldo, l.origem]), [
+      ['2026-11-03', 'venda', 'put', 18000, 18000, 'planilha'],
+      ['2026-11-10', 'venda', 'call', 24000, 42000, 'planilha'],
+      ['2026-11-20', 'compra', 'put', -6000, 36000, 'nota'],
+    ]);
+    assert.ok(v.linhas[1].execucaoId, 'a operação da planilha ficou ligada à execução da nota');
+    assert.equal(v.resumo.ordenhaBruta, 36000);
+    assert.equal(v.margem, 400000);
+    assert.deepEqual([v.resumo.callsAbertas, v.resumo.putsAbertas], [120, 0]);
+    assert.equal(f.paraDistribuir.length, 0);
+    // Importar a planilha de novo não duplica.
+    await pedir('davi', 'POST', '/api/fazenda/importar', { arquivo: { nome: 'fazenda.xlsx', conteudo: xlsx.toString('base64') } });
+    assert.equal((await pedir('davi', 'GET', '/api/fazenda')).corpo.vacas[0].linhas.length, 3);
+    // Outro usuário não vê.
+    assert.deepEqual((await pedir('beto', 'GET', '/api/fazenda')).corpo.vacas, []);
   });
 });
