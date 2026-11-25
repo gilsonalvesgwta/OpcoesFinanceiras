@@ -297,11 +297,11 @@ export default function PaginaFazenda() {
         <section className="fazenda-hero" aria-label="Resumo da fazenda">
           <div className="fazenda-hero-titulo"><span className="lotes-rotulo">Fazenda</span><strong>{t.vacas} vaca{t.vacas === 1 ? '' : 's'} produzindo</strong></div>
           <dl className="fazenda-numeros">
-            <div className="destaque"><dt>Ordenha total</dt><dd className={classe(t.ordenha)}>{formatarReais(t.ordenha)}</dd><span className="lotes-rotulo">líquida estimada (−15% IR) {formatarReais(t.ordenhaLiquidaIr)}</span></div>
-            <div><dt>Ordenha média mensal</dt><dd>{formatarReais(t.mediaMensal)}</dd><span className="lotes-rotulo">soma das vacas</span></div>
-            <div><dt>Rentabilidade média</dt><dd>{pctMes(t.rentabilidade)}</dd><span className="lotes-rotulo">ponderada pela margem</span></div>
-            <div><dt>Margem</dt><dd>{formatarReais(t.margem)}</dd><span className="lotes-rotulo">garantia reservada</span></div>
-            <div><dt>Risco PUT</dt><dd>{formatarReais(t.riscoPut)}</dd><span className="lotes-rotulo">puts vendidas em aberto × preço</span></div>
+            <div className="destaque"><dt>Ordenha total</dt><dd className={classe(t.ordenha)}>{formatarReais(t.ordenha)}</dd><dd className="fazenda-nota">líquida estimada (−15% IR) {formatarReais(t.ordenhaLiquidaIr)}</dd></div>
+            <div><dt>Ordenha média mensal</dt><dd>{formatarReais(t.mediaMensal)}</dd><dd className="fazenda-nota">soma das vacas</dd></div>
+            <div><dt>Rentabilidade média</dt><dd>{pctMes(t.rentabilidade)}</dd><dd className="fazenda-nota">ponderada pela margem</dd></div>
+            <div><dt>Margem</dt><dd>{formatarReais(t.margem)}</dd><dd className="fazenda-nota">garantia reservada</dd></div>
+            <div><dt>Risco PUT</dt><dd>{formatarReais(t.riscoPut)}</dd><dd className="fazenda-nota">puts vendidas em aberto × preço</dd></div>
           </dl>
         </section>
       )}
