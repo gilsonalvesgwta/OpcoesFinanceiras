@@ -524,4 +524,11 @@ test.describe.serial('jornada', () => {
     await semViolacoes(page, 'fazenda');
     await foto(page, 'fazenda');
   });
+
+  test('opções por ativo: abre e passa na acessibilidade', async ({ page }) => {
+    await entrarNoPainel(page, EMAIL, SENHA);
+    await page.getByRole('link', { name: 'Opções por ativo' }).click();
+    await expect(page.getByRole('heading', { name: 'Opções por ativo', level: 1 })).toBeVisible();
+    await semViolacoes(page, 'opções por ativo');
+  });
 });

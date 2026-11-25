@@ -19,6 +19,7 @@ const PRINCIPAL: Item[] = [
   { href: '/', nome: 'Painel', icone: 'painel' },
   { href: '/carteira', nome: 'Minha carteira', icone: 'carteira' },
   { href: '/fazenda', nome: 'Vaca (Fazenda)', icone: 'fazenda' },
+  { href: '/opcoes-ativo', nome: 'Opções por ativo', icone: 'cadeia' },
   { href: '/ativos', nome: 'Ativos', icone: 'ativos' },
   { href: '/simulador', nome: 'Simulador', icone: 'simulador' },
   { href: '/alertas', nome: 'Alertas', icone: 'alertas' },

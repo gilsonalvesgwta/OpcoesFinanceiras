@@ -25,3 +25,4 @@ export * from './nota-corretagem.ts';
 export * from './carteira.ts';
 export * from './extrato-b3.ts';
 export * from './fazenda.ts';
+export * from './opcoes-do-ativo.ts';
