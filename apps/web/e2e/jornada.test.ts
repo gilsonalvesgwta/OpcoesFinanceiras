@@ -488,8 +488,9 @@ test.describe.serial('jornada', () => {
     await expect.poll(qtdItub).toBe(antes + 100);
     // Lotes: um por compra, com o preço de cada um e o preço médio geral.
     await expect(page.getByRole('heading', { name: 'Seus lotes de ITUB4' })).toBeVisible();
-    await expect(page.getByText(/Comprado em 01\/10\/2026/)).toBeVisible();
-    await expect(page.getByText('Preço médio geral').first()).toBeVisible();
+    await expect(page.getByText(/seu preço médio R\$/).first()).toBeVisible();
+    await page.getByRole('button', { name: /^Ver os \d+ lotes/ }).click();
+    await expect(page.getByRole('cell', { name: '01/10/2026' })).toBeVisible();
     await semViolacoes(page, 'carteira');
     await foto(page, 'carteira');
     // Simular a partir da posição real.

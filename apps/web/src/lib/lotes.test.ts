@@ -20,3 +20,18 @@ test('link para simular o lote e leitura do ?lote', () => {
   assert.equal(lerLote('abc'), null);
   assert.equal(lerLote('0:10'), null);
 });
+
+test('faixas dos lotes: no máximo 8, com quantidade, custo médio e a call do lote mais caro', async () => {
+  const { faixasDosLotes, passoDasFaixas } = await import('./lotes.ts');
+  const lote = (data: string, quantidade: number, precoComCustos: number, strike: number | null) => ({
+    instante: data, data, quantidadeOriginal: quantidade, quantidade, preco: Math.round(precoComCustos), precoComCustos, custo: Math.round(quantidade * precoComCustos),
+    resultado: null, resultadoFracao: null,
+    sugestao: strike === null ? null : { codigo: `BBAS${strike}`, strike, vencimento: '2026-12-18', dias: 23, premio: 40, origemDoPremio: 'bid' as const, qualidade: null, receita: null, premioFracao: null, seExercido: null, seExercidoFracao: null },
+  });
+  const f = faixasDosLotes([lote('a', 100, 1412, 1450), lote('b', 200, 1434, 1450), lote('c', 200, 1512, 1550), lote('d', 100, 2850, 2900)], 1416, 1914);
+  assert.equal(passoDasFaixas(1412, 2850), 200);
+  assert.deepEqual(f.map((x) => [x.de, x.ate, x.quantidade, x.lotes.length, x.sugestao?.strike]), [[1400, 1600, 500, 3, 1550], [2800, 3000, 100, 1, 2900]]);
+  assert.equal(f[0]?.temAgora, true);
+  assert.equal(f[0]?.sugestao?.receitaDaFaixa, 500 * 40);
+  assert.equal(f[0]?.sugestao?.seExercidoDaFaixa, 500 * 1550 - (141200 + 286800 + 302400) + 20000);
+});
