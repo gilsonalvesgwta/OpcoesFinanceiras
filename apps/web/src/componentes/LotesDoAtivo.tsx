@@ -33,6 +33,10 @@ export function LotesDoAtivo({ ativo, acao, callsVendidas }: { ativo: string; ac
           {lotes.length} lote{lotes.length > 1 ? 's' : ''} · {acao.quantidade.toLocaleString('pt-BR')} ações
           {cobertas > 0 ? ` · ${cobertas.toLocaleString('pt-BR')} já cobertas por calls, ${livres.toLocaleString('pt-BR')} livres` : ''}
         </span>
+        <span className="faixa-marcas">
+          <span className="faixa-selo pm">seu preço médio R$ {reais(acao.precoMedioComCustos)}</span>
+          {acao.preco !== null && <span className="faixa-selo agora">preço agora R$ {reais(acao.preco)}</span>}
+        </span>
       </div>
 
       <ol className="faixas" aria-label={`Faixas de preço dos lotes de ${ativo}`}>
@@ -59,8 +63,8 @@ export function LotesDoAtivo({ ativo, acao, callsVendidas }: { ativo: string; ac
               </div>
               {(f.temPm || f.temAgora) && (
                 <div className="faixa-marcas">
-                  {f.temAgora && <span className="faixa-selo agora">preço agora R$ {reais(acao.preco)}</span>}
-                  {f.temPm && <span className="faixa-selo pm">seu preço médio R$ {reais(acao.precoMedioComCustos)}</span>}
+                  {f.temAgora && <span className="faixa-selo agora">o preço de agora está nesta faixa</span>}
+                  {f.temPm && <span className="faixa-selo pm">seu preço médio está nesta faixa</span>}
                 </div>
               )}
               {s ? (
