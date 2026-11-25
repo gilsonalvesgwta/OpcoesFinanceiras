@@ -416,13 +416,14 @@ export async function rotasDaCarteira(app: FastifyInstance, dep: Dependencias, c
       // mensal do primeiro vencimento com pelo menos 5 dias, menor strike ≥ custo do lote.
       const lotes = lotesAbertos(execs);
       const seriesDoAtivo = new Map<string, { codigo: string; strike: number; vencimento: string }[]>();
+      const ultimoVisto = (await c.query('select max(visto_ultimo) as d from series_opcoes')).rows[0]?.d ?? null;
       for (const p of abertas) {
         if (p.tipo !== 'ativo' || p.quantidade <= 0) continue;
         const r = await c.query(
           `select codigo, strike::int as strike, to_char(vencimento, 'YYYY-MM-DD') as vencimento from series_opcoes
            where ativo_objeto = $1 and tipo = 'call' and vencimento >= $2::date + 5 and codigo !~ 'W[0-9]$'
-             and visto_ultimo >= (select max(visto_ultimo) from series_opcoes) - 5
-           order by vencimento, strike`, [p.codigo, hoje],
+             and visto_ultimo >= $3::date - 5
+           order by vencimento, strike`, [p.codigo, hoje, ultimoVisto ?? hoje],
         );
         const primeiro = r.rows[0]?.vencimento as string | undefined;
         seriesDoAtivo.set(p.codigo, r.rows.filter((x) => x.vencimento === primeiro) as { codigo: string; strike: number; vencimento: string }[]);

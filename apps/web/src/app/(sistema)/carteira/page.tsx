@@ -33,13 +33,18 @@ export default function PaginaCarteira() {
   const [inicial, setInicial] = useState({ codigo: '', lado: 'compra' as 'compra' | 'venda', quantidade: '', preco: '', data: '', strike: '', vencimento: '' });
   const arquivos = useRef<HTMLInputElement>(null);
 
+  const carregando = useRef(false);
   const carregar = useCallback(async () => {
+    if (carregando.current) return; // não empilha consultas se a anterior ainda não voltou
+    carregando.current = true;
     try {
       const [c, n] = await Promise.all([chamar<Carteira>('GET', '/api/carteira'), chamar<{ notas: NotaImportada[] }>('GET', '/api/notas')]);
       setCarteira(c);
       setNotas(n.notas);
     } catch (x) {
       setErro(x instanceof Error ? x.message : 'Não foi possível carregar a carteira.');
+    } finally {
+      carregando.current = false;
     }
   }, []);
   useEffect(() => {
@@ -164,6 +169,7 @@ export default function PaginaCarteira() {
       <MensagemDeErro texto={erro} />
       {aviso && <p className="sucesso-titulo" role="status" style={{ margin: 0 }}>{aviso}</p>}
 
+      {!carteira && !erro && <section className="secao"><p className="secao-vazia" role="status">Carregando sua carteira…</p></section>}
       {carteira && carteira.grupos.length === 0 && (
         <section className="secao"><p className="secao-vazia">Nenhuma posição ainda. Importe o extrato da B3 ou as notas de corretagem em &quot;Importar e lançar operações&quot;, abaixo.</p></section>
       )}
