@@ -190,7 +190,7 @@ export function VisaoDaCarteira({ carteira }: { carteira: Carteira }) {
       <section className="carteira-resumo" aria-label="Resumo da carteira">
         <div className="carteira-cartoes">
           <div className="carteira-cartao destaque"><span className="lotes-rotulo">Patrimônio em bolsa</span><strong>{formatarReais(patrimonio)}</strong><span className="lotes-rotulo">ações, fundos, ETFs e renda fixa pelo preço de agora</span></div>
-          <div className="carteira-cartao"><span className="lotes-rotulo">Resultado em aberto</span><strong className={classe(t.resultadoEmAberto)}>{sinal(t.resultadoEmAberto)}</strong><span className="lotes-rotulo">contra o preço médio com custos (inclui opções)</span></div>
+          <div className="carteira-cartao"><span className="lotes-rotulo">Resultado em aberto</span><strong className={classe(t.resultadoEmAberto)}>{sinal(t.resultadoEmAberto)}</strong><span className="lotes-rotulo">{t.semPreco?.length ? `sem preço agora: ${t.semPreco.slice(0, 4).join(', ')}${t.semPreco.length > 4 ? '…' : ''}` : 'contra o preço médio com custos (inclui opções)'}</span></div>
           <div className="carteira-cartao"><span className="lotes-rotulo">Realizado (líquido)</span><strong className={classe(t.realizadoLiquido)}>{sinal(t.realizadoLiquido)}</strong><span className="lotes-rotulo">bruto {formatarReais(t.realizadoBruto)}</span></div>
           <div className="carteira-cartao"><span className="lotes-rotulo">Custos pagos</span><strong>{formatarReais(t.custosPagos)}</strong><span className="lotes-rotulo">corretagem, taxas e emolumentos</span></div>
         </div>

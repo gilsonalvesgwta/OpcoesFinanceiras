@@ -34,6 +34,7 @@ export default function PaginaCarteira() {
   const arquivos = useRef<HTMLInputElement>(null);
 
   const carregando = useRef(false);
+  const [erroDeCarga, setErroDeCarga] = useState<string | null>(null);
   const carregar = useCallback(async () => {
     if (carregando.current) return; // não empilha consultas se a anterior ainda não voltou
     carregando.current = true;
@@ -41,8 +42,10 @@ export default function PaginaCarteira() {
       const [c, n] = await Promise.all([chamar<Carteira>('GET', '/api/carteira'), chamar<{ notas: NotaImportada[] }>('GET', '/api/notas')]);
       setCarteira(c);
       setNotas(n.notas);
+      setErroDeCarga(null);
     } catch (x) {
-      setErro(x instanceof Error ? x.message : 'Não foi possível carregar a carteira.');
+      // Uma atualização que falha não apaga o que já está na tela; tenta de novo em 5 s.
+      setErroDeCarga(x instanceof Error ? x.message : 'Não foi possível carregar a carteira.');
     } finally {
       carregando.current = false;
     }
@@ -169,7 +172,8 @@ export default function PaginaCarteira() {
       <MensagemDeErro texto={erro} />
       {aviso && <p className="sucesso-titulo" role="status" style={{ margin: 0 }}>{aviso}</p>}
 
-      {!carteira && !erro && <section className="secao"><p className="secao-vazia" role="status">Carregando sua carteira…</p></section>}
+      {erroDeCarga && !carteira && <MensagemDeErro texto={erroDeCarga} />}
+      {!carteira && !erro && !erroDeCarga && <section className="secao"><p className="secao-vazia" role="status">Carregando sua carteira…</p></section>}
       {carteira && carteira.grupos.length === 0 && (
         <section className="secao"><p className="secao-vazia">Nenhuma posição ainda. Importe o extrato da B3 ou as notas de corretagem em &quot;Importar e lançar operações&quot;, abaixo.</p></section>
       )}
