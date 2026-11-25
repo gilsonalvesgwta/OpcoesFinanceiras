@@ -327,4 +327,17 @@ describe('carteira de ponta a ponta', { skip: pular ? 'sem as URLs do banco' : f
     // Outro usuário não vê.
     assert.deepEqual((await pedir('beto', 'GET', '/api/fazenda')).corpo.vacas, []);
   });
+
+  test('opções por ativo: prêmio por mês, séries, acerto e cobertura vindos das execuções', async () => {
+    const at = (await pedir('carla', 'GET', '/api/opcoes-do-ativo/ativos')).corpo.ativos;
+    assert.equal(at[0].ativo, 'CART3');
+    const r = await pedir('carla', 'GET', '/api/opcoes-do-ativo?ativo=CART3');
+    assert.equal(r.status, 200, JSON.stringify(r.corpo));
+    const t = r.corpo.totais;
+    assert.deepEqual([t.vendas, t.compras, t.liquido, t.series, t.encerradas, t.comLucro, t.acerto], [9000, 0, 9000, 3, 2, 2, 1]);
+    assert.deepEqual(t.cobertura, { acoes: 110, callsVendidas: 100, descobertas: 0 });
+    assert.deepEqual(r.corpo.meses.map((m: any) => [m.mes, m.liquido]), [['2026-07', 3000], ['2026-08', 2000], ['2026-11', 4000]]);
+    assert.equal(r.corpo.operacoes[0].codigo, 'CARTL145'); // mais recente primeiro
+    assert.equal((await pedir('beto', 'GET', '/api/opcoes-do-ativo?ativo=ZZZZ3')).status, 404);
+  });
 });
